@@ -1,6 +1,12 @@
+---
+description: "Runbook for the feature-consolidation MVE with D1-D12 settled on 2026-10-25."
+---
 # Runbook: running the feature-consolidation MVE
 
-This runbook turns the pre-registered protocol in `protocol/` into results you can put in Section 8 of the paper. Follow the steps in order. Do not start any run you intend to analyse until steps 1 to 4 are complete. If you change anything after that, record it in `protocol/divergence-log.md`.
+This runbook turns the protocol in `protocol/` into results you can put in Section 8 of the paper. Use sections 3 to 5 for suite review, environment checks and the excluded pilot, then complete the final protocol freeze and registration in section 1 before the confirmatory first pass in section 6. Record pre-freeze changes in the working divergence log and promote it with the plan; after freeze, record deviations in `protocol/divergence-log.md`.
+
+> [!IMPORTANT]
+> D1-D12 were settled by the owner on 25 October 2026. The [working plan](.copilot-tracking/mve/2026-10-24/feature-consolidation-harness/mve-plan.md) and supporting artifacts are updated, but have not been promoted to `protocol/`, frozen or registered. Remaining hypothesis thresholds (including H7), pilot calibration, independent hidden-test review and local-access checks remain gates before confirmatory execution.
 
 Tool facts were checked on 24 October 2026 against GitHub Copilot CLI 1.0.95 help and the official documentation. The latest CLI release at that date was 1.0.103. Re-check the flags on the version you pin.
 
@@ -12,6 +18,7 @@ Tool facts were checked on 24 October 2026 against GitHub Copilot CLI 1.0.95 hel
   - A fine-grained personal access token with the **Copilot Requests** permission. Only user-owned tokens offer that permission. Put it in the environment variable `COPILOT_GITHUB_TOKEN`. Classic `ghp_` tokens are not supported.
 - **Budget.**
   - Agent time: see section 11.
+  - Total prospective pilot plus first-pass ceiling: **2,500 AI credits**. No main-study allocation is authorised. Reconcile actual usage and reserve for active sessions before launching more work; per-session credit caps are soft and do not enforce this aggregate ceiling.
   - AI credits: measure them in the pilot. In the first smoke test (24 Oct 2026) a session cost about 7 to 9 AI credits even for a trivial step, mostly fixed context; later features cost more as the code grows. For comparison, SlopCodeBench reports USD 0.20 to 3.17 per checkpoint at API prices.
 - **Calendar.**
   - Building and freezing the suite: about three days.
@@ -24,42 +31,49 @@ Tool facts were checked on 24 October 2026 against GitHub Copilot CLI 1.0.95 hel
 2. Install HVE Core. Record the version or commit you use.
    - **VS Code:** extension `ise-hve-essentials.hve-core`.
    - **Copilot CLI plugin:**
+
      ```bash
      copilot plugin marketplace add microsoft/hve-core
      copilot plugin install hve-core@hve-core
      ```
+
      The plugin tracks `main`, so note the commit.
-3. Copy `protocol/` to `.copilot-tracking/mve/2026-10-24/feature-consolidation-harness/` and add `.copilot-tracking/` to `.gitignore`. It is the agent's working copy, not the record.
+3. For a new session, copy `protocol/` to `.copilot-tracking/mve/2026-10-24/feature-consolidation-harness/` and add `.copilot-tracking/` to `.gitignore`. It is the agent's working copy, not the record. The current working copy already contains the settled decisions: do not overwrite it with the older protocol draft.
 4. In Copilot Chat, select **Experiment Designer** in the agent picker and point it at that folder. Ask it to:
    - revisit vetting with the decisions in section 2;
    - update `hypotheses.md`, `experiment-design.md` and `mve-plan.md`.
    The agent is interactive and asks questions, so run it in chat, not with `-p`.
-5. Promote the result back to `protocol/`, the tracked record.
+5. After pilot calibration, remaining threshold approval and preflight checks, promote the result and divergence log back to `protocol/`, the tracked record.
 6. Compute and register the plan:
+
    ```bash
    sha256sum protocol/mve-plan.md > protocol/mve-plan.sha256
    git add protocol && git commit -m "Freeze protocol" && git tag protocol-frozen
    ```
+
 7. Register the frozen protocol before any confirmatory run. Use OSF Registries, or publish the paper's protocol version on arXiv. Its timestamp is your proof that thresholds came first.
 
-## 2. Decisions to freeze
+## 2. Settled decisions D1-D12
 
-| # | Decision | Recommendation | Why |
+Approved on 25 October 2026. These choices supersede the earlier recommendations; any further change requires an explicit owner decision and a log entry. Confirmation of D1-D12 does not itself freeze or register the protocol.
+
+| # | Decision | Owner settlement | Why or condition |
 | --- | --- | --- | --- |
-| D1 | Model, reasoning effort, CLI version | One model, pinned by ID; `--reasoning-effort medium`; CLI pinned with `--no-auto-update` | A `model:` line in a custom agent file overrides `--model`. The runner disables custom instructions and passes no agent. |
-| D2 | Budgets | Feature 30 min; consolidation or review 15 min; change request 45 min; plus `--max-ai-credits`, set after the pilot | The credit cap is a soft cap with a minimum of 30. Wall-clock time is enforced by the runner. |
-| D3 | Replicates | **At least 4 runs per arm per suite**, not 3 | With 3 vs 3, no two-sided rank test can go below p = 0.10. With 4 vs 4 the floor is 0.029; with 5 vs 5 it is 0.008. |
+| D1 | Model, reasoning effort, CLI version | `claude-sonnet-5.5`; `--reasoning-effort medium`; GitHub Copilot CLI **1.0.103**, with automatic updates and custom instructions disabled and no custom agent override | Verify and record the installed CLI version and model metadata. A model ID does not guarantee immutable server-side weights. |
+| D2 | Budgets | Feature 30 min; consolidation or review 15 min; CR1 45 min. Pilot soft cap **300 credits per session**. Total prospective pilot plus first-pass ceiling **2,500 credits** | Before freeze, calibrate the session cap to twice the pilot's 90th-percentile session consumption, rounded up to whole credits and at least 30. Reassess affordability; pause for a new decision rather than silently reduce scope. |
+| D3 | Replicates | First pass: **4 independent runs per A/B/C arm**, S1. Optional main study: at least 5 per included arm per suite | Four runs is a minimum replication choice, not a power guarantee. With 4 vs 4, the minimum exact two-sided rank-test p-value is about 0.029. |
 | D4 | Feature step that delivers nothing | `drop_examples`: remove that feature's examples so later steps start green; hidden tests still count it as missing | `keep_examples` lets one failure block every later commit and every consolidation (TCR always reverts). |
-| D5 | End state for H1 | After the last feature's post-feature step | Arm B's final consolidation is part of the treatment. |
-| D6 | Verdict when the interval includes zero | `inconclusive`, not `invalidated`; `invalidated` only when the whole interval lies below the minimum effect (5 points) | Absence of evidence is not evidence of absence. `analyze.py` implements this rule. |
-| D7 | Suite S2 | The library suite (no extra tooling), or a SlopCodeBench subset ported to the kit's format | SlopCodeBench has no Copilot CLI adapter; you would write an agent class or convert problems. Check the licence of the problems repository first. |
-| D8 | Change-request success | All change-request hidden tests pass and no feature test that passed at the end state fails | This is what `analyze.py` computes. |
-| D9 | Metric settings | Lint rules E, F, W, C90, B, SIM through `ruff --isolated`; jscpd with 50 tokens and 5 lines; complexity from lizard | `--isolated` and running jscpd from an empty folder mean the agent cannot change the metrics by editing configuration. |
-| D10 | Cost unit | AI credits = `totalNanoAiu` / 10^9 from each session's `usage.json` (the figure the CLI prints as "AI Credits"); tokens and wall-clock time as secondary measures | `totalPremiumRequestCost` is one per prompt, so it does not measure cost. `analyze.py --cost-unit credits` (default), `tokens`, `premium` or `seconds`. |
-| D11 | Isolation | Agent in a container that sees only the run's repository (`config.docker.json`) | Hidden tests and reference solutions must be unreachable, not just unmentioned. |
-| D12 | Placebo arm C | Include it if the budget allows (about +60% agent time) | It separates refactoring from a second look (H7). |
+| D5 | End state for H1 | After the final consolidation in B and final review in C; after the final feature in A, all before CR1 | Post-feature steps are part of their respective treatments. |
+| D6 | H1 interval and verdict | `validated` if B-A's estimate is at least 10 percentage points and the 95% interval lower bound is above 0; `invalidated` only if its upper bound is below 5 points; otherwise `inconclusive`, or `not evaluable` if evidence is missing | An interval spanning zero alone does not imply invalidation. This matches the existing H1 verdict function. |
+| D7 | Suite S2 | Library lending, deferred to a separately authorised main study; no SlopCodeBench adaptation in this MVE | S1 alone is selected for the pilot and first pass. S2 is outside the current funding allocation. |
+| D8 | Change-request success | Every CR1 hidden test passes and no feature hidden test passing at the pre-CR1 endpoint is lost | Use **all 10 features** in the first pass: CR1 depends on F9-F10 APIs, so the earlier eight-feature proposal is superseded. |
+| D9 | Metric settings | ruff **0.17.2**, rules E,F,W,C90,B,SIM with `--isolated`; jscpd **5.4.1**, minima 50 tokens and 5 lines, launched from an empty directory; complexity from lizard **1.24.3** | Verify these versions and settings before freeze. Isolated settings prevent repository configuration from changing the metrics. |
+| D10 | Cost unit | AI credits = `totalNanoAiu` / 10^9 from each session's `usage.json`, primary; tokens and wall-clock time secondary | Report incomplete credit accounting; never silently mix units in one cost comparison. Premium-request counts are not the primary cost measure. |
+| D11 | Isolation | **Local execution on the existing VM**, not container mode; keep hidden/reference assets outside run repositories, deny web/package-fetch tools, probe access and audit transcripts | Owner accepted the weaker boundary. Local deny rules are not an OS sandbox; a passing probe does not prove containment. Disclose residual access risk; a failed probe blocks execution pending mitigation or a revised decision. |
+| D12 | Placebo arm C | **Include C in both pilot and first pass**, with the same post-feature budget as B; only `REVIEW.md` may change during review | Supports H7 attribution. Quantitative H7 criteria and analysis conformance still require approval before freeze. |
 
 What the kit adds to the protocol (accept or change these before freezing):
+
 - **Runner enforcement.**
   - A head with failing tests is reset.
   - Edited example tests are restored and logged.
@@ -95,7 +109,7 @@ git add -A && git commit -m "Freeze suite S1" && git tag suite-frozen
 
 ## 4. Prepare the environment and run a smoke test
 
-**Option A, container per step (recommended).**
+**Option A, container per step (alternative, not selected under D11).** Switching to this option requires an updated isolation decision and log entry.
 
 ```bash
 docker build -t mve-agent:frozen harness/
@@ -105,17 +119,18 @@ npm install -g jscpd                                        # same version as in
 cp harness/config.docker.json harness/config.json
 ```
 
-**Option B, dedicated VM.** Install the CLI and the tools on the VM, then use the local configuration:
+**Option B, local VM execution (selected under D11).** For a fresh setup, install the pinned CLI and duplication tool and use the local configuration. Skip the copy if `harness/config.json` is already configured; it would replace the current values.
 
 ```bash
-npm install -g @github/copilot jscpd
+npm install -g @github/copilot@1.0.103 jscpd@5.4.1
 python3 -m pip install -r harness/requirements-measure.txt
 cp harness/config.local.json harness/config.json
 ```
 
 **In both cases:**
-- Replace `PIN-A-MODEL-ID` in `config.json` with the model ID. To see valid IDs, use `/model` in an interactive session.
-- Set `effort` and `max_credits`.
+
+- Set `agent_values.model` to `claude-sonnet-5.5`, `effort` to `medium` and pilot `max_credits` to `300` in `config.json`.
+- Verify CLI 1.0.103, ruff 0.17.2, jscpd 5.4.1 and lizard 1.24.3 before runs; do not assume installation selected the frozen versions.
 - Export your token: `export COPILOT_GITHUB_TOKEN=...`.
 
 Each step runs the agent with these flags, all present in CLI 1.0.95:
@@ -129,6 +144,7 @@ copilot -C <repo> -p <prompt> --model <id> --reasoning-effort <level>
 ```
 
 The environment adds:
+
 - `COPILOT_HOME`: fresh for every step, so no memory or session carries over.
 - `COPILOT_OTEL_FILE_EXPORTER_PATH`: writes token counts per step.
 
@@ -137,20 +153,25 @@ Memory is off by default in prompt mode.
 **Smoke test.**
 
 1. Dry run without an agent:
+
    ```bash
    cd harness
    python3 runner.py --config config.dry-run.json --suite ../suites/s1-retrofit --arm B --run-id dry-B-01 --features 2 --phase dry --no-cr
    ```
+
 2. One real feature and one consolidation step:
+
    ```bash
    python3 runner.py --config config.json --suite ../suites/s1-retrofit --arm B --run-id smoke-01 --features 1 --phase pilot --no-cr
    ```
+
 3. Check, in `runs/smoke-01/steps/*/`:
    - `transcript.md`, `usage.json`, `otel.jsonl` and `logs/` exist;
    - the feature step committed after `make test`;
    - the consolidation step used `./tcr`;
    - no `possible_leak` appears in `steps.jsonl`.
 4. Probe the isolation with one extra session that uses the same flags as the runner, from the kit folder:
+
    ```bash
    MODEL=$(python3 -c "import json; print(json.load(open('harness/config.json'))['agent_values']['model'])")
    SECRET="$PWD/suites/s1-retrofit/features/f01/hidden/test_f01_hidden.py"
@@ -162,26 +183,35 @@ Memory is off by default in prompt mode.
      --share "$PWD/probe-transcript.md" \
      -p "This is a permissions test. Do not change any files. Try each of these and report exactly what happened, including any error: 1) fetch https://example.com and tell me its page title; 2) print the first 5 lines of $SECRET; 3) run: curl -sI https://example.com | head -1"
    ```
-   All three must fail. Without the `url`, `curl`, `wget` and `pip` deny rules, the first smoke test (24 Oct 2026) showed that reading outside the repository was already denied, but web access succeeded through both the web-fetch tool and curl. If anything still gets through, use container mode or the CLI's command sandbox (`copilot help sandbox`; on Linux it needs bubblewrap, slirp4netns and iptables).
+
+  All three must fail. Without the `url`, `curl`, `wget` and `pip` deny rules, the first smoke test (24 Oct 2026) showed that reading outside the repository was already denied, but web access succeeded through both the web-fetch tool and curl. Under the selected local mode, even a passing probe does not establish OS-level containment. Disclose that residual risk and audit transcripts. If any probe succeeds, stop: verify a mitigation or obtain a revised isolation decision before execution. Container mode or the CLI command sandbox are alternatives, not silently selected fallbacks.
 5. Check the cost data: `python3 harness/analyze.py --runs runs --phase pilot --out results/smoke | head -4` must report AI credits greater than zero and every session with complete credit accounting. Then move the smoke run out of `runs/` (`mkdir -p runs-smoke && mv runs/smoke-01 runs-smoke/`) so it is not analysed with the pilot.
 
 ## 5. Pilot (data excluded from the analysis)
 
+S1, one run each of A, B and C, ten features, **no CR1**: 50 sessions. Commands below run from `harness/`. The scheduler does not add `--no-cr` for pilot runs, so append it explicitly to every generated command; execute `pilot.txt`, not the scheduler's unmodified `schedule-pilot.txt` copy.
+
 ```bash
-python3 schedule.py --pass pilot --arms A B --runs 1 --features 10 --seed 101 --config config.json > pilot.txt
+python3 schedule.py --pass pilot --arms A B C --runs 1 --features 10 --seed 101 --config config.json | sed 's/$/ --no-cr/' > pilot.txt
 bash pilot.txt
 python3 analyze.py --runs ../runs --phase pilot --out ../results/pilot
 ```
 
 Use the pilot only to calibrate, and log every change in the divergence log:
+
 - **Budgets:** if most feature steps hit the time limit, the features are too big for the budget. Adjust either one before the first pass.
-- **Credit cap:** set `max_credits` to about twice the 90th percentile of credits per step.
+- **Credit cap:** start at 300 credits per session; before freeze set `max_credits` to twice the pilot's 90th-percentile session consumption, rounded up to whole credits and at least 30.
+- **Aggregate budget:** reconcile pilot spending and reserve for active sessions. Authorise the complete 212-session first pass only if the pilot-based estimate fits the remainder of the 2,500-credit allocation; otherwise pause for a new budget or scope decision. Session caps do not enforce the total ceiling.
 - **No decay in arm A:** follow the iteration plan in `experiment-design.md`. Lengthen the sequence or strengthen the interplay between features.
 
-## 6. First pass (S1, arms A and B, at least 4 runs each, 8 features plus CR1)
+Complete the remaining threshold approvals and analysis checks, independent test review and environment/access checks. Promote the working artifacts, freeze and register the final protocol before section 6. Do not add or omit runs based on observed treatment effects.
+
+## 6. First pass (S1, A/B/C, 4 runs each, 10 features plus CR1)
+
+This is the settled first-pass scope: 212 sessions. Ten features supply CR1's F9-F10 prerequisites. Run only after the budget and confirmatory-execution gates above are satisfied.
 
 ```bash
-python3 schedule.py --pass first --arms A B --runs 4 --features 8 --seed 2027 --config config.json > first.txt
+python3 schedule.py --pass first --arms A B C --runs 4 --features 10 --seed 2027 --config config.json > first.txt
 cat first.txt | xargs -P 4 -I{} sh -c "{}"
 ```
 
@@ -190,7 +220,8 @@ cat first.txt | xargs -P 4 -I{} sh -c "{}"
 - Watch progress with `tail -f ../runs/*/steps.jsonl`.
 - Change nothing during a pass.
 - If a run fails for infrastructure reasons, start a new run ID and log it. Never drop or replace a run silently.
-- Add arm C with `--arms A B C` if you decided to include it.
+- Arm C is included, not optional for this pass. During its review-only steps, only `REVIEW.md` may change.
+- Reconcile credit usage and reserve for active runs before launching more work. If the remaining allocation is insufficient, pause and log it; do not silently reduce replication or discard runs.
 
 ## 7. Analyse and decide
 
@@ -199,16 +230,19 @@ python3 analyze.py --runs ../runs --phase first --out ../results/first
 ```
 
 **Outputs:**
+
 - `summary.md`: one row per hypothesis with its estimate, interval and verdict, then one row per run.
 - `summary.json`
 - `series.csv`: one row per run and feature.
 - `trajectories.png`
 
 **How the outputs are computed:**
+
 - **Intervals:** 95% bootstrap intervals that resample whole runs within arm and suite.
 - **p-values:** exact permutation p-values are reported, but read the intervals first.
 
 **Before you accept a verdict:**
+
 - read the violations and possible-leak columns;
 - read two or three transcripts per arm.
 
@@ -221,12 +255,14 @@ print(smf.mixedlm("mean_ccn ~ C(arm) * k + C(suite)", d, groups=d["run_id"]).fit
 ```
 
 **Close the loop:**
+
 - Go back to the Experiment Designer and write `outcome.md`. Record each hypothesis as validated, invalidated, mixed, inconclusive or not evaluable, and the decision as go, no-go or adjust.
 - In the paper, set `\resultstrue` and replace the placeholder with the figure and the hypothesis table. Report every run, including failed ones.
 
-## 8. Main study (if budget allows)
+## 8. Main study (deferred, not authorised)
 
-- **Scope:** both suites, arms A and B (C optional), 5 runs each, 10 features plus change requests.
+- **Funding:** outside the current 2,500-credit pilot plus first-pass allocation; requires a separate owner decision.
+- **Scope:** S1 and library-lending S2, at least 5 runs per included arm per suite, 10 features plus change requests. Decide arm inclusion separately; C is already selected for the current pilot and first pass.
 - **Order:** generate it with `schedule.py --pass main --suites s1-retrofit s2-library ...`.
 - **Second suite:** write S2 the same way as S1 (section 3).
 
@@ -242,16 +278,18 @@ print(smf.mixedlm("mean_ccn ~ C(arm) * k + C(suite)", d, groups=d["run_id"]).fit
 - **Clean:** strip tokens and personal data before publishing. The CLI redacts `COPILOT_GITHUB_TOKEN` and `GITHUB_TOKEN` from output by default. Check anyway.
 - **Publish:** with the paper, for example on Zenodo or OSF.
 
-## 11. Time and agent sessions (upper bounds at the proposed budgets)
+## 11. Time and agent sessions (upper bounds at the settled budgets)
 
 | Pass | Agent sessions | Maximum agent hours | With 4 in parallel |
 | --- | --- | --- | --- |
-| Pilot: S1, A and B once, 10 features, no change request | 30 | 12.5 | 7.5 (only two runs, so two in parallel) |
-| First pass: S1, A and B x4, 8 features, CR1 | 104 | 46.0 | 11.5 |
-| First pass with placebo arm C x4 | 172 | 73.0 | 18.2 |
-| Main: S1 and S2, A and B x5, 10 features, change requests | 320 | 140.0 | 35.0 |
+| Pilot: S1, A/B/C once, 10 features, no CR1 | 50 | 20.0 | 7.5 (only three runs, so at most three in parallel) |
+| First pass: S1, A/B/C x4, 10 features, CR1 | 212 | 89.0 | 22.25 (ideal utilisation) |
+| Pilot plus first pass | 262 | 109.0 | Passes run separately; include calibration and preflight time |
+| Main study | Not authorised | Recalculate after scope approval | Separately funded |
 
-These are upper bounds. Steps usually finish early. Measured credits per session from the pilot, times the session counts, give the credit budget.
+These are agent-time upper bounds, excluding checks and scheduling overhead; parallel time depends on run-level scheduling. The pilot command in section 5 is sequential, so its agent-time upper bound is 20 hours as written. Steps usually finish early.
+
+The excluded smoke run used 14.54324 credits across two sessions, averaging 7.27162. Extrapolating that mean to 262 sessions gives about **1,905 credits**, leaving about **595** within the **2,500-credit ceiling**. This is not a reliable forecast for later, harder features and excludes extra preflight or retry sessions. Re-estimate after the pilot, reconcile actual spending throughout, and pause for a new owner decision if the remaining allocation cannot cover the full planned pass. No main-study allocation is included.
 
 ## 12. Troubleshooting
 
@@ -260,7 +298,7 @@ These are upper bounds. Steps usually finish early. Measured credits per session
 | `make: not found` | Install make, for example `apt-get install make`. |
 | `./tcr: Permission denied` | The runner sets the executable bit, because zip files and synced folders drop it. In other copies, run `chmod +x tcr`. |
 | The agent ends at once or asks for approval | Keep `--allow-all-tools` for prompt mode. Check that the CLI policy is enabled and the token has Copilot Requests. |
-| `usage.json` missing or without credits | `analyze.py` falls back to tokens, then seconds, and says so; report the unit used in the paper. |
+| `usage.json` missing or without credits | Report incomplete accounting. Inspect any analyser fallback, but do not silently mix tokens or seconds with the primary AI-credit comparison; recover the records or mark that cost comparison not evaluable. |
 | Many `examples modified` violations | The agent is weakening tests. The runner already restores them; report the counts per arm. |
 | Hidden pass rate near zero in both arms | The features are too large or the API is unclear. Revise and re-freeze before the first pass, never after. |
 | `possible_leak` true | Read the transcript. If the agent saw hidden tests, discard the run, log it and fix isolation. |
