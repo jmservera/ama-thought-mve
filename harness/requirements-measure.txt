@@ -1,0 +1,7 @@
+# Host-side tools for the runner's green check and the measurements (install the same versions as the image).
+pytest
+pytest-timeout
+lizard
+radon
+ruff
+# jscpd: install the same version as the image (npm install -g jscpd, or the v5 binary)

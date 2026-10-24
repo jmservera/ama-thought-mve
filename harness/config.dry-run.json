@@ -1,0 +1,13 @@
+{
+  "comment": "Offline dry run with the fake agent and the standard-library fallbacks. Not for real measurements.",
+  "runs_dir": "../runs-dry",
+  "features": 2,
+  "budgets_seconds": {"feature": 120, "post": 60, "change_request": 120},
+  "on_undelivered": "drop_examples",
+  "env": {"TEST_CMD": "python3 $MVE_HARNESS/stdlib_tests.py tests --src src -q",
+          "MVE_COMPLEXITY": "internal", "MVE_DUPLICATION": "internal", "MVE_LINT": "none"},
+  "agent_command": ["python3", "{harness}/fake_agent.py", "--prompt", "{prompt}", "--repo", "{repo}", "--suite", "{suite}"],
+  "agent_env": {},
+  "measure": {"test_runner": "stdlib", "complexity": "internal", "duplication": "internal", "lint": "none"},
+  "version_commands": {"python": "python3 --version", "git": "git --version"}
+}

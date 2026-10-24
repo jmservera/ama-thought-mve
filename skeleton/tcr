@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# test && commit || revert.  Usage: ./tcr "message"
+# Commits every change if `make test` passes; otherwise discards all uncommitted changes.
+if make -s test > /tmp/tcr.log 2>&1; then
+  git add -A && git commit -q -m "tcr: ${1:-refactor}" && echo "TCR: committed"
+else
+  git reset -q --hard && git clean -qfd -e reports/ && echo "TCR: reverted, tests failed" && tail -n 20 /tmp/tcr.log
+  exit 1
+fi

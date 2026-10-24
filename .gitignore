@@ -1,0 +1,6 @@
+# Run outputs contain nested git repositories and large logs: archive them separately.
+runs/
+runs-dry/
+results-dry/
+.copilot-tracking/
+__pycache__/

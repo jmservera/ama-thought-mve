@@ -1,0 +1,196 @@
+{
+  "name": "s1-retrofit",
+  "package": "workbench",
+  "language": "python",
+  "notes": "Features f01-f02 are complete examples of the format. Every other item must be completed and reviewed, and the suite frozen, before the pilot.",
+  "features": [
+    {
+      "id": "f01",
+      "status": "ready",
+      "title": "Homes and retrofit cases",
+      "story": "As a programme officer, I want to register homes and open retrofit cases so that I can see all the work in one list.",
+      "rules": [
+        "A home has a UPRN (a non-empty string of digits, unique), an address (required) and a postcode (required; stored trimmed and upper-case).",
+        "A case belongs to one home and one measure: loft insulation, cavity wall insulation, external wall insulation, air source heat pump, solar pv or windows.",
+        "A home cannot have two cases for the same measure.",
+        "Case ids are C-0001, C-0002, ... in creation order.",
+        "list_cases returns cases ordered by id, optionally filtered by postcode prefix (case-insensitive) and by measure.",
+        "CSV import (header uprn,address,postcode) is all-or-nothing: if any row is invalid or duplicated, within the file or against existing homes, nothing is imported."
+      ],
+      "api": [
+        "Workbench() keeps everything in memory.",
+        "add_home(uprn, address, postcode) -> Home with attributes uprn, address, postcode.",
+        "open_case(uprn, measure) -> Case with attributes id, uprn, measure.",
+        "get_case(case_id) -> Case.",
+        "list_cases(postcode_prefix=None, measure=None) -> list of Case.",
+        "import_homes_csv(text) -> number of homes imported.",
+        "ValidationError for invalid input and NotFoundError for unknown homes or cases, both importable from workbench."
+      ]
+    },
+    {
+      "id": "f02",
+      "status": "ready",
+      "title": "Case lifecycle",
+      "story": "As a programme officer, I want each case to move through the retrofit lifecycle so that I know where every case stands.",
+      "rules": [
+        "Stages, in order: candidate, surveyed, designed, ready, installed, handed_over. New cases start as candidate.",
+        "A case moves forward exactly one stage at a time. Skipping a stage, staying in the same stage or moving backwards raises InvalidTransition, a subclass of ValidationError. An unknown stage raises ValidationError.",
+        "Every move names who made it (by, a non-empty string) and is recorded in the case history as (from_stage, to_stage, by), oldest first. A failed move changes nothing.",
+        "list_cases can also filter by stage; stage_counts returns every stage with its number of cases, including zeros."
+      ],
+      "api": [
+        "move(case_id, to, by) -> Case; Case gains the attribute stage.",
+        "history(case_id) -> list of (from_stage, to_stage, by) tuples.",
+        "stage_counts() -> dict from stage to count.",
+        "list_cases(postcode_prefix=None, measure=None, stage=None).",
+        "InvalidTransition importable from workbench."
+      ]
+    },
+    {
+      "id": "f03",
+      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "title": "Ownership and handoffs",
+      "story": "As a delivery lead, I want to hand cases between owners so that responsibility is always explicit.",
+      "rules": [
+        "Every case has at most one owner; assign sets the first owner.",
+        "Only the current owner may request a handoff; the owner changes only when the recipient accepts. The recipient may decline with a reason.",
+        "A case has at most one pending handoff. Handed-over cases cannot be handed off.",
+        "list_cases can filter by owner. Acting without permission raises NotAllowed, a subclass of ValidationError."
+      ],
+      "api": [
+        "assign(case_id, owner, by)",
+        "request_handoff(case_id, to, by)",
+        "accept_handoff(case_id, by)",
+        "decline_handoff(case_id, by, reason)",
+        "pending_handoff(case_id) -> recipient or None",
+        "Case.owner",
+        "list_cases(..., owner=None)"
+      ]
+    },
+    {
+      "id": "f04",
+      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "title": "Returns and reopening",
+      "story": "As a surveyor, I want to send a case back to an earlier stage with a reason, and to reopen a handed-over case, so that rework is visible.",
+      "rules": [
+        "return_to moves a case to any earlier stage, with a non-empty reason; it is recorded in history like a move.",
+        "reopen moves a handed_over case back to installed, with a reason; only handed_over cases can be reopened.",
+        "Returning or reopening cancels any pending handoff (F3).",
+        "notes(case_id) lists the reasons, oldest first."
+      ],
+      "api": [
+        "return_to(case_id, stage, reason, by)",
+        "reopen(case_id, reason, by)",
+        "notes(case_id) -> list of str"
+      ]
+    },
+    {
+      "id": "f05",
+      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "title": "Safety holds",
+      "story": "As a building-safety officer, I want to put a case on hold so that no work proceeds while a hazard is unresolved.",
+      "rules": [
+        "A case on hold cannot move forward (OnHold, a subclass of ValidationError) and cannot be handed off; returns are still allowed.",
+        "Only the role building_safety may release a hold (NotAllowed otherwise).",
+        "Holds and releases are recorded with who and why."
+      ],
+      "api": [
+        "place_hold(case_id, reason, by)",
+        "release_hold(case_id, by, role)",
+        "Case.on_hold"
+      ]
+    },
+    {
+      "id": "f06",
+      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "title": "Resident consent",
+      "story": "As a resident liaison officer, I want to record consent for each planned measure so that nothing is installed without it.",
+      "rules": [
+        "Moving a case to installed requires consent (ConsentRequired, a subclass of ValidationError).",
+        "Withdrawing consent pauses the case: no forward moves until consent is given again. Pause and hold are independent."
+      ],
+      "api": [
+        "record_consent(case_id, by)",
+        "withdraw_consent(case_id, by, reason)",
+        "Case.consent in {'none', 'given', 'withdrawn'}",
+        "Case.paused"
+      ]
+    },
+    {
+      "id": "f07",
+      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "title": "Appointments and no-access visits",
+      "story": "As a scheduler, I want to track offered and confirmed appointments and failed visits so that stuck cases are escalated.",
+      "rules": [
+        "Only offered dates can be confirmed.",
+        "Verified no-access visits count; more than five in the active period escalate the case.",
+        "Reopening (F4) resets the active counter but keeps the history."
+      ],
+      "api": [
+        "offer_appointment(case_id, date, by)",
+        "confirm_appointment(case_id, date, by)",
+        "record_no_access(case_id, date, verified, by)",
+        "no_access_count(case_id)",
+        "escalated_cases() -> list of Case"
+      ]
+    },
+    {
+      "id": "f08",
+      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "title": "Roles and field visibility",
+      "story": "As a data protection lead, I want contractors never to see vulnerability reasons or resident contacts.",
+      "rules": [
+        "view_as(role) returns a read-only view with the same read methods.",
+        "Contractors never see vulnerability reasons or resident contacts, in any read or export; officers see everything."
+      ],
+      "api": [
+        "set_vulnerability(uprn, reason)",
+        "set_resident_contact(uprn, phone)",
+        "view_as(role)"
+      ]
+    },
+    {
+      "id": "f09",
+      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "title": "Deterministic priority ranking",
+      "story": "As a programme manager, I want a ranked list of cases with reasons so that crews work on the right homes first.",
+      "rules": [
+        "Ranking follows a versioned policy and returns reason codes.",
+        "Held cases come first; ties break by case id.",
+        "The same inputs always give the same ranking."
+      ],
+      "api": [
+        "rank_cases(policy_version='v1') -> list of (case_id, score, reason_codes)"
+      ]
+    },
+    {
+      "id": "f10",
+      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "title": "Audit trail and export",
+      "story": "As an auditor, I want a tamper-evident record of every change and a filtered export.",
+      "rules": [
+        "Every write appends an audit entry chained by SHA-256 hashes; verify_audit detects any change to an earlier entry.",
+        "CSV export honours the filters of list_cases and the visibility rules of F8."
+      ],
+      "api": [
+        "audit_log() -> list of dict",
+        "verify_audit() -> bool",
+        "export_cases_csv(role, **filters) -> str"
+      ]
+    }
+  ],
+  "change_request": {
+    "id": "cr1",
+    "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+    "title": "Regions",
+    "story": "As the programme director, I want every home to belong to a region and every user to work within their regions.",
+    "rules": [
+      "Every home belongs to a region; users are scoped to one or more regions.",
+      "Lists, ranking, exports and handoffs respect the acting user's regions.",
+      "A handoff to a user in another region needs a manager's approval."
+    ],
+    "api": [
+      "To be written with the change request's visible and hidden tests."
+    ]
+  }
+}
