@@ -1,7 +1,21 @@
 <!-- markdownlint-disable-file -->
 # MVE Plan: feature-consolidation-harness
 
-Phase 5 output (HVE Core Experiment Designer). Status: **draft, awaiting owner confirmation**. Details live in context.md, hypotheses.md, vetting.md and experiment-design.md in this folder.
+Phase 5 output (HVE Core Experiment Designer). Status: **design draft awaiting owner confirmation; smoke testing complete; preparing the full suite**. Details live in context.md, hypotheses.md, vetting.md and experiment-design.md in this folder. The protocol copy remains a draft until approval and freezing are recorded.
+
+## Execution status (2026-10-25)
+
+* Offline dry runs and the real-agent smoke test are complete. The tracked [smoke summary](results/smoke/summary.md) and [JSON evidence](results/smoke/summary.json) cover `smoke-01`: S1, arm B, one feature plus consolidation, no change request.
+* The recorded end-state hidden-test pass rate is 100%, with no open regressions, recorded violations or possible-leak flags. Two agent sessions used 14.54 AI credits and 204,204 tokens with `claude-sonnet-5.5`; both sessions have complete credit accounting. These figures validate the exercised pipeline, not the hypotheses or isolation.
+* The next milestone is the full S1 calibration pilot: ten features, one run each in A and B, without CR1. The [suite manifest](suites/s1-retrofit/suite.json) still marks only F1-F2 ready; F3-F10 and CR1 need tests, references and independent review before the suite can be frozen.
+* Owner approval, recorded protocol and suite freezes, pinned full-run configuration, budget ceiling and verified isolation remain prerequisites. No protocol or suite checksum file is recorded yet. Use the model observed in the smoke test only as a candidate until the owner pins the full-run setup.
+* The smoke run's metadata says `pilot`, but it is not the ten-feature pilot or a study replicate. Keep raw smoke data in `runs-smoke/`, full runs in a separate `runs/`, and reviewed summaries in `results/`. Do not carry the generated H3 `invalidated` label into a study verdict: a one-arm, one-feature smoke run cannot establish the required slopes or between-arm comparison.
+
+The next action is to finish, review, validate and freeze S1, then run the full
+pilot using [RUNBOOK.md](RUNBOOK.md#5-pilot-data-excluded-from-the-analysis).
+The validator skips drafts and does not validate CR1, so its exit status alone
+does not establish full-suite readiness. Preserve the original smoke evidence;
+do not backdate approval, freezing or registration to precede that run.
 
 ## Problem and context
 
@@ -23,7 +37,7 @@ Decision informed: adopt the consolidation step in the delivery coordinator, pro
 
 All hypotheses and thresholds are provisional until the owner records approval and the dated frozen protocol version before the pilot (hypotheses.md). No approval or freeze is recorded yet. H1 is inconclusive for all other evaluable outcomes; for example, a 12-point gain with a 95% interval of [-2, 26] does not invalidate H1.
 
-For each hypothesis, validation also requires the relevant 95% benefit interval to exclude zero in the beneficial direction. Invalidation requires whole intervals to rule out its minimum useful effect, with the joint and alternative criteria in hypotheses.md. An interval spanning zero without ruling out useful effects is inconclusive, not no-go. For H5 the effects are headroom below the 150% ceiling and late-feature savings, retaining 125% as the validation threshold. Pre-registration is pending: record the actual date and public URL before any run; this local plan is not a registration.
+For each hypothesis, validation also requires the relevant 95% benefit interval to exclude zero in the beneficial direction. Invalidation requires whole intervals to rule out its minimum useful effect, with the joint and alternative criteria in hypotheses.md. An interval spanning zero without ruling out useful effects is inconclusive, not no-go. For H5 the effects are headroom below the 150% ceiling and late-feature savings, retaining 125% as the validation threshold. Pre-registration is pending: record the actual date and public URL before any confirmatory run; this local plan is not a registration. The completed smoke run is diagnostic and excluded from study inference.
 
 ## Vetting summary
 

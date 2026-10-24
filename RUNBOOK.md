@@ -1,8 +1,43 @@
-# Runbook: running the feature-consolidation MVE
+---
+title: Runbook for the feature-consolidation MVE
+description: Recorded smoke-test status, full-suite readiness checks, execution steps, and evidence retention.
+---
 
-This runbook turns the pre-registered protocol in `protocol/` into results you can put in Section 8 of the paper. Follow the steps in order. Do not start any run you intend to analyse until steps 1 to 4 are complete. If you change anything after that, record it in `protocol/divergence-log.md`.
+This runbook turns the draft in [protocol/](protocol/) into results you can put in Section 8 of the paper. Follow the steps in order. Do not start the full pilot or study runs until the applicable prerequisites in steps 1 to 4 are complete. Smoke analyses are pipeline diagnostics, not study evidence. Record subsequent changes in [protocol/divergence-log.md](protocol/divergence-log.md).
 
 Tool facts were checked on 24 October 2026 against GitHub Copilot CLI 1.0.95 help and the official documentation. The latest CLI release at that date was 1.0.103. Re-check the flags on the version you pin.
+
+## Current state (2026-10-25)
+
+The repository is [jmservera/ama-thought-mve](https://github.com/jmservera/ama-thought-mve).
+Offline dry runs and the real-agent smoke test are complete. The next milestone
+is the full S1 calibration pilot, not another smoke run.
+
+| Item | Recorded state |
+| --- | --- |
+| Real-agent smoke | `smoke-01`, arm B, F1 followed by consolidation; no change request |
+| Functional result | 100% end-state hidden-test pass rate; zero open regressions, recorded violations and possible-leak flags |
+| Usage accounting | Two sessions, both with complete credit accounting; 14.54 AI credits and 204,204 tokens; model `claude-sonnet-5.5` |
+| Suite readiness | F1-F2 ready; F3-F10 and CR1 remain draft in the suite manifest |
+| Freeze evidence | No protocol or suite checksum file is recorded yet; owner decisions, freeze and registration remain outstanding |
+| Full pilot and study passes | Not completed; smoke data must not be included as a replicate |
+
+Evidence: [smoke summary](results/smoke/summary.md),
+[machine-readable summary](results/smoke/summary.json), and
+[suite manifest](suites/s1-retrofit/suite.json).
+The smoke summary uses phase `pilot`, but it contains only one arm and one
+feature. Its generated hypothesis labels are not inferential findings; in
+particular, the H3 `invalidated` label does not establish quality decay or its
+absence. No leak flags is also not proof of isolation: review the separate
+isolation probe before accepting that prerequisite.
+
+Before the full run:
+
+1. Finish and independently review F3-F10 and CR1, then validate and freeze S1 (section 3).
+2. Record owner-approved decisions, tool versions, effective configuration, budgets and protocol freeze (sections 1 and 2); register before confirmatory runs.
+3. Verify isolation and the pinned environment. Re-run the smoke checks with a fresh run ID if that environment changes (section 4).
+4. Keep raw smoke output in `runs-smoke/`; use `runs/` for the next runs and retain the smoke summaries under `results/smoke/`.
+5. Run the full ten-feature A/B pilot without CR1, calibrate, then proceed to the predeclared first pass (sections 5 and 6).
 
 ## 0. What you need
 
@@ -20,7 +55,7 @@ Tool facts were checked on 24 October 2026 against GitHub Copilot CLI 1.0.95 hel
 
 ## 1. Freeze the design with HVE Core's Experiment Designer
 
-1. Create a new repository, for example `consolidation-mve`. Keep it private until the protocol is registered, then make it public. Copy this kit into it.
+1. Use the existing private repository, [jmservera/ama-thought-mve](https://github.com/jmservera/ama-thought-mve). Repository setup is complete. Keep it private until you explicitly choose to publish and have reviewed the evidence for sensitive data; registration does not require changing repository visibility.
 2. Install HVE Core. Record the version or commit you use.
    - **VS Code:** extension `ise-hve-essentials.hve-core`.
    - **Copilot CLI plugin:**
@@ -55,7 +90,7 @@ Tool facts were checked on 24 October 2026 against GitHub Copilot CLI 1.0.95 hel
 | D7 | Suite S2 | The library suite (no extra tooling), or a SlopCodeBench subset ported to the kit's format | SlopCodeBench has no Copilot CLI adapter; you would write an agent class or convert problems. Check the licence of the problems repository first. |
 | D8 | Change-request success | All change-request hidden tests pass and no feature test that passed at the end state fails | This is what `analyze.py` computes. |
 | D9 | Metric settings | Lint rules E, F, W, C90, B, SIM through `ruff --isolated`; jscpd with 50 tokens and 5 lines; complexity from lizard | `--isolated` and running jscpd from an empty folder mean the agent cannot change the metrics by editing configuration. |
-| D10 | Cost unit | AI credits from `--usage-output-file`; otherwise tokens from the OpenTelemetry file; otherwise seconds | The usage JSON schema is undocumented. Confirm it in the smoke test. |
+| D10 | Cost unit | AI credits from `--usage-output-file`; otherwise tokens from the OpenTelemetry file; otherwise seconds | Credit accounting worked for both recorded smoke sessions. Recheck if the CLI or usage schema changes. |
 | D11 | Isolation | Agent in a container that sees only the run's repository (`config.docker.json`) | Hidden tests and reference solutions must be unreachable, not just unmentioned. |
 | D12 | Placebo arm C | Include it if the budget allows (about +60% agent time) | It separates refactoring from a second look (H7). |
 
@@ -93,6 +128,12 @@ Test the tests until every feature reports OK and no hidden test is reported as 
 python3 harness/validate_suite.py suites/s1-retrofit
 ```
 
+The validator checks only features marked `ready`, skips draft features and does
+not validate CR1. A zero exit status with only F1-F2 checked is not full-suite
+readiness. Require all ten features to be ready and checked, and separately
+check CR1's visible and hidden tests against its reference implementation. Do
+not bypass draft checks with `--allow-draft` for pilot or study runs.
+
 Freeze the suite:
 
 ```bash
@@ -101,6 +142,10 @@ git add -A && git commit -m "Freeze suite S1" && git tag suite-frozen
 ```
 
 ## 4. Prepare the environment and run a smoke test
+
+The recorded smoke test is complete. Keep these steps for rebuilding or changing
+the environment; do not overwrite a populated local configuration just to repeat
+setup. A changed runtime or isolation mode needs a fresh smoke run and evidence.
 
 **Option A, container per step (recommended).**
 
@@ -151,7 +196,7 @@ Memory is off by default in prompt mode.
    ```bash
    python3 runner.py --config config.json --suite ../suites/s1-retrofit --arm B --run-id smoke-01 --features 1 --phase pilot --no-cr
    ```
-3. Check, in `runs/smoke-01/steps/*/`:
+3. Check the configured run directory's `smoke-01/steps/*/` (the recorded run is under `runs-smoke/`, not the study's `runs/`):
    - `transcript.md`, `usage.json`, `otel.jsonl` and `logs/` exist;
    - the feature step committed after `make test`;
    - the consolidation step used `./tcr`;
@@ -159,13 +204,28 @@ Memory is off by default in prompt mode.
 4. Probe the isolation. Run one extra session that asks the agent to open a web page and to read a file outside the repository. Both must fail. If either succeeds, switch to container mode or enable the CLI's command sandbox (`copilot help sandbox`).
 5. Open `usage.json`. If its credit field is not matched by the default `--cost-unit "credit|premium"` of `analyze.py`, note the field name and pass a matching expression.
 
+Retain the original [smoke summary](results/smoke/summary.md). Use fresh run IDs
+for repeat checks and keep their raw output separate from pilot and study data.
+
 ## 5. Pilot (data excluded from the analysis)
 
+This is the next execution milestone once the readiness checks above are met:
+one ten-feature run per arm, without a change request. It is not covered by the
+one-feature smoke run. Run these commands from `harness/`, with `config.json`
+pointing at `../runs`, not `../runs-smoke`:
+
 ```bash
-python3 schedule.py --pass pilot --arms A B --runs 1 --features 10 --seed 101 --config config.json > pilot.txt
+python3 schedule.py --pass pilot --arms A B --runs 1 --features 10 --seed 101 --config config.json | sed 's/$/ --no-cr/' > pilot.txt
+cat pilot.txt
 bash pilot.txt
 python3 analyze.py --runs ../runs --phase pilot --out ../results/pilot
 ```
+
+The scheduler includes CR1 by default; appending `--no-cr` keeps the pilot aligned
+with the 30-session budget in section 11. Execute and retain `pilot.txt`, the
+actual schedule with that flag, rather than the scheduler's unsuffixed
+`schedule-pilot.txt`. Keep smoke output outside `../runs`: its `pilot` phase
+label would otherwise include it in this analysis.
 
 Use the pilot only to calibrate, and log every change in the divergence log:
 - **Budgets:** if most feature steps hit the time limit, the features are too big for the budget. Adjust either one before the first pass.
@@ -232,9 +292,12 @@ print(smf.mixedlm("mean_ccn ~ C(arm) * k + C(suite)", d, groups=d["run_id"]).fit
 
 ## 10. Archive and publish
 
-- **Archive:** `runs/` (repositories, prompts, transcripts, usage, logs, measures), `results/`, the image digest, `protocol/` and the divergence log.
-- **Clean:** strip tokens and personal data before publishing. The CLI redacts `COPILOT_GITHUB_TOKEN` and `GITHUB_TOKEN` from output by default. Check anyway.
-- **Publish:** with the paper, for example on Zenodo or OSF.
+- Keep the harness, prompts, configuration templates, suites (including hidden tests and references), approved protocol, checksums and divergence log in Git. Hidden tests must remain outside the running agent's filesystem.
+- Keep reviewed summaries, tables, figures and outcomes in `results/`, including the diagnostic smoke summaries. Do not ignore `results/` wholesale. Record the generating code commit, effective non-secret configuration, tool versions and input-data checksums with each result set.
+- Keep `runs/` and `runs-*/` out of Git. Back up their repositories, prompts, transcripts, usage, logs and measurements in a separate private archive; ignored data is not disposable.
+- Keep credentials, `harness/config.json`, the raw isolation-probe transcript, caches, virtual environments and `.copilot-tracking/` local. Preserve a sanitized effective configuration with the experiment record, not just the ignored local copy.
+- Strip tokens and personal data before committing results or publishing an archive. The CLI redacts `COPILOT_GITHUB_TOKEN` and `GITHUB_TOKEN` from output by default. Check anyway.
+- Publish the sanitized evidence archive with the paper, for example on Zenodo or OSF, and link its persistent identifier and checksums from the repository.
 
 ## 11. Time and agent sessions (upper bounds at the proposed budgets)
 
