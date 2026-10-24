@@ -4,3 +4,10 @@ runs-dry/
 results-dry/
 .copilot-tracking/
 __pycache__/
+.venv
+/runs-*/
+/harness/config.json
+/probe-transcript.md
+.env
+.env.*
+!.env.example

@@ -54,45 +54,35 @@ def _num(v):
     return None
 
 
-def _walk_usage(obj, acc, path=""):
-    """Collect numeric leaves whose key mentions credits, premium requests or tokens (heuristic)."""
-    if isinstance(obj, dict):
-        if isinstance(obj.get("key"), str) and "usage" in obj["key"] and "value" in obj:
-            n = _num(obj["value"])
-            if n is not None:
-                acc["otel:" + obj["key"].split(".")[-1]] += n
-            return
-        for k, v in obj.items():
-            p = f"{path}.{k}" if path else k
-            n = _num(v) if not isinstance(v, (dict, list)) else None
-            if n is not None and re.search(r"credit|premium|token|cost", k, re.I):
-                acc[p] += n
-            else:
-                _walk_usage(v, acc, p)
-    elif isinstance(obj, list):
-        for v in obj:
-            _walk_usage(v, acc, path)
+USAGE_UNITS = ("credits", "tokens", "premium", "seconds")
 
 
 def step_usage(run_dir, rec):
-    acc = defaultdict(float)
-    if rec.get("agent", {}).get("usage"):
-        _walk_usage(rec["agent"]["usage"], acc)
-    otel = os.path.join(run_dir, "steps", rec["step"], "otel.jsonl")
-    if os.path.exists(otel):
-        for line in open(otel, encoding="utf-8", errors="replace"):
-            try:
-                _walk_usage(json.loads(line), acc)
-            except ValueError:
-                pass
-    acc["seconds"] = rec.get("agent", {}).get("seconds") or 0.0
+    """Cost of one agent session, from the Copilot CLI --usage-output-file JSON.
+
+    credits  = totalNanoAiu / 1e9: AI credits, the billed unit (the CLI prints the same figure as "AI Credits")
+    tokens   = input + output + cache-read + cache-write tokens (tokenDetails)
+    premium  = totalPremiumRequestCost (legacy billing; one per prompt, so not a cost measure on its own)
+    seconds  = wall-clock time of the session, measured by the runner
+    """
+    agent = rec.get("agent") or {}
+    u = agent.get("usage") if isinstance(agent.get("usage"), dict) else {}
+    acc = {"seconds": float(agent.get("seconds") or 0.0), "has_usage": bool(u)}
+    nano = _num(u.get("totalNanoAiu")) if u else None
+    acc["credits"] = nano / 1e9 if nano is not None else 0.0
+    td = (u.get("tokenDetails") or {}) if u else {}
+    parts = {k: (_num((td.get(k) or {}).get("tokenCount")) or 0.0) for k in ("input", "output", "cache_read", "cache_write")}
+    acc.update({f"tokens_{k}": v for k, v in parts.items()})
+    acc["tokens"] = sum(parts.values())
+    acc["premium"] = (_num(u.get("totalPremiumRequestCost")) or 0.0) if u else 0.0
+    acc["api_seconds"] = ((_num(u.get("totalApiDurationMs")) or 0.0) / 1000.0) if u else 0.0
+    acc["credits_complete"] = bool(u) and u.get("aiCreditsStatus") == "complete"
+    acc["models"] = sorted((u.get("modelMetrics") or {}).keys()) if u else []
     return acc
 
 
 def cost_of(acc, unit):
-    if unit == "seconds":
-        return acc.get("seconds", 0.0)
-    return sum(v for k, v in acc.items() if re.search(unit, k, re.I))
+    return float(acc.get(unit) or 0.0)
 
 
 # ------------------------------------------------------------------- per run
@@ -135,11 +125,17 @@ def summarise_run(run, cost_unit):
         no_regression = all(feature_tests.get(t) == "passed" for t, o in end_hidden.items() if o == "passed")
         cr_success = bool(cr_tests) and all(o == "passed" for o in cr_tests.values()) and no_regression
         cr_cost = cost_of(step_usage(run["dir"], cr[0]), cost_unit)
+    usages = [step_usage(run["dir"], r) for r in recs]
+    usage_quality = {"sessions": len(usages), "with_usage": sum(u["has_usage"] for u in usages),
+                     "credits_complete": sum(u["credits_complete"] for u in usages),
+                     "models": sorted({m for u in usages for m in u["models"]}),
+                     "credits": sum(u["credits"] for u in usages), "tokens": sum(u["tokens"] for u in usages)}
     violations = sum(len(r.get("violations") or []) for r in recs)
     leaks = sum(1 for r in recs if r.get("agent", {}).get("possible_leak"))
     return {"run_id": run["meta"]["run_id"], "arm": arm, "suite": run["meta"]["suite"], "series": series,
             "end": series[-1] if series else None, "total_cost": sum(costs), "per_feature_cost": dict(per_feature_cost),
             "cr_success": cr_success, "cr_cost": cr_cost, "violations": violations, "possible_leaks": leaks,
+            "usage_quality": usage_quality,
             "slopes": {name: slope([r["k"] for r in series], [r[name] for r in series]) for name in METRICS + ["open_regressions", "nloc_src"]},
             "regression_auc": sum(open_reg_series)}
 
@@ -241,7 +237,8 @@ def main():
     ap.add_argument("--runs", required=True)
     ap.add_argument("--phase", default=None)
     ap.add_argument("--out", default="results")
-    ap.add_argument("--cost-unit", default="credit|premium", help="regex over usage keys, or 'seconds'")
+    ap.add_argument("--cost-unit", default="credits", choices=USAGE_UNITS,
+                    help="credits (AI credits, default), tokens, premium (requests) or seconds")
     ap.add_argument("--seed", type=int, default=2026)
     a = ap.parse_args()
     runs = [summarise_run(r, a.cost_unit) for r in load_runs(a.runs, a.phase)]
@@ -251,10 +248,12 @@ def main():
         print("no runs found")
         return
     unit = a.cost_unit
-    if all(r["total_cost"] == 0 for r in runs) and unit != "seconds":
-        unit = "seconds"
-        runs = [summarise_run(r2, unit) for r2 in load_runs(a.runs, a.phase)]
-        runs = [r for r in runs if r["end"]]
+    for fallback in ("tokens", "seconds"):
+        if unit != "seconds" and all(r["total_cost"] == 0 for r in runs):
+            print(f"warning: no {unit} recorded in any run; falling back to {fallback}")
+            unit = fallback
+            runs = [summarise_run(r2, unit) for r2 in load_runs(a.runs, a.phase)]
+            runs = [r for r in runs if r["end"]]
 
     def groups(arm, f):
         g = defaultdict(list)
@@ -269,7 +268,14 @@ def main():
 
     arms = sorted({r["arm"] for r in runs})
     counts = ", ".join(f"{x}: {sum(1 for r in runs if r['arm'] == x)}" for x in arms)
-    lines = ["# Results", "", f"Runs analysed: {len(runs)} ({counts}); phase: {a.phase or 'all'}; cost unit: {unit}.", ""]
+    uq = [r["usage_quality"] for r in runs]
+    sessions = sum(q["sessions"] for q in uq)
+    models = sorted({m for q in uq for m in q["models"]})
+    lines = ["# Results", "", f"Runs analysed: {len(runs)} ({counts}); phase: {a.phase or 'all'}; cost unit: {unit}.",
+             f"Agent sessions: {sessions}; with a usage file: {sum(q['with_usage'] for q in uq)}; "
+             f"with complete credit accounting: {sum(q['credits_complete'] for q in uq)}; "
+             f"AI credits: {sum(q['credits'] for q in uq):.2f}; tokens: {sum(q['tokens'] for q in uq):,.0f}; "
+             f"models: {', '.join(models) or 'none recorded'}.", ""]
     res = {}
     # H1
     pa, pb = groups("A", lambda r: r["end"]["pass_rate"]), groups("B", lambda r: r["end"]["pass_rate"])

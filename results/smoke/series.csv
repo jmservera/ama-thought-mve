@@ -1,0 +1,2 @@
+run_id,arm,suite,k,pass_rate,open_regressions,nloc_src,md_words,mean_ccn,share_ccn_over_10,dup_pct,lint_per_kloc
+smoke-01,B,s1-retrofit,1,100.0,0,86,418,5.0,0.0,0.0,0.0

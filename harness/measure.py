@@ -45,7 +45,9 @@ def expected_tests(files):
 
 
 def run_hidden(repo, suite_dir, ids, runner, timeout=600):
-    tmp = tempfile.mkdtemp(prefix="hidden-")
+    # Copy hidden tests next to the run's repository, never into the system temp folder: the coding agent may
+    # read the temp folder by default, and with parallel runs another run's agent could be active right now.
+    tmp = tempfile.mkdtemp(prefix=".hidden-", dir=os.path.dirname(os.path.abspath(repo)))
     files = []
     for fid in ids:
         for p in glob.glob(os.path.join(suite_dir, "features" if not fid.startswith("cr") else "", fid, "hidden", "*.py")):

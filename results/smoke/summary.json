@@ -1,0 +1,115 @@
+{
+ "hypotheses": {
+  "H1": {
+   "diff_points": null,
+   "ci": [
+    null,
+    null
+   ],
+   "p": null,
+   "a12": null,
+   "verdict": "not evaluable"
+  },
+  "H2": {
+   "A_slope_mean": null,
+   "auc_ratio_B_over_A": null,
+   "auc_ratio_ci": [
+    null,
+    null
+   ],
+   "verdict": "not evaluable"
+  },
+  "H3": {
+   "metrics": {
+    "mean_ccn": {
+     "A_slope": null,
+     "B_slope": null
+    },
+    "share_ccn_over_10": {
+     "A_slope": null,
+     "B_slope": null
+    },
+    "dup_pct": {
+     "A_slope": null,
+     "B_slope": null
+    },
+    "lint_per_kloc": {
+     "A_slope": null,
+     "B_slope": null
+    }
+   },
+   "A_positive": 0,
+   "B_at_most_half": 0,
+   "verdict": "invalidated"
+  },
+  "H4": {
+   "nloc_ratio_B_over_A": null,
+   "ci": [
+    null,
+    null
+   ],
+   "verdict": "not evaluable"
+  },
+  "H5": {
+   "cost_ratio_B_over_A": null,
+   "ci": [
+    null,
+    null
+   ],
+   "last_third_A": null,
+   "last_third_B": 14.54324,
+   "verdict": "not evaluable"
+  },
+  "H6": {
+   "verdict": "not evaluable"
+  },
+  "H7": {
+   "verdict": "not evaluable"
+  }
+ },
+ "runs": [
+  {
+   "run_id": "smoke-01",
+   "arm": "B",
+   "suite": "s1-retrofit",
+   "end": {
+    "k": 1,
+    "pass_rate": 100.0,
+    "open_regressions": 0,
+    "nloc_src": 86,
+    "md_words": 418,
+    "mean_ccn": 5.0,
+    "share_ccn_over_10": 0.0,
+    "dup_pct": 0.0,
+    "lint_per_kloc": 0.0
+   },
+   "total_cost": 14.54324,
+   "per_feature_cost": {
+    "1": 14.54324
+   },
+   "cr_success": null,
+   "cr_cost": null,
+   "violations": 0,
+   "possible_leaks": 0,
+   "usage_quality": {
+    "sessions": 2,
+    "with_usage": 2,
+    "credits_complete": 2,
+    "models": [
+     "claude-sonnet-5.5"
+    ],
+    "credits": 14.54324,
+    "tokens": 204204.0
+   },
+   "slopes": {
+    "mean_ccn": null,
+    "share_ccn_over_10": null,
+    "dup_pct": null,
+    "lint_per_kloc": null,
+    "open_regressions": null,
+    "nloc_src": null
+   },
+   "regression_auc": 0
+  }
+ ]
+}
