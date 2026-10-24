@@ -59,8 +59,20 @@ def main():
             f.write("\n# a change the review step is not allowed to make\n")
         sh("git add -A && git commit -q -m 'review'", repo)
         print("review written (and an illegal code change, to test enforcement)")
+    elif "implementing a change request" in p:
+        ref = os.path.join(a.suite, "reference", "cr1", "workbench")
+        dst = os.path.join(repo, "src", "workbench")
+        if os.path.isdir(ref):
+            shutil.rmtree(dst)
+            shutil.copytree(ref, dst)
+        r = sh("make -s test", repo)
+        if r.returncode == 0:
+            sh("git add -A && git commit -q -m 'change request'", repo)
+            print("change request committed")
+        else:
+            print(f"change request: tests fail, not committing\n{r.stdout[-500:]}")
     else:
-        print("change request: no canned solution in the dry run")
+        print("unknown step")
 
 
 if __name__ == "__main__":

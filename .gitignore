@@ -1,13 +1,8 @@
 # Run outputs contain nested git repositories and large logs: archive them separately.
 runs/
-runs-dry/
+runs-*/
 results-dry/
 .copilot-tracking/
+.venv/
 __pycache__/
-.venv
-/runs-*/
-/harness/config.json
-/probe-transcript.md
-.env
-.env.*
-!.env.example
+probe-transcript.md

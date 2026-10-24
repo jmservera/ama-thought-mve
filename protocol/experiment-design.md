@@ -30,12 +30,14 @@ Two small, synthetic suites in Python 3.12, tested with pytest, each with ten fe
 | F3 | Ownership and handoffs that change owner only when accepted | F1, F2 |
 | F4 | Return to an earlier stage with a reason; reopen a handed-over case | F2, F3 |
 | F5 | Safety hold: blocks forward transitions; only a building-safety role releases it | F2, F4 |
-| F6 | Resident consent per planned measure; withdrawal pauses the case; install needs consent | F2, F5 |
+| F6 | Resident consent, tracked when required: installation needs consent once it is required; withdrawal pauses the case | F2, F4, F5 |
 | F7 | Appointments: offers versus confirmations; verified no-access counter; escalation after more than five; reopening resets the active counter, keeps history | F2, F4, F6 |
-| F8 | Roles and field visibility: contractors never see vulnerability reasons or resident contacts, in any read or export | all reads |
-| F9 | Deterministic priority ranking: versioned policy, reason codes, fixed tie-break; held cases surface first | F2, F5, F6, F8 |
+| F8 | Roles and read-only views: contractors never see vulnerability reasons or resident contacts | all reads, F3, F4 |
+| F9 | Deterministic priority ranking: versioned policy, reason codes, fixed tie-break; held cases surface first; also on views | F2, F4, F5, F6, F7, F8 |
 | F10 | Append-only audit trail with hash-chain verification; CSV export honouring visibility and filters | all writes, F8 |
-| CR1 (held out) | Regions: every home belongs to a region; users are scoped to regions; lists, ranking, exports and handoffs respect scope; cross-region handoff needs manager approval | cross-cutting |
+| CR1 (held out) | Regions by postcode prefix; users scoped to regions through their own views; lists, ranking, exports and stage counts respect scope; cross-region handoff needs manager approval; new writes audited | F3, F8, F9, F10 |
+
+**S1 as built (24 Oct 2026).** All ten features and CR1 have a specification with an explicit API (`suites/s1-retrofit/suite.json`), 3-4 visible tests, 12-15 hidden tests (127 for the ten features, 15 for CR1) and a cumulative reference solution. Every later feature extends earlier behaviour without changing it, so the cumulative hidden suite stays valid at every step: for example, consent (F6) is opt-in per case, so earlier tests that install without consent still hold. The validator confirms that every test passes on the reference solution and that every new hidden test fails without its feature.
 
 ### S2: Library lending (neutral domain)
 

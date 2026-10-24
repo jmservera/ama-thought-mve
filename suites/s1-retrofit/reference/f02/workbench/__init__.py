@@ -1,10 +1,14 @@
-"""Reference implementation after F2. Used only to validate the hidden tests and for dry runs."""
+"""Reference implementation of suite S1 at snapshot f02. Generated from source.py; never shown to agents."""
 import csv
+import datetime
+import hashlib
 import io
+import json
 from dataclasses import dataclass
 
 MEASURES = frozenset({"loft insulation", "cavity wall insulation", "external wall insulation",
                       "air source heat pump", "solar pv", "windows"})
+STAGES = ("candidate", "surveyed", "designed", "ready", "installed", "handed_over")
 
 
 class ValidationError(Exception):
@@ -19,7 +23,10 @@ class InvalidTransition(ValidationError):
     pass
 
 
-STAGES = ("candidate", "surveyed", "designed", "ready", "installed", "handed_over")
+def _text(value, name):
+    if not isinstance(value, str) or not value.strip():
+        raise ValidationError(f"{name} is required")
+    return value
 
 
 @dataclass
@@ -44,20 +51,25 @@ class Workbench:
         self._seq = 0
         self._history = {}
 
+    def _log(self, action, target, by=None):
+        return None
+
+    # ------------------------------------------------------------------ F1
     def _check_home(self, uprn, address, postcode, pending=()):
         if not isinstance(uprn, str) or not uprn.isdigit():
             raise ValidationError("uprn must be a string of digits")
         if uprn in self._homes or uprn in pending:
             raise ValidationError("duplicate uprn")
-        if not address or not address.strip():
+        if not isinstance(address, str) or not address.strip():
             raise ValidationError("address is required")
-        if not postcode or not postcode.strip():
+        if not isinstance(postcode, str) or not postcode.strip():
             raise ValidationError("postcode is required")
 
     def add_home(self, uprn, address, postcode):
         self._check_home(uprn, address, postcode)
         home = Home(uprn, address.strip(), postcode.strip().upper())
         self._homes[uprn] = home
+        self._log("add_home", uprn)
         return home
 
     def import_homes_csv(self, text):
@@ -81,6 +93,7 @@ class Workbench:
         case = Case(f"C-{self._seq:04d}", uprn, measure)
         self._cases[case.id] = case
         self._history[case.id] = []
+        self._log("open_case", case.id)
         return case
 
     def get_case(self, case_id):
@@ -89,7 +102,7 @@ class Workbench:
         except KeyError:
             raise NotFoundError(case_id) from None
 
-    def list_cases(self, postcode_prefix=None, measure=None, stage=None):
+    def list_cases(self, postcode_prefix=None, measure=None, stage=None, owner=None):
         out = []
         for c in sorted(self._cases.values(), key=lambda c: c.id):
             if postcode_prefix and not self._homes[c.uprn].postcode.startswith(postcode_prefix.strip().upper()):
@@ -101,16 +114,17 @@ class Workbench:
             out.append(c)
         return out
 
+    # ------------------------------------------------------------------ F2
     def move(self, case_id, to, by):
         case = self.get_case(case_id)
-        if not isinstance(by, str) or not by.strip():
-            raise ValidationError("by is required")
+        _text(by, "by")
         if to not in STAGES:
             raise ValidationError("unknown stage")
         if STAGES.index(to) != STAGES.index(case.stage) + 1:
             raise InvalidTransition(f"{case.stage} -> {to}")
         self._history[case_id].append((case.stage, to, by))
         case.stage = to
+        self._log("move", case_id, by)
         return case
 
     def history(self, case_id):

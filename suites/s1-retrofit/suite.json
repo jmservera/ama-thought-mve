@@ -2,7 +2,7 @@
   "name": "s1-retrofit",
   "package": "workbench",
   "language": "python",
-  "notes": "Features f01-f02 are complete examples of the format. Every other item must be completed and reviewed, and the suite frozen, before the pilot.",
+  "notes": "Suite S1 complete (24 Oct 2026): all ten features and the change request have specifications, visible tests, hidden tests and a cumulative reference solution (reference/source.py, built with reference/build_reference.py). Have the hidden tests reviewed against the rules, then freeze the suite.",
   "features": [
     {
       "id": "f01",
@@ -48,35 +48,43 @@
     },
     {
       "id": "f03",
-      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "status": "ready",
       "title": "Ownership and handoffs",
       "story": "As a delivery lead, I want to hand cases between owners so that responsibility is always explicit.",
       "rules": [
-        "Every case has at most one owner; assign sets the first owner.",
-        "Only the current owner may request a handoff; the owner changes only when the recipient accepts. The recipient may decline with a reason.",
-        "A case has at most one pending handoff. Handed-over cases cannot be handed off.",
-        "list_cases can filter by owner. Acting without permission raises NotAllowed, a subclass of ValidationError."
+        "Every case has at most one owner. New cases have no owner (owner is None).",
+        "assign sets the first owner of an unowned case. Assigning a case that already has an owner raises NotAllowed (use a handoff instead).",
+        "Only the current owner may request a handoff (NotAllowed otherwise, including for unowned cases). The owner changes only when the recipient accepts; the recipient may instead decline with a reason.",
+        "Only the recipient may accept or decline (NotAllowed otherwise). Accepting or declining when no handoff is pending raises ValidationError.",
+        "A case has at most one pending handoff: requesting another while one is pending raises ValidationError, and so does a handoff to the current owner. Cases in stage handed_over cannot be handed off (NotAllowed).",
+        "owner, to, by and reason must be non-blank strings (ValidationError). Handoffs do not appear in the stage history.",
+        "list_cases can also filter by owner, combined with the other filters.",
+        "Unknown case ids raise NotFoundError."
       ],
       "api": [
         "assign(case_id, owner, by)",
         "request_handoff(case_id, to, by)",
         "accept_handoff(case_id, by)",
         "decline_handoff(case_id, by, reason)",
-        "pending_handoff(case_id) -> recipient or None",
-        "Case.owner",
-        "list_cases(..., owner=None)"
+        "pending_handoff(case_id) -> the pending recipient's name, or None",
+        "Case gains the attribute owner.",
+        "list_cases(postcode_prefix=None, measure=None, stage=None, owner=None)",
+        "NotAllowed, a subclass of ValidationError, importable from workbench."
       ]
     },
     {
       "id": "f04",
-      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "status": "ready",
       "title": "Returns and reopening",
       "story": "As a surveyor, I want to send a case back to an earlier stage with a reason, and to reopen a handed-over case, so that rework is visible.",
       "rules": [
-        "return_to moves a case to any earlier stage, with a non-empty reason; it is recorded in history like a move.",
-        "reopen moves a handed_over case back to installed, with a reason; only handed_over cases can be reopened.",
-        "Returning or reopening cancels any pending handoff (F3).",
-        "notes(case_id) lists the reasons, oldest first."
+        "return_to moves a case back to any earlier stage, skipping stages if needed. A target that is not earlier than the current stage raises InvalidTransition; an unknown stage raises ValidationError.",
+        "reopen moves a handed_over case back to installed; reopening any other case raises InvalidTransition.",
+        "reason and by must be non-blank (ValidationError).",
+        "Returns and reopenings are recorded in the stage history like moves, as (from_stage, to_stage, by). Afterwards the case moves forward again one stage at a time.",
+        "notes(case_id) lists the reasons given for returns and reopenings, oldest first ([] if none).",
+        "Returning or reopening a case cancels its pending handoff, if any. The owner does not change.",
+        "Unknown case ids raise NotFoundError."
       ],
       "api": [
         "return_to(case_id, stage, reason, by)",
@@ -86,111 +94,149 @@
     },
     {
       "id": "f05",
-      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "status": "ready",
       "title": "Safety holds",
       "story": "As a building-safety officer, I want to put a case on hold so that no work proceeds while a hazard is unresolved.",
       "rules": [
-        "A case on hold cannot move forward (OnHold, a subclass of ValidationError) and cannot be handed off; returns are still allowed.",
-        "Only the role building_safety may release a hold (NotAllowed otherwise).",
-        "Holds and releases are recorded with who and why."
+        "place_hold puts a case on hold with a reason. Placing a hold on a case that is already on hold raises ValidationError. reason and by must be non-blank.",
+        "While a case is on hold, every move raises OnHold (a subclass of ValidationError), whatever the target stage, and handoffs cannot be requested or accepted (OnHold).",
+        "Returns, reopening and declining a pending handoff are still allowed while a case is on hold; the case stays on hold.",
+        "Only the role building_safety may release a hold (NotAllowed otherwise, and the hold stays). Releasing a case that is not on hold raises ValidationError.",
+        "holds(case_id) lists every hold, oldest first, as (placed_by, reason, released_by) tuples; released_by is None while the hold is active.",
+        "Unknown case ids raise NotFoundError."
       ],
       "api": [
         "place_hold(case_id, reason, by)",
         "release_hold(case_id, by, role)",
-        "Case.on_hold"
+        "holds(case_id) -> list of tuples",
+        "Case gains the attribute on_hold (bool).",
+        "OnHold importable from workbench."
       ]
     },
     {
       "id": "f06",
-      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "status": "ready",
       "title": "Resident consent",
-      "story": "As a resident liaison officer, I want to record consent for each planned measure so that nothing is installed without it.",
+      "story": "As a resident liaison officer, I want to track resident consent so that nothing is installed without it where it is needed.",
       "rules": [
-        "Moving a case to installed requires consent (ConsentRequired, a subclass of ValidationError).",
-        "Withdrawing consent pauses the case: no forward moves until consent is given again. Pause and hold are independent."
+        "Case.consent is one of not_required (the default for new cases), required, given or withdrawn. Cases whose consent is not_required behave exactly as before.",
+        "require_consent marks consent as required; calling it when consent is not not_required raises ValidationError.",
+        "record_consent sets consent to given from any other state; recording it when it is already given raises ValidationError.",
+        "A forward move into installed while consent is required raises ConsentRequired (a subclass of ValidationError). Other moves are not affected.",
+        "withdraw_consent works only when consent is given (ValidationError otherwise). It sets consent to withdrawn and pauses the case: Case.paused becomes True and every move raises Paused (a subclass of ValidationError) until consent is recorded again, which clears the pause. If the case is also on hold, OnHold is raised instead.",
+        "Returns, reopening and handoffs are still allowed while a case is paused.",
+        "by and reason must be non-blank (ValidationError).",
+        "Unknown case ids raise NotFoundError."
       ],
       "api": [
+        "require_consent(case_id, by)",
         "record_consent(case_id, by)",
         "withdraw_consent(case_id, by, reason)",
-        "Case.consent in {'none', 'given', 'withdrawn'}",
-        "Case.paused"
+        "Case gains the attributes consent (str) and paused (bool).",
+        "ConsentRequired and Paused importable from workbench."
       ]
     },
     {
       "id": "f07",
-      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "status": "ready",
       "title": "Appointments and no-access visits",
       "story": "As a scheduler, I want to track offered and confirmed appointments and failed visits so that stuck cases are escalated.",
       "rules": [
-        "Only offered dates can be confirmed.",
-        "Verified no-access visits count; more than five in the active period escalate the case.",
-        "Reopening (F4) resets the active counter but keeps the history."
+        "Dates are datetime.date objects; anything else raises ValidationError. by must be non-blank.",
+        "offer_appointment offers a date; offering a date already offered for that case raises ValidationError. confirm_appointment confirms an offered date; confirming a date that is not currently offered (never offered, or already confirmed) raises ValidationError.",
+        "appointments(case_id) lists (date, status) tuples sorted by date; status is offered or confirmed.",
+        "While a case is on hold, offering or confirming appointments raises OnHold. No-access visits can still be recorded.",
+        "record_no_access records a visit where no access was gained; verified must be True or False (ValidationError otherwise). Only verified visits count: no_access_count is the number of verified visits in the active period, and a case with more than five is escalated.",
+        "escalated_cases() returns the escalated cases ordered by id.",
+        "Reopening a case starts a new active period: its no-access count goes back to 0, but no_access_history keeps every visit. Returns do not reset the count.",
+        "Unknown case ids raise NotFoundError."
       ],
       "api": [
         "offer_appointment(case_id, date, by)",
         "confirm_appointment(case_id, date, by)",
+        "appointments(case_id) -> list of (date, status)",
         "record_no_access(case_id, date, verified, by)",
-        "no_access_count(case_id)",
+        "no_access_count(case_id) -> int",
+        "no_access_history(case_id) -> list of (date, verified), in the order recorded",
         "escalated_cases() -> list of Case"
       ]
     },
     {
       "id": "f08",
-      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "status": "ready",
       "title": "Roles and field visibility",
-      "story": "As a data protection lead, I want contractors never to see vulnerability reasons or resident contacts.",
+      "story": "As a data protection lead, I want contractors never to see residents' vulnerability reasons or contact details.",
       "rules": [
-        "view_as(role) returns a read-only view with the same read methods.",
-        "Contractors never see vulnerability reasons or resident contacts, in any read or export; officers see everything."
+        "set_vulnerability records why a resident is vulnerable; set_resident_contact records a resident's phone number. Both need a non-blank value (ValidationError) and a known UPRN (NotFoundError). Homes start with neither (None).",
+        "get_home(uprn) returns a Home with uprn, address, postcode, vulnerability and contact (NotFoundError for an unknown UPRN). case_details(case_id) returns a dict with exactly the keys id, uprn, address, postcode, measure, stage, owner, vulnerability and contact.",
+        "Roles are officer, contractor, building_safety and manager; any other role raises ValidationError. The Workbench itself sees everything, as do views for every role except contractor.",
+        "view_as(role) returns a read-only view with the read methods get_home, get_case, list_cases (same filters), case_details, history, notes and stage_counts, always reflecting the current state. Any other method on a view raises NotAllowed.",
+        "Contractors never see vulnerability reasons or resident contacts: in a contractor view, get_home and case_details return None for vulnerability and contact, and all other fields are unchanged. Viewing never changes the stored data.",
+        "Unknown case ids raise NotFoundError."
       ],
       "api": [
         "set_vulnerability(uprn, reason)",
         "set_resident_contact(uprn, phone)",
-        "view_as(role)"
+        "get_home(uprn) -> Home (Home gains vulnerability and contact)",
+        "case_details(case_id) -> dict",
+        "view_as(role) -> read-only view"
       ]
     },
     {
       "id": "f09",
-      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "status": "ready",
       "title": "Deterministic priority ranking",
       "story": "As a programme manager, I want a ranked list of cases with reasons so that crews work on the right homes first.",
       "rules": [
-        "Ranking follows a versioned policy and returns reason codes.",
-        "Held cases come first; ties break by case id.",
-        "The same inputs always give the same ranking."
+        "rank_cases(policy_version='v1') ranks every case except those in stage handed_over and returns a list of (case_id, score, reason_codes) tuples, reason_codes being a list of strings. Any policy version other than 'v1' raises ValidationError.",
+        "Policy v1 points: VULNERABLE +50 when the home has a vulnerability recorded; ESCALATED +30 when the case is escalated; CONSENT_GIVEN +20 when consent is given; READY +10 when the stage is ready; PAUSED -40 when the case is paused. HELD (no points) when the case is on hold; held cases still collect the other codes and points.",
+        "reason_codes lists the codes that apply in this order: HELD, VULNERABLE, ESCALATED, CONSENT_GIVEN, READY, PAUSED.",
+        "Held cases come first; within each group, cases are ordered by score, highest first, and ties break by case id. The same state always gives the same ranking.",
+        "Views also offer rank_cases, with the same result."
       ],
       "api": [
-        "rank_cases(policy_version='v1') -> list of (case_id, score, reason_codes)"
+        "rank_cases(policy_version='v1') -> list of (case_id, score, reason_codes), on the Workbench and on views"
       ]
     },
     {
       "id": "f10",
-      "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+      "status": "ready",
       "title": "Audit trail and export",
-      "story": "As an auditor, I want a tamper-evident record of every change and a filtered export.",
+      "story": "As an auditor, I want a tamper-evident record of every change and a filtered export of cases.",
       "rules": [
-        "Every write appends an audit entry chained by SHA-256 hashes; verify_audit detects any change to an earlier entry.",
-        "CSV export honours the filters of list_cases and the visibility rules of F8."
+        "Every successful write appends exactly one entry to the audit trail; failed calls and reads append nothing. The writes are add_home (an import appends one add_home entry per home), open_case, move, assign, request_handoff, accept_handoff, decline_handoff, return_to, reopen, place_hold, release_hold, require_consent, record_consent, withdraw_consent, offer_appointment, confirm_appointment, record_no_access, set_vulnerability and set_resident_contact.",
+        "Each entry is a dict with exactly the keys seq (1, 2, 3, ...), action (the method name), target (the case id, or the UPRN for home methods), by (the by argument, or None for methods without one), prev_hash (the previous entry's hash, or '' for the first) and hash (a 64-character SHA-256 hex digest covering seq, action, target, by and prev_hash).",
+        "audit_log() returns copies of the entries, oldest first. verify_audit(entries=None) checks the given list of entries (the workbench's own trail when None): it returns True only if every entry's seq is its position (1, 2, 3, ...), every prev_hash equals the previous entry's hash and every hash matches the entry's content.",
+        "export_cases_csv(role, **filters) returns CSV text with the header id,uprn,address,postcode,measure,stage,owner,vulnerability,contact and one row per case returned by list_cases(**filters), in the same order. Missing values (such as no owner) are empty fields. For contractors, vulnerability and contact are always empty. An unknown role raises ValidationError."
       ],
       "api": [
         "audit_log() -> list of dict",
-        "verify_audit() -> bool",
+        "verify_audit(entries=None) -> bool",
         "export_cases_csv(role, **filters) -> str"
       ]
     }
   ],
   "change_request": {
     "id": "cr1",
-    "status": "draft: write 3-5 visible tests, 10-20 hidden tests (including interactions with earlier features) and extend the reference implementation, then set status to ready",
+    "status": "ready",
     "title": "Regions",
-    "story": "As the programme director, I want every home to belong to a region and every user to work within their regions.",
+    "story": "As the programme director, I want every home to belong to a region and every user to work only within their regions.",
     "rules": [
-      "Every home belongs to a region; users are scoped to one or more regions.",
-      "Lists, ranking, exports and handoffs respect the acting user's regions.",
-      "A handoff to a user in another region needs a manager's approval."
+      "define_region(name, postcode_prefixes) defines a region by one or more postcode prefixes, stored upper-case. A blank name, a name already defined, the name 'unassigned', an empty prefix list, a blank prefix or a prefix already used by any region raises ValidationError.",
+      "Every home belongs to exactly one region: region_of(uprn) returns the region whose prefix is the longest match for the home's postcode, or 'unassigned' if none matches. Regions apply to homes added before or after they are defined. Unknown UPRNs raise NotFoundError.",
+      "add_user(name, role, regions) registers a user with one of the roles officer, contractor, building_safety or manager and one or more defined regions. A blank or existing name, an unknown role, an empty region list or an undefined region raises ValidationError.",
+      "view_for(name) returns a read-only view for a registered user (NotFoundError otherwise): the same view as view_as(role) for the user's role, plus rank_cases and export_cases_csv(**filters), restricted to homes in the user's regions. Lists, rankings, exports and stage counts include only those cases, in the same order as before; reading a case or home outside them raises NotAllowed.",
+      "A handoff to a registered user whose regions do not include the case's region needs a manager's approval: accept_handoff raises NotAllowed until approve_handoff is called by a registered user with role manager (NotAllowed for anyone else). handoff_needs_approval(case_id) says whether the pending handoff still needs approval. Approving when no pending handoff needs approval raises ValidationError. Each new request needs its own approval. Handoffs to anyone else work as before.",
+      "define_region, add_user and approve_handoff are writes and are audited like the others (target: the region name, the user name or the case id; by: None, None and the approver).",
+      "Everything that worked before keeps working."
     ],
     "api": [
-      "To be written with the change request's visible and hidden tests."
+      "define_region(name, postcode_prefixes)",
+      "region_of(uprn) -> str",
+      "add_user(name, role, regions)",
+      "view_for(name) -> read-only view",
+      "handoff_needs_approval(case_id) -> bool",
+      "approve_handoff(case_id, by)"
     ]
   }
 }

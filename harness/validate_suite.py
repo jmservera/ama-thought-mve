@@ -67,7 +67,35 @@ def main():
             print(f"   failing on reference: {t}")
         for t in passing_without:
             print(f"   weak (passes without the feature): {t}")
+    ok = check_change_request(suite_dir, suite) and ok
     sys.exit(0 if ok else 1)
+
+
+def check_change_request(suite_dir, suite):
+    """All feature tests plus the change request's tests pass on reference/cr1; its hidden tests fail on f10."""
+    cr = suite.get("change_request") or {}
+    if cr.get("status") != "ready":
+        print(f"{cr.get('id', 'change request')}: {cr.get('status')}")
+        return True
+    files = []
+    for g in suite["features"]:
+        files += glob.glob(os.path.join(suite_dir, "features", g["id"], "examples", "*.py"))
+        files += glob.glob(os.path.join(suite_dir, "features", g["id"], "hidden", "*.py"))
+    files += glob.glob(os.path.join(suite_dir, cr["id"], "examples", "*.py"))
+    cr_hidden = glob.glob(os.path.join(suite_dir, cr["id"], "hidden", "*.py"))
+    res = run_isolated(files + cr_hidden, os.path.join(suite_dir, "reference", cr["id"], "workbench"))
+    bad = [t for t, o in res.items() if o != "passed"]
+    last = os.path.join(suite_dir, "reference", suite["features"][-1]["id"], "workbench")
+    res_prev = run_isolated(cr_hidden, last)
+    weak = [t for t, o in res_prev.items() if o == "passed"]
+    print(f"{cr['id']}: {len(res) - len(bad)}/{len(res)} tests (all features plus the change request) pass on the "
+          f"reference [{'OK' if not bad else 'FAIL'}]; {len(weak)}/{len(res_prev)} change-request hidden tests already "
+          f"pass without it")
+    for t in bad:
+        print(f"   failing on reference: {t}")
+    for t in weak:
+        print(f"   weak (passes without the change): {t}")
+    return not bad
 
 
 if __name__ == "__main__":

@@ -126,7 +126,8 @@ class Run:
         git(self.repo, "clean", "-qfd")
 
     def copy_examples(self, item, kind="features"):
-        src = os.path.join(self.suite_dir, kind, item["id"], "examples") if kind else ""
+        base = os.path.join(self.suite_dir, kind) if kind else self.suite_dir  # the change request lives at the suite root
+        src = os.path.join(base, item["id"], "examples")
         files = sorted(glob.glob(os.path.join(src, "*.py")))
         for p in files:
             shutil.copy(p, os.path.join(self.repo, "tests", "examples"))
