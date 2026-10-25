@@ -19,6 +19,8 @@ import subprocess
 import sys
 import time
 
+from evaluation_env import evaluation_environment
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
 
@@ -117,8 +119,11 @@ class Run:
         return e
 
     def is_green(self):
-        r = subprocess.run(["make", "-s", "test"], cwd=self.repo, capture_output=True, text=True, env=self.env(),
-                           timeout=600)
+        with evaluation_environment() as env:
+            if "TEST_CMD" in self.env_extra:
+                env["TEST_CMD"] = self.env_extra["TEST_CMD"]
+            r = subprocess.run(["make", "-s", "test"], cwd=self.repo, capture_output=True, text=True, env=env,
+                               timeout=600)
         return r.returncode == 0
 
     def discard_uncommitted(self):
@@ -201,7 +206,8 @@ class Run:
             cmd += ["--prev-ref", prev_ref]
         if cr:
             cmd.append("--cr")
-        r = subprocess.run(cmd, capture_output=True, text=True, env=self.env())
+        with evaluation_environment() as env:
+            r = subprocess.run(cmd, capture_output=True, text=True, env=env)
         if r.returncode != 0:
             raise RuntimeError(f"measure failed: {r.stderr}")
         return json.load(open(out, encoding="utf-8"))

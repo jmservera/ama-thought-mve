@@ -8,6 +8,11 @@ This runbook turns the protocol in `protocol/` into results you can put in Secti
 > [!IMPORTANT]
 > D1-D12 were settled by the owner on 25 October 2026. The [working plan](.copilot-tracking/mve/2026-10-24/feature-consolidation-harness/mve-plan.md) and supporting artifacts are updated, but have not been promoted to `protocol/`, frozen or registered. Remaining hypothesis thresholds (including H7), pilot calibration, independent hidden-test review and local-access checks remain gates before confirmatory execution.
 
+The measurement-integrity correction is recorded in [divergence-log.md](divergence-log.md).
+It preserves earlier data and the existing `protocol-frozen` tag. Reconcile its
+implemented analysis with the approved plan before creating a new versioned
+freeze or registration; this correction is not an approval to run the study.
+
 Tool facts were checked on 24 October 2026 against GitHub Copilot CLI 1.0.95 help and the official documentation. The latest CLI release at that date was 1.0.103. Re-check the flags on the version you pin.
 
 ## 0. What you need
@@ -44,11 +49,11 @@ Tool facts were checked on 24 October 2026 against GitHub Copilot CLI 1.0.95 hel
    - update `hypotheses.md`, `experiment-design.md` and `mve-plan.md`.
    The agent is interactive and asks questions, so run it in chat, not with `-p`.
 5. After pilot calibration, remaining threshold approval and preflight checks, promote the result and divergence log back to `protocol/`, the tracked record.
-6. Compute and register the plan:
+6. Compute the plan hash and commit the approved record. Choose a new unused versioned tag; never force, move or replace the existing `protocol-frozen` tag. The following name is an example, not an assertion that it is available:
 
    ```bash
    sha256sum protocol/mve-plan.md > protocol/mve-plan.sha256
-   git add protocol && git commit -m "Freeze protocol" && git tag protocol-frozen
+    git add protocol && git commit -m "Freeze protocol" && git tag protocol-frozen-v2
    ```
 
 7. Register the frozen protocol before any confirmatory run. Use OSF Registries, or publish the paper's protocol version on arXiv. Its timestamp is your proof that thresholds came first.
@@ -80,9 +85,19 @@ What the kit adds to the protocol (accept or change these before freezing):
   - Review-only steps may change only `REVIEW.md`.
   - Uncommitted work is discarded.
 - **Fixed denominators.** A hidden test module that fails to import counts all of its tests as failed.
-- **Measurements the agent cannot influence.** `ruff --isolated` and jscpd v5 run from an empty folder.
-- **Small fixes.** `tcr` exits with status 1 when it reverts. Each feature's API is listed under its rules. A change-request prompt is added.
-- **Analysis.** Treat suite as a fixed effect in any mixed model, because there are only two suites. Run is the random effect.
+- Measurement configuration: `ruff --isolated` and jscpd v5 run from an empty
+  folder. This reduces configuration influence, not all influence from generated
+  code. Backend failure is not a zero-warning result; generated root `reports/`
+  content is excluded from authored Markdown counts, but `DESIGN.md` and
+  `REVIEW.md` remain included.
+- Small fixes: `tcr` returns the failed test/stage/commit status after attempting
+  rollback and uses a unique temporary log. Its `reports/` clean exclusion does
+  not protect tracked report files from reset. Each feature's API is listed
+  under its rules. A change-request prompt is added.
+- Analysis: the implemented analyzer resamples per-run OLS slopes. It does not
+  fit the proposed mixed model. If that model is adopted separately, treat
+  suite as a fixed effect and run as a random effect, and settle that analysis
+  choice before a new freeze.
 
 ## 3. Review and freeze suite S1
 
@@ -94,7 +109,11 @@ What you still have to do:
 2. **Check the difficulty.** The features should be small enough for one 30-minute step but interact enough to create pressure on earlier code. The pilot (step 5) is the real check.
 3. **Change nothing after the freeze.**
 
-Test the tests until every feature reports OK and no hidden test is reported as weak:
+Require every cumulative reference stage and CR1 to pass. Validation rejects
+draft items, missing reference packages, empty per-item visible/hidden tests
+and failed collection processes. Prior-reference diagnostics are advisory:
+some edge cases can legitimately pass before a feature exists, so review
+their intent rather than equating every earlier pass with an invalid test.
 
 ```bash
 python3 harness/validate_suite.py suites/s1-retrofit
@@ -120,6 +139,14 @@ cp harness/config.docker.json harness/config.json
 ```
 
 **Option B, local VM execution (selected under D11).** For a fresh setup, install the pinned CLI and duplication tool and use the local configuration. Skip the copy if `harness/config.json` is already configured; it would replace the current values.
+
+Evaluator, metric and green-check subprocesses receive an allowlisted environment
+with temporary home/cache directories instead of inherited model credentials.
+Agent authentication is unchanged. This is credential-exposure reduction,
+not OS isolation: local processes can still access files and network subject
+to host permissions. Metadata says `evaluation.environment` is
+`allowlisted_subprocesses`; a direct CLI caller's own process is not scrubbed.
+D11's probe and residual-risk gates still apply.
 
 ```bash
 npm install -g @github/copilot@1.0.103 jscpd@5.4.1
@@ -238,15 +265,50 @@ python3 analyze.py --runs ../runs --phase first --out ../results/first
 
 **How the outputs are computed:**
 
-- **Intervals:** 95% bootstrap intervals that resample whole runs within arm and suite.
-- **p-values:** exact permutation p-values are reported, but read the intervals first.
+- Bootstrap intervals: 10,000 whole-run resamples within arm and suite, with
+  equal-suite weighting and shared draws for compound contrasts. Reported
+  95% percentile intervals are marginal, not simultaneous across hypotheses.
+  Missing contributing metrics or any undefined resampled estimate makes the
+  affected interval unavailable; undefined draws are not silently dropped.
+- H2 uses end-state open-regression reduction and A's trajectory, not AUC as
+  a substitute. H3 uses per-run OLS quality slopes; its component rule requires
+  a positive A-slope interval, the point-estimate half-slope threshold and a
+  beneficial A-minus-B interval. The half-slope-margin interval is also reported.
+- H5 separates late feature-implementation cost from consolidation/review cost.
+  Late means the last `floor(N/3)` feature sessions, with at least one session.
+- H6 success bounds use Clopper-Pearson binomial intervals with Bonferroni
+  allocation across both arms and all suites, followed by subtraction of
+  opposite endpoints. These are conservative at-least-95% simultaneous bounds,
+  not a narrow exact interval for the difference; four runs can be inconclusive.
+  The alternative successful-attempt cost comparison retains failed attempts
+  in run resampling and reports their counts and costs separately. Its
+  no-lower-success condition is observed, not established non-inferiority.
+- H4 volume and H7 correctness components are descriptive. Full H4 needs blinded
+  comprehension evidence; full H7 needs the H3 package comparison as well.
+  Neither full verdict is implemented, so both remain not evaluable.
+- Requested AI-credit costs need complete accounting for every contributing
+  session. Missing costs are unknown, not zero. There is no automatic fallback
+  to tokens or seconds; an explicit secondary-unit analysis must be labelled.
+- Metadata-bearing runs remain in reporting even without a first step record.
+  Interrupted or malformed trajectories do not substitute their last observed
+  feature for the scheduled endpoint. Check `sequence_complete`,
+  `outcomes_complete`, missing-step fields and recorded errors. Partial observed
+  outcomes/costs remain descriptive; unavailable scheduled values are not
+  replaced by complete survivors.
+- Permutation p-values are exact when feasible and otherwise Monte Carlo.
+  Read the intervals first.
+
+These implementation details require reconciliation with the proposed analysis
+before a new freeze; unchanged numeric thresholds do not establish method
+approval or registration conformance.
 
 **Before you accept a verdict:**
 
 - read the violations and possible-leak columns;
 - read two or three transcripts per arm.
 
-**Optional mixed model.** Needs pandas and statsmodels:
+**Proposed separate mixed model.** Not fitted by `analyze.py`; it needs pandas
+and statsmodels and pre-freeze method reconciliation:
 
 ```python
 import pandas as pd, statsmodels.formula.api as smf
@@ -270,7 +332,12 @@ print(smf.mixedlm("mean_ccn ~ C(arm) * k + C(suite)", d, groups=d["run_id"]).fit
 
 1. Export each final code base without arm labels: delete `DESIGN.md` and `REVIEW.md`, and give each a random code.
 2. Two or three reviewers answer the same five questions per code base. Example: "Where is the rule that blocks installation without consent?"
-3. Record accuracy and minutes per code base in a CSV, then compare arms with rank tests and Â12.
+3. Record accuracy and minutes per code base in a CSV, then compare arms with rank tests and A12.
+
+The current analyzer does not ingest these reviewer data or calculate a full
+H4 verdict. Preserve the blinded-review record and complete the approved
+analysis separately before reporting H4 as evaluated. HIR extraction and
+author verification also remain separate, unimplemented work in this kit.
 
 ## 10. Archive and publish
 
@@ -298,7 +365,7 @@ The excluded smoke run used 14.54324 credits across two sessions, averaging 7.27
 | `make: not found` | Install make, for example `apt-get install make`. |
 | `./tcr: Permission denied` | The runner sets the executable bit, because zip files and synced folders drop it. In other copies, run `chmod +x tcr`. |
 | The agent ends at once or asks for approval | Keep `--allow-all-tools` for prompt mode. Check that the CLI policy is enabled and the token has Copilot Requests. |
-| `usage.json` missing or without credits | Report incomplete accounting. Inspect any analyser fallback, but do not silently mix tokens or seconds with the primary AI-credit comparison; recover the records or mark that cost comparison not evaluable. |
+| `usage.json` missing or without credits | Report incomplete accounting. Recover the records or mark that cost comparison not evaluable. The analyzer does not automatically substitute tokens or seconds for the requested AI-credit comparison. |
 | Many `examples modified` violations | The agent is weakening tests. The runner already restores them; report the counts per arm. |
 | Hidden pass rate near zero in both arms | The features are too large or the API is unclear. Revise and re-freeze before the first pass, never after. |
-| `possible_leak` true | Read the transcript. If the agent saw hidden tests, discard the run, log it and fix isolation. |
+| `possible_leak` true | Preserve and flag the run and transcript, stop affected execution and investigate. Do not silently delete or replace a run; apply the approved exposure policy or obtain an owner decision before restarting. |

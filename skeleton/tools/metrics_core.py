@@ -3,7 +3,7 @@
 Backends (environment variables or function arguments):
   MVE_COMPLEXITY = lizard | internal | auto   (default auto: lizard if importable)
   MVE_DUPLICATION = jscpd | internal | auto   (default auto: jscpd if on PATH)
-  MVE_LINT = ruff | none | auto               (default auto: ruff if on PATH)
+    MVE_LINT = ruff | none | auto               (default auto requires ruff; none must be explicit)
 Every result records the backend used, so runs measured differently are never mixed.
 """
 import ast
@@ -12,11 +12,47 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from collections import defaultdict
+from contextlib import contextmanager
+from pathlib import Path
 
 DUP_WINDOW = 6
 LINT_RULES = "E,F,W,C90,B,SIM"  # frozen rule set; C90 uses the default complexity limit of 10
+
+
+@contextmanager
+def evaluation_environment():
+    """Allowlist local tool settings and own temporary homes, without OS isolation."""
+    allowed = (
+        "PATH", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "SYSTEMROOT",
+        "TEST_CMD", "MVE_COMPLEXITY", "MVE_DUPLICATION", "MVE_LINT",
+    )
+    env = {name: os.environ[name] for name in allowed if name in os.environ}
+    env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", os.defpath)
+    with tempfile.TemporaryDirectory(prefix="mve-evaluation-") as root:
+        for name, folder in (
+            ("HOME", "home"),
+            ("XDG_CACHE_HOME", "cache"),
+            ("XDG_CONFIG_HOME", "config"),
+            ("XDG_DATA_HOME", "data"),
+            ("XDG_STATE_HOME", "state"),
+            ("TMPDIR", "tmp"),
+        ):
+            path = Path(root) / folder
+            path.mkdir()
+            env[name] = str(path)
+        env.update(
+            TMP=env["TMPDIR"],
+            TEMP=env["TMPDIR"],
+            PYTHONDONTWRITEBYTECODE="1",
+            PYTHONNOUSERSITE="1",
+            PYTEST_DISABLE_PLUGIN_AUTOLOAD="1",
+            GIT_CONFIG_NOSYSTEM="1",
+            GIT_TERMINAL_PROMPT="0",
+        )
+        yield env
 
 
 def py_files(root):
@@ -28,7 +64,7 @@ def py_files(root):
 
 
 def _read(path):
-    with open(path, encoding="utf-8", errors="replace") as f:
+    with open(path, encoding="utf-8") as f:
         return f.read()
 
 
@@ -66,8 +102,8 @@ class _CC(ast.NodeVisitor):
 def _internal_functions(path):
     try:
         tree = ast.parse(_read(path))
-    except SyntaxError:
-        return []
+    except SyntaxError as error:
+        raise ValueError(f"Cannot measure invalid Python source: {path}") from error
     out = []
 
     def walk(node, prefix):
@@ -142,14 +178,18 @@ def _internal_duplication(files):
 
 
 def _jscpd_duplication(src):
-    exe = shutil.which("jscpd")
-    if not exe:
-        return None
-    out = tempfile.mkdtemp(prefix="jscpd-")
-    # jscpd v5 flags (format, thresholds, JSON reporter). Run from an empty folder so that no
-    # .jscpd.json written by the agent can change the measure.
-    subprocess.run([exe, "-f", "python", "--min-tokens", "50", "--min-lines", "5", "-r", "json",
-                    "--output", out, os.path.abspath(src)], capture_output=True, text=True, timeout=300, cwd=out)
+    with evaluation_environment() as env:
+        exe = shutil.which("jscpd", path=env["PATH"])
+        if not exe:
+            return None
+        out = tempfile.mkdtemp(prefix="jscpd-")
+        # jscpd v5 flags (format, thresholds, JSON reporter). Run from an empty folder so that no
+        # .jscpd.json written by the agent can change the measure.
+        process = subprocess.run([exe, "-f", "python", "--min-tokens", "50", "--min-lines", "5", "-r", "json",
+                                  "--output", out, os.path.abspath(src)],
+                                 capture_output=True, text=True, timeout=300, cwd=out, env=env)
+    if process.returncode != 0:
+        raise RuntimeError(f"jscpd exited with code {process.returncode}")
     report = os.path.join(out, "jscpd-report.json")
     if not os.path.exists(report):
         return None
@@ -176,19 +216,38 @@ def duplication(src, files, backend=None):
 # ----------------------------------------------------------------------- lint
 def lint(src, backend=None, config_root=None):
     backend = backend or os.environ.get("MVE_LINT", "auto")
-    exe = shutil.which("ruff")
-    if backend == "none" or (backend == "auto" and not exe):
+    if backend not in ("auto", "ruff", "none"):
+        raise ValueError(f"Unknown lint backend: {backend}")
+    if backend == "none":
         return {"backend": "none", "warnings": None, "by_code": {}}
-    if not exe:
-        raise RuntimeError("ruff requested but not on PATH")
-    # --isolated ignores every configuration file, so editing pyproject.toml cannot change the measure.
-    r = subprocess.run([exe, "check", "--isolated", "--select", LINT_RULES, "--output-format", "json",
-                        "--exit-zero", "--no-cache", os.path.abspath(src)],
-                       capture_output=True, text=True, timeout=300, cwd=config_root or None)
-    items = json.loads(r.stdout or "[]")
+    with evaluation_environment() as env:
+        exe = shutil.which("ruff", path=env["PATH"])
+        if not exe:
+            raise RuntimeError("ruff requested but not on PATH")
+        # --isolated ignores every configuration file, so editing pyproject.toml cannot change the measure.
+        r = subprocess.run([exe, "check", "--isolated", "--select", LINT_RULES, "--output-format", "json",
+                            "--exit-zero", "--no-cache", os.path.abspath(src)],
+                           capture_output=True, text=True, timeout=300, cwd=config_root or None, env=env)
+    if r.returncode != 0:
+        raise RuntimeError(f"ruff exited with code {r.returncode}")
+    try:
+        items = json.loads(r.stdout)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError("ruff did not produce valid JSON") from error
+    if not isinstance(items, list):
+        raise RuntimeError("ruff did not produce a JSON diagnostic list")
     by_code = defaultdict(int)
-    for it in items:
-        by_code[it.get("code") or "?"] += 1
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("code"), str) or not item["code"] \
+                or not isinstance(item.get("message"), str) or not isinstance(item.get("filename"), str) \
+                or not item["filename"]:
+            raise RuntimeError("ruff produced malformed JSON diagnostics")
+        location = item.get("location")
+        if not isinstance(location, dict) or any(
+            type(location.get(coordinate)) is not int or location[coordinate] < 1 for coordinate in ("row", "column")
+        ):
+            raise RuntimeError("ruff produced malformed JSON diagnostic locations")
+        by_code[item["code"]] += 1
     return {"backend": "ruff", "warnings": len(items), "by_code": dict(sorted(by_code.items()))}
 
 
@@ -205,8 +264,10 @@ def measure(repo, complexity_backend=None, duplication_backend=None, lint_backen
     dup = duplication(src, sfiles, duplication_backend)
     li = lint(src, lint_backend, config_root=repo)
     md_words = 0
+    generated_reports = os.path.abspath(os.path.join(repo, "reports"))
     for d, dirs, files in os.walk(repo):
-        dirs[:] = [x for x in dirs if not x.startswith(".")]
+        dirs[:] = [x for x in dirs if not x.startswith(".")
+                   and os.path.abspath(os.path.join(d, x)) != generated_reports]
         for f in files:
             if f.endswith(".md"):
                 md_words += len(_read(os.path.join(d, f)).split())
