@@ -1,10 +1,46 @@
 ---
 title: Feature-consolidation MVE kit
 description: Experiment tooling, offline integrity checks and pending study validation
-ms.date: 2026-10-25
+ms.date: 2026-10-26
 ---
 
 Tooling for the experiment in *Everything but the Software*, Section 8: does a consolidation step after every feature keep agent-built software working, understandable and changeable, and at what cost?
+
+## One-command quick start
+
+On Linux with Python 3.11+, git and make:
+
+```bash
+./run-study.sh --smoke
+```
+
+This runs **only the offline stub**, one feature in each of A/B/C, then produces
+CSV/JSON/Markdown, an SVG figure and LaTeX-includable table/figure fragments in
+`.study/stub-smoke/results/`. It spends no AI credits. Run the same command again
+to resume; completed cells/steps are skipped. Stub results are diagnostic, never
+study evidence. Use a new `--study-id my-smoke` after changing execution inputs
+or committing a different source revision.
+
+```bash
+./run-study.sh --smoke --dry-run      # read-only offline preflight and schedule
+./scripts/bootstrap-vm.sh            # checks only; no installs, sudo or agents
+./run-study.sh --dry-run --phase first  # reports all live execution blockers
+./run-study.sh --smoke --publish     # explicitly push derived stub results + PR
+```
+
+Publication needs authenticated `gh`, git author identity and origin push access.
+It uses a separate `results/<study-id>` branch, never pushes raw logs or changes
+your source branch, and creates/updates a PR against that source branch.
+Files are allowlisted, credential-checked and capped at 512 KiB each / 4 MiB total.
+
+**Paid execution is deliberately unavailable.** Copilot CLI 1.0.103's credit
+limit is soft, not a hard spending boundary. The runner enforces a <=2,500-credit
+aggregate *admission* ledger with explicit prior spending and unknown-usage
+stops, but refuses all real sessions until a provider-enforced hard billing
+backend exists. A nominal CLI cap, a freeze file or a container cannot bypass
+this stop. No protocol has been frozen or registered by this work. Owner freeze,
+H4/H7 definitions, independent reviews and other method gates also remain open.
+See [RUNBOOK.md](RUNBOOK.md#unattended-controller) for state, recovery and gates.
 
 ## Integrity correction status
 
@@ -40,7 +76,7 @@ preserved separately from the follow-up's implementation/test evidence in
 | `skeleton/` | The starting repository for every run: `Makefile`, `tcr`, quality report, empty package. |
 | `suites/s1-retrofit/` | Suite S1: ten features and the change request CR1, each with a specification and API, visible tests, hidden tests (142 in total) and a cumulative reference solution. Validated; needs your review before the freeze. |
 
-## Quick start: offline dry run (no agent, no network)
+## Lower-level offline commands
 
 Needs Python 3.11+, git and make on Linux, macOS or WSL.
 
@@ -54,7 +90,9 @@ python3 analyze.py --runs ../runs-dry --phase dry --out ../results-dry --cost-un
 
 The stand-in agent applies the reference solution, so both arms reach 100%; the point is to check the pipeline, not the hypothesis. Real runs use `config.local.json` or `config.docker.json`, as described in the runbook.
 
-The kit was dry-run end to end with the stand-in agent in all three arms, through all ten features and the change request (plus tampered tests and an undelivered feature), and smoke-tested with GitHub Copilot CLI 1.0.95 on feature 1.
+Historical diagnostics used the stand-in through ten features and CR1 and a
+paid CLI 1.0.95 feature-1 smoke. They are not new study data. The unattended
+controller's smoke is strictly a stub; it never calls Copilot.
 
 ## Regression checks
 

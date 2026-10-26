@@ -1,0 +1,49 @@
+{
+  "task_id": "unattended-runner-2026-10-26",
+  "task_slug": "unattended-runner",
+  "parent_task": null,
+  "mode": "automatic",
+  "active_phase": "Follow-up",
+  "status": "active",
+  "session_status": "running",
+  "artifact_paths": {
+    "research": ".copilot-tracking/research/2026-10-26/unattended-runner-research.md",
+    "plan": ".copilot-tracking/plans/2026-10-26/unattended-runner-plan.md",
+    "details": ".copilot-tracking/details/2026-10-26/unattended-runner-phase-details.md",
+    "critique": ".copilot-tracking/reviews/2026-10-26/unattended-runner-critique.md",
+    "changes": ".copilot-tracking/changes/2026-10-26/unattended-runner-changes.md",
+    "review": ".copilot-tracking/reviews/logs/2026-10-26/unattended-runner-review.md"
+  },
+  "confirmed_decisions": [
+    {
+      "decision": "Execute all four phases, commit, push and open stacked PR; never run paid study or modify tags/paper",
+      "status": "confirmed",
+      "evidence": "User request, 2026-10-26"
+    },
+    {
+      "decision": "Research executed; planning readiness Ready for safe tooling, not study execution",
+      "status": "executed",
+      "evidence": ".copilot-tracking/research/2026-10-26/unattended-runner-research.md; C1-C16"
+    },
+    {
+      "decision": "One critique executed, verdict Revise; PC-001/002/003 applied directly and tested",
+      "status": "complete",
+      "evidence": ".copilot-tracking/reviews/2026-10-26/unattended-runner-critique.md"
+    },
+    {
+      "decision": "One Review executed over full requested boundary; outcome Not accepted for full live-study capability",
+      "status": "complete",
+      "evidence": ".copilot-tracking/reviews/logs/2026-10-26/unattended-runner-review.md; RV-001/RV-002/RV-003"
+    }
+  ],
+  "blockers": [
+    {"id": "RV-001", "summary": "No provider-enforced hard billing boundary; paid backend unavailable", "resolution": "Later feasibility research and separately authorised backend integration; never weaken ceiling"},
+    {"id": "RV-003", "summary": "Owner protocol, independent reviews and scientific method/telemetry evidence incomplete", "resolution": "Owner-approved prospective decisions and evidence before any affected study"}
+  ],
+  "prioritized_follow_ups": [
+    {"rank": 1, "task": "Resolve owner protocol and measurement gates", "rationale": "Document decisions first; lowest code cost and prevents unauthorised method choices", "evidence": "Research C7-C12/C15; Review RV-003"},
+    {"rank": 2, "task": "Find a genuinely hard-bounded billing backend", "rationale": "Essential to the central live-run requirement; no inspected CLI capability provides it", "evidence": "Research C2/C16; Review RV-001"},
+    {"rank": 3, "task": "Wire approved real Docker/session/usage and missing scientific exports", "rationale": "Complete the actual study pipeline after the first two prerequisites, reusing existing integrity logic", "evidence": "Review RV-002/RV-003"}
+  ],
+  "next_action": {"phase": "Follow-up", "action": "Authorised delivery pending: commit, push and open stacked PR; no child implementation or real study"}
+}

@@ -4,6 +4,35 @@ description: Dated changes to the unexecuted experiment protocol
 ms.date: 2026-10-25
 ---
 
+## 2026-10-26: Unattended tooling, not a study freeze
+
+Added a one-command stub-only controller, immutable schedules and durable
+cell/attempt accounting, bounded infrastructure retry and process timeouts,
+paper export surfaces and result-only git/gh publication. Existing incomplete
+and zero-step retention and statistical functions remain authoritative. Internal
+feature checkpoint names now use disposable repository branch refs rather than
+creating tags; the kit's protocol tags are untouched.
+
+The research comparison found no hard provider-billing interface: CLI 1.0.103
+session credit limits are soft. Aggregate admission is capped at <=2,500 credits,
+including explicit prior pilot spending and all reservations/attempts, but paid
+execution remains unconditionally disabled. No freeze file, registration, H4/H7
+definition, credit-to-currency conversion, telemetry coverage or human approval
+is manufactured. Stub outputs cannot be reported as study findings.
+
+Proposed wrapper policies needing prospective reconciliation: sequential
+randomised arm blocks; checkpoint restoration for unmeasured infrastructure
+interruptions; no retry of measured task failures; one scheduled cell per
+analysis replicate; all attempt costs attached to their step; explicit
+unknown-accounting stops; hidden evaluator outputs excluded from any proposed
+fresh container mount. Docker would amend D11 and requires owner approval.
+The command builder is not a wired, approved or access-probed paid backend.
+Existing continuation/post-feature policies are reused, not newly approved.
+
+No paper file, historical data, protocol tag or threshold changed. No real
+agent session was launched. New outputs mark unsupported scientific measures
+unavailable and retain the difference between per-run OLS and mixed models.
+
 ## 2026-10-24: Pre-Run Revision for Draft v3
 
 These changes were made before any run, according to the package's recorded
