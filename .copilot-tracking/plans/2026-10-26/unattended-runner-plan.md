@@ -86,7 +86,7 @@ AC6: existing regressions and new tests run; stacked implementation PR created.
 <!-- P04 -->
 ### P04: Review and delivery
 - [x] P04-T01: One post-implementation Review with candid requirement assessment.
-- [ ] P04-T02: Commit, push and open stacked PR.
+- [x] P04-T02: Commit, push and open stacked PR.
 
 ## Critique Contract
 
@@ -125,9 +125,12 @@ Ruff/ShellCheck/shell syntax/diff checks passed. Five stub sessions completed;
 second invocation skipped every durable step. Input fingerprint:
 `8c5b26f9bdb574b7bd1bfbc9ee5f42f2316d546bd59515d3ccf413c854644af0`.
 No real sessions, freezes, tags or paper changes. P04 Review is Complete with
-outcome Not accepted for full live-study capability; only delivery remains.
+outcome Not accepted for full live-study capability. Delivery completed:
+implementation commit `3cdd06f`, pushed `feat/unattended-runner`, PR #2 targeting
+`fix/study-measurement-integrity` and explicitly depending on PR #1.
 The full user request cannot be accepted as complete live-study capability:
 provider hard billing and a wired paid backend remain unavailable.
+PR: https://github.com/jmservera/ama-thought-mve/pull/2
 
 ## Follow-Up Items
 

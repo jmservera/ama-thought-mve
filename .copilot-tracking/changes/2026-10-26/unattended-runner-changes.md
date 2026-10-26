@@ -83,7 +83,7 @@ not installed or used. Source/result export shapes and SVG parsing are tested.
 ## Review readiness
 
 P01-P03 complete, source and docs reconciled, no pending implementation
-validation. One Review completed; authorised commit/push/stacked PR remains.
+validation. One Review completed; authorised commit/push/stacked PR completed.
 Full live execution remains an explicitly unmet requirement; no passing test
 is represented as provider-billing enforcement or scientific approval.
 
@@ -95,3 +95,16 @@ measure/method evidence are routed to later work. Offline tooling has no
 additional established correctness defect. No fix/re-review loop was run.
 Actual confirmatory dry-run exited 2 as expected; final derived exports passed
 the publication validator: 13 files, 49,448 bytes, five stub attempts, zero usage.
+
+## P04 delivery
+
+Implementation and all seven dated RPI artifacts committed as `3cdd06f`
+(`feat(harness): add resumable offline study pipeline`) with the requested
+Co-authored-by trailer. Branch `feat/unattended-runner` pushed normally to origin.
+PR #2 created against `fix/study-measurement-integrity`, explicitly stacked on
+and dependent on #1: https://github.com/jmservera/ama-thought-mve/pull/2.
+This final evidence update is a separate Conventional Commit; no amend,
+force push, tag operation, real study or additional Review.
+
+Task lifecycle completed through one Review; full-study outcome remains Not
+accepted and later work remains blocked by the recorded prerequisites.

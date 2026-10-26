@@ -4,7 +4,7 @@
   "parent_task": null,
   "mode": "automatic",
   "active_phase": "Follow-up",
-  "status": "active",
+  "status": "completed",
   "session_status": "running",
   "artifact_paths": {
     "research": ".copilot-tracking/research/2026-10-26/unattended-runner-research.md",
@@ -34,6 +34,11 @@
       "decision": "One Review executed over full requested boundary; outcome Not accepted for full live-study capability",
       "status": "complete",
       "evidence": ".copilot-tracking/reviews/logs/2026-10-26/unattended-runner-review.md; RV-001/RV-002/RV-003"
+    },
+    {
+      "decision": "Implementation 3cdd06f pushed to feat/unattended-runner; stacked PR #2 created against fix/study-measurement-integrity, depends on #1",
+      "status": "complete",
+      "evidence": "https://github.com/jmservera/ama-thought-mve/pull/2"
     }
   ],
   "blockers": [
@@ -45,5 +50,5 @@
     {"rank": 2, "task": "Find a genuinely hard-bounded billing backend", "rationale": "Essential to the central live-run requirement; no inspected CLI capability provides it", "evidence": "Research C2/C16; Review RV-001"},
     {"rank": 3, "task": "Wire approved real Docker/session/usage and missing scientific exports", "rationale": "Complete the actual study pipeline after the first two prerequisites, reusing existing integrity logic", "evidence": "Review RV-002/RV-003"}
   ],
-  "next_action": {"phase": "Follow-up", "action": "Authorised delivery pending: commit, push and open stacked PR; no child implementation or real study"}
+  "next_action": {"phase": "Follow-up", "action": "Await separately authorised ranked prerequisite work; no real study or child loop has started"}
 }
