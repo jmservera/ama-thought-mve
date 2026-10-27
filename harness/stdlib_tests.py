@@ -35,8 +35,8 @@ def _run(fn, timeout):
     old = signal.signal(signal.SIGALRM, handler)
     signal.alarm(timeout)
     try:
-        fn()
-        return "passed", ""
+        outcome = fn()
+        return outcome if outcome else ("passed", "")
     except _Timeout:
         return "timeout", "timed out"
     except AssertionError:
@@ -74,6 +74,10 @@ def run(paths, src, timeout=10):
                             raise AssertionError(r.failures[0][1])
                         if r.errors:
                             raise RuntimeError(r.errors[0][1])
+                        if r.unexpectedSuccesses:
+                            raise AssertionError("unexpected success")
+                        if r.skipped or r.expectedFailures or not r.testsRun:
+                            return "skipped", (r.skipped or r.expectedFailures or [(None, "not executed")])[0][1]
                     results[f"{mod_name}::{attr}::{m}"] = _run(call, timeout)
     return results
 
@@ -96,7 +100,7 @@ def main():
     if a.json:
         with open(a.json, "w", encoding="utf-8") as fh:
             json.dump({"tests": {k: v[0] for k, v in res.items()}}, fh, indent=1)
-    sys.exit(0 if res and not failed else 1)
+    sys.exit(0 if res and not any(v[0] in ("failed", "error", "timeout") for v in res.values()) else 1)
 
 
 if __name__ == "__main__":

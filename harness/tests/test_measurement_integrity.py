@@ -410,6 +410,22 @@ def test_given_empty_later_hidden_contribution_when_evaluating_then_prior_tests_
         measure_module.run_hidden(str(repo), str(suite), ["f1", "f2"], runner)
 
 
+@pytest.mark.parametrize("decorator", ["@unittest.skip('x')", "@unittest.expectedFailure"])
+def test_given_skipped_unittest_when_stdlib_hidden_tests_run_then_not_recorded_as_passed(
+    hidden_candidate, measure_module, decorator
+):
+    repo, suite, test = hidden_candidate
+    test.write_text(
+        "import unittest\n\nclass T(unittest.TestCase):\n"
+        f"    {decorator}\n    def test_it(self):\n        self.fail('never')\n",
+        encoding="utf-8",
+    )
+
+    result = measure_module.run_hidden(str(repo), str(suite), ["f1"], "stdlib")
+
+    assert result == {"test_feature::T::test_it": "skipped"}
+
+
 @pytest.fixture
 def validator_module(monkeypatch):
     monkeypatch.syspath_prepend(str(KIT_ROOT / "harness"))
