@@ -19,12 +19,14 @@ import subprocess
 import sys
 import time
 
+from evaluation_env import evaluation_environment
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
 
 
 def sh(args, cwd, check=True, env=None):
-    r = subprocess.run(args, cwd=cwd, capture_output=True, text=True, env=env)
+    r = subprocess.run(args, cwd=cwd, capture_output=True, text=True, env=env, timeout=60)
     if check and r.returncode != 0:
         raise RuntimeError(f"{' '.join(args)} failed: {r.stderr.strip()}")
     return r
@@ -85,10 +87,12 @@ class Run:
         self.steps_path = os.path.join(self.dir, "steps.jsonl")
 
     # ------------------------------------------------------------------ setup
-    def setup(self):
-        if os.path.exists(self.dir):
+    def setup(self, *, existing_metadata=False):
+        if os.path.exists(self.dir) and not (
+                existing_metadata and os.path.isfile(os.path.join(self.dir, "run.json"))
+                and not os.path.exists(self.repo)):
             sys.exit(f"Run directory exists: {self.dir}")
-        os.makedirs(self.dir)
+        os.makedirs(self.dir, exist_ok=existing_metadata)
         shutil.copytree(os.path.join(KIT, "skeleton"), self.repo)
         tcr = os.path.join(self.repo, "tcr")
         os.chmod(tcr, 0o755)  # zip files and synced folders often drop the executable bit
@@ -108,7 +112,12 @@ class Run:
         meta = {"run_id": self.run_id, "arm": self.arm, "phase": self.phase, "suite": self.suite["name"],
                 "features": self.n, "change_request": self.do_cr, "started": dt.datetime.now(dt.timezone.utc).isoformat(),
                 "config": self.cfg, "versions": versions}
-        json.dump(meta, open(os.path.join(self.dir, "run.json"), "w", encoding="utf-8"), indent=1)
+        meta_path = os.path.join(self.dir, "run.json")
+        with open(meta_path + ".tmp", "w", encoding="utf-8") as fh:
+            json.dump(meta, fh, indent=1)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(meta_path + ".tmp", meta_path)
 
     # ------------------------------------------------------------------ helpers
     def env(self):
@@ -117,8 +126,11 @@ class Run:
         return e
 
     def is_green(self):
-        r = subprocess.run(["make", "-s", "test"], cwd=self.repo, capture_output=True, text=True, env=self.env(),
-                           timeout=600)
+        with evaluation_environment() as env:
+            if "TEST_CMD" in self.env_extra:
+                env["TEST_CMD"] = self.env_extra["TEST_CMD"]
+            r = subprocess.run(["make", "-s", "test"], cwd=self.repo, capture_output=True, text=True, env=env,
+                               timeout=600)
         return r.returncode == 0
 
     def discard_uncommitted(self):
@@ -201,7 +213,8 @@ class Run:
             cmd += ["--prev-ref", prev_ref]
         if cr:
             cmd.append("--cr")
-        r = subprocess.run(cmd, capture_output=True, text=True, env=self.env())
+        with evaluation_environment() as env:
+            r = subprocess.run(cmd, capture_output=True, text=True, env=env)
         if r.returncode != 0:
             raise RuntimeError(f"measure failed: {r.stderr}")
         return json.load(open(out, encoding="utf-8"))
@@ -222,7 +235,7 @@ class Run:
         names = self.copy_examples(feat)
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", f"runner: examples for {feat['id']}")
-        git(self.repo, "tag", "-f", "feature-start")
+        git(self.repo, "update-ref", "refs/heads/feature-start", "HEAD")
         start = head(self.repo)
         rules = "\n".join(f"- {r}" for r in feat["rules"] + [f"API: {x}" for x in feat.get("api", [])])
         prompt = render(load_prompt("feature-step.prompt.md"), {
@@ -245,7 +258,7 @@ class Run:
                 for n in names:
                     git(self.repo, "rm", "-q", os.path.join("tests", "examples", n))
                 git(self.repo, "commit", "-q", "-m", f"runner: {feat['id']} not delivered; examples removed")
-        git(self.repo, "tag", "-f", "feature-end")
+        git(self.repo, "update-ref", "refs/heads/feature-end", "HEAD")
         m = self.measure(k, sd, "feature-start")
         self.record({"step": step, "k": k, "kind": "feature", "delivered": delivered, "agent": res,
                      "violations": violations, "measure": m})

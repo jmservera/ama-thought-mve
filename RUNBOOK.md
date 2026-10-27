@@ -8,7 +8,154 @@ This runbook turns the protocol in `protocol/` into results you can put in Secti
 > [!IMPORTANT]
 > D1-D12 were settled by the owner on 25 October 2026. The [working plan](.copilot-tracking/mve/2026-10-24/feature-consolidation-harness/mve-plan.md) and supporting artifacts are updated, but have not been promoted to `protocol/`, frozen or registered. Remaining hypothesis thresholds (including H7), pilot calibration, independent hidden-test review and local-access checks remain gates before confirmatory execution.
 
+The measurement-integrity correction is recorded in [divergence-log.md](divergence-log.md).
+It preserves earlier data and the existing `protocol-frozen` tag. Reconcile its
+implemented analysis with the approved plan before creating a new versioned
+freeze or registration; this correction is not an approval to run the study.
+
 Tool facts were checked on 24 October 2026 against GitHub Copilot CLI 1.0.95 help and the official documentation. The latest CLI release at that date was 1.0.103. Re-check the flags on the version you pin.
+
+## Unattended controller
+
+The 26 October controller adds a single command, not permission to run the
+study. The older manual procedures below are historical operator instructions,
+**not a way around its safety gates**. No paid session is launched by this
+revision; there is no implemented provider-enforced hard billing backend.
+
+```bash
+./run-study.sh --smoke
+```
+
+Smoke requires only Linux, Python 3.11+, git and make. It is one feature per
+A/B/C, five fake-agent sessions total, with no CR1. The fake agent deliberately
+attempts a forbidden C edit to exercise enforcement. No token, Docker, network,
+Copilot or plotting dependency is required. All output is explicitly diagnostic.
+The check-only `./scripts/bootstrap-vm.sh --smoke` checks this minimal VM;
+without `--smoke` it reports live tool/version/Docker/auth/freeze/budget blockers.
+It never installs anything, invokes sudo, changes groups or provisions services.
+If using a virtual environment, activate it or set `PYTHON=/path/to/python`;
+keep required executables on PATH.
+
+`./run-study.sh --dry-run --phase first` prints the immutable proposed 12-cell
+schedule (four runs per A/B/C, ten features and CR1, 212 sessions) and all
+preflight blockers. `--phase pilot` proposes one run/arm with no CR1.
+`--phase confirmatory` is explicitly gated too. Dry-run never creates state or
+calls `copilot -p`. `--smoke --dry-run` checks only offline prerequisites.
+An unsuccessful preflight exits 2, a partial pipeline exits 1, success exits 0.
+No unattended main-study mode is authorised.
+
+### Configuration and real execution gates
+
+The controller reads `harness/study-config.json`; `--config PATH` selects a
+different JSON object. Settings are seed, ceiling (positive, never >2,500 AI
+credits), prior pilot spending, per-session reservation, maximum attempts,
+absolute study allowance and minimum disk space. The supplied `prior_credits`
+is **null**, not a claim of zero earlier spending. Live preflight rejects it.
+Smoke explicitly has zero paid usage and does not consume a live allocation.
+No config field contains a token; set `COPILOT_GITHUB_TOKEN` only in the
+environment. Presence is checked without printing its value. `.env` is ignored,
+never loaded by the controller and never eligible for publication.
+
+Live checks include Python, git/make, Copilot **1.0.103**, Docker daemon access,
+gh, ruff **0.17.2**, lizard **1.24.3**, jscpd **5.4.1**, free disk, clean git,
+known prior spending and owner freeze provenance. No model calls are used to
+check versions. The existing image recipe and legacy configs are not evidence
+of pinned execution; real use needs a verified immutable image and tools.
+
+The owner must separately supply `protocol/freeze.json`, containing:
+`commit` (full frozen source SHA), a new authorised versioned `tag`, `inputs_sha256`
+(the controller's complete protocol/harness/skeleton/suite digest),
+`registration_url`, `registration_date`, immutable `image_digest`, and nonempty
+evidence references for each gate: `independent_suite_review`, `access_probe`,
+`docker_amendment`, `missing_feature_policy`, `retry_policy`,
+`evaluator_information_policy`, `analysis_reconciliation`, `h4_definition`,
+`h7_definition`, `telemetry_coverage`, `prior_data_disclosure`,
+`budget_calibration`. A file is a machine-checkable provenance record, not
+independent proof that its claims are true. No such file or tag is created here.
+The historical `protocol-frozen` tag alone is rejected. Owner-defined H7 and
+H4 choices are never defaulted by code.
+The manifest itself is excluded from the input digest. HEAD must match the
+frozen source or differ only by a subsequent manifest-only commit, avoiding
+an impossible self-referential commit hash.
+Dry-run prints `inputs_sha256`; the digest includes the launcher/bootstrap
+scripts and executable bits as well as protocol, harness, skeleton and suites.
+
+Even complete freeze evidence cannot enable paid execution: the inspected CLI
+exposes only a soft session cap and final usage. The ledger atomically reserves
+before launch; reconciled spending plus every outstanding reservation and
+earlier pilot spending must fit the immutable ceiling. Missing/partial usage
+holds its reservation and blocks new work; an overrun is retained and stops
+admission. This is a **hard launch-admission check**, not hard actual billing.
+No timeout or guessed overshoot buffer can guarantee the latter. Integrating
+an actually hard-bounded provider/billing service is prerequisite future work.
+The Docker command builder is preparation only, not a wired paid backend.
+
+### State and recovery
+
+All private material lives in ignored `.study/<study-id>/`: `state.json`,
+`runtime.json`, per-cell disposable git repositories, canonical `steps.jsonl`,
+attempt logs and `results/`. A single-writer lock covers execution and
+publication. Atomic state writes are fsynced before dependent actions. Input
+hash, source HEAD, schedule, budget and prior spending cannot change on resume.
+Do not edit state to extend a budget or deadline; retain it and use an explicitly
+authorised new study identity instead. Do not delete partial cells.
+
+Repeat the same command to resume. A durable measured step is never retried,
+including a measured failed feature. An unmeasured evaluator interruption can
+retry at most `max_attempts` from the previous committed checkpoint, in the
+**same** scheduled cell; all attempts/costs remain linked to that step, never new
+replicates. Unknown attempt credit costs remain unavailable. If a step record
+is torn/ambiguous, or a recorded process group may still be alive, recovery
+refuses rather than guessing or replacing the run. Stop that specific recorded
+writer safely before resuming; the controller does not kill unrelated processes.
+
+Agent/evaluator subprocess groups have timeouts and TERM/KILL/reap handling.
+The absolute study deadline persists across restarts. Work after expiry is
+unattempted, not silently excluded. Each cell's metadata is created before any
+session, so even zero-step cells enter reporting. Normal smoke runs use separate
+disposable repositories and credential-minimal fake-agent environments, **not
+OS isolation**. The proposed Docker builder mounts only a run repository and a
+fresh attempt directory, not suites, references, evaluator outputs or the host
+Docker socket. Root filesystem/resource restrictions are not proof of network
+containment. Switching from D11's local choice still requires owner approval.
+
+### Paper outputs and result-only publication
+
+`results/` contains `report.md`, `summary.md`, `summary.json`, `series.csv`,
+`hypotheses.csv`, `intervals.csv`, `runs.csv`, `attempts.csv`,
+`availability.json`, `provenance.json`, `trajectories.svg`, `hypotheses.tex`,
+`trajectories.tex`. Use `\input{hypotheses.tex}` and
+`\input{trajectories.tex}`; the figure requires no optional plotting package.
+JSON/flat CSV retain all implemented estimates and interval endpoints.
+Tables explicitly include failed, partial and unattempted cells and attempts.
+They do not replace missing endpoints with last observed outcomes.
+
+The existing corrected statistical functions are reused, not silently changed
+to the paper's proposed mixed model. H4 comprehension, H7's unresolved full
+contrast, HIR/IDR without verified event coverage, the proposed decay amendment
+and currency conversion stay unavailable. No numerical threshold is invented.
+Existing provisional comparison labels are explicitly diagnostic/exploratory,
+not confirmatory conclusions. Stub zero credits are real **zero model usage**,
+not an estimate for later sessions. Existing `results/smoke` is never pooled in.
+
+Add `--publish` to the same smoke command to publish derived diagnostics:
+
+```bash
+./run-study.sh --smoke --study-id vm-check --publish
+```
+
+This explicitly authorises a normal push to `results/vm-check` and gh PR
+create/update against the current source branch. Authenticated gh, push
+permission and git author identity are required. The source branch is never
+checked out or changed by publication. An isolated temporary results worktree
+stages only the fixed generated allowlist under `results/<study-id>/`.
+No `.env`, raw transcript, repository, arbitrary archive or prompt is eligible.
+Files must be regular, not linked, <=512 KiB each and <=4 MiB combined; token
+patterns and known environment secret values block publishing. Oversized
+results cause an explicit stop, never silent truncation of measurements.
+Private attempt stdout/stderr are capped at 1 MiB each after execution.
+Remote results are fetched, updated without force, and existing PRs edited.
+Publication errors leave durable results available to retry.
 
 ## 0. What you need
 
@@ -44,11 +191,11 @@ Tool facts were checked on 24 October 2026 against GitHub Copilot CLI 1.0.95 hel
    - update `hypotheses.md`, `experiment-design.md` and `mve-plan.md`.
    The agent is interactive and asks questions, so run it in chat, not with `-p`.
 5. After pilot calibration, remaining threshold approval and preflight checks, promote the result and divergence log back to `protocol/`, the tracked record.
-6. Compute and register the plan:
+6. Compute the plan hash and commit the approved record. Choose a new unused versioned tag; never force, move or replace the existing `protocol-frozen` tag. The following name is an example, not an assertion that it is available:
 
    ```bash
    sha256sum protocol/mve-plan.md > protocol/mve-plan.sha256
-   git add protocol && git commit -m "Freeze protocol" && git tag protocol-frozen
+    git add protocol && git commit -m "Freeze protocol" && git tag protocol-frozen-v2
    ```
 
 7. Register the frozen protocol before any confirmatory run. Use OSF Registries, or publish the paper's protocol version on arXiv. Its timestamp is your proof that thresholds came first.
@@ -80,9 +227,19 @@ What the kit adds to the protocol (accept or change these before freezing):
   - Review-only steps may change only `REVIEW.md`.
   - Uncommitted work is discarded.
 - **Fixed denominators.** A hidden test module that fails to import counts all of its tests as failed.
-- **Measurements the agent cannot influence.** `ruff --isolated` and jscpd v5 run from an empty folder.
-- **Small fixes.** `tcr` exits with status 1 when it reverts. Each feature's API is listed under its rules. A change-request prompt is added.
-- **Analysis.** Treat suite as a fixed effect in any mixed model, because there are only two suites. Run is the random effect.
+- Measurement configuration: `ruff --isolated` and jscpd v5 run from an empty
+  folder. This reduces configuration influence, not all influence from generated
+  code. Backend failure is not a zero-warning result; generated root `reports/`
+  content is excluded from authored Markdown counts, but `DESIGN.md` and
+  `REVIEW.md` remain included.
+- Small fixes: `tcr` returns the failed test/stage/commit status after attempting
+  rollback and uses a unique temporary log. Its `reports/` clean exclusion does
+  not protect tracked report files from reset. Each feature's API is listed
+  under its rules. A change-request prompt is added.
+- Analysis: the implemented analyzer resamples per-run OLS slopes. It does not
+  fit the proposed mixed model. If that model is adopted separately, treat
+  suite as a fixed effect and run as a random effect, and settle that analysis
+  choice before a new freeze.
 
 ## 3. Review and freeze suite S1
 
@@ -94,7 +251,11 @@ What you still have to do:
 2. **Check the difficulty.** The features should be small enough for one 30-minute step but interact enough to create pressure on earlier code. The pilot (step 5) is the real check.
 3. **Change nothing after the freeze.**
 
-Test the tests until every feature reports OK and no hidden test is reported as weak:
+Require every cumulative reference stage and CR1 to pass. Validation rejects
+draft items, missing reference packages, empty per-item visible/hidden tests
+and failed collection processes. Prior-reference diagnostics are advisory:
+some edge cases can legitimately pass before a feature exists, so review
+their intent rather than equating every earlier pass with an invalid test.
 
 ```bash
 python3 harness/validate_suite.py suites/s1-retrofit
@@ -120,6 +281,14 @@ cp harness/config.docker.json harness/config.json
 ```
 
 **Option B, local VM execution (selected under D11).** For a fresh setup, install the pinned CLI and duplication tool and use the local configuration. Skip the copy if `harness/config.json` is already configured; it would replace the current values.
+
+Evaluator, metric and green-check subprocesses receive an allowlisted environment
+with temporary home/cache directories instead of inherited model credentials.
+Agent authentication is unchanged. This is credential-exposure reduction,
+not OS isolation: local processes can still access files and network subject
+to host permissions. Metadata says `evaluation.environment` is
+`allowlisted_subprocesses`; a direct CLI caller's own process is not scrubbed.
+D11's probe and residual-risk gates still apply.
 
 ```bash
 npm install -g @github/copilot@1.0.103 jscpd@5.4.1
@@ -238,15 +407,50 @@ python3 analyze.py --runs ../runs --phase first --out ../results/first
 
 **How the outputs are computed:**
 
-- **Intervals:** 95% bootstrap intervals that resample whole runs within arm and suite.
-- **p-values:** exact permutation p-values are reported, but read the intervals first.
+- Bootstrap intervals: 10,000 whole-run resamples within arm and suite, with
+  equal-suite weighting and shared draws for compound contrasts. Reported
+  95% percentile intervals are marginal, not simultaneous across hypotheses.
+  Missing contributing metrics or any undefined resampled estimate makes the
+  affected interval unavailable; undefined draws are not silently dropped.
+- H2 uses end-state open-regression reduction and A's trajectory, not AUC as
+  a substitute. H3 uses per-run OLS quality slopes; its component rule requires
+  a positive A-slope interval, the point-estimate half-slope threshold and a
+  beneficial A-minus-B interval. The half-slope-margin interval is also reported.
+- H5 separates late feature-implementation cost from consolidation/review cost.
+  Late means the last `floor(N/3)` feature sessions, with at least one session.
+- H6 success bounds use Clopper-Pearson binomial intervals with Bonferroni
+  allocation across both arms and all suites, followed by subtraction of
+  opposite endpoints. These are conservative at-least-95% simultaneous bounds,
+  not a narrow exact interval for the difference; four runs can be inconclusive.
+  The alternative successful-attempt cost comparison retains failed attempts
+  in run resampling and reports their counts and costs separately. Its
+  no-lower-success condition is observed, not established non-inferiority.
+- H4 volume and H7 correctness components are descriptive. Full H4 needs blinded
+  comprehension evidence; full H7 needs the H3 package comparison as well.
+  Neither full verdict is implemented, so both remain not evaluable.
+- Requested AI-credit costs need complete accounting for every contributing
+  session. Missing costs are unknown, not zero. There is no automatic fallback
+  to tokens or seconds; an explicit secondary-unit analysis must be labelled.
+- Metadata-bearing runs remain in reporting even without a first step record.
+  Interrupted or malformed trajectories do not substitute their last observed
+  feature for the scheduled endpoint. Check `sequence_complete`,
+  `outcomes_complete`, missing-step fields and recorded errors. Partial observed
+  outcomes/costs remain descriptive; unavailable scheduled values are not
+  replaced by complete survivors.
+- Permutation p-values are exact when feasible and otherwise Monte Carlo.
+  Read the intervals first.
+
+These implementation details require reconciliation with the proposed analysis
+before a new freeze; unchanged numeric thresholds do not establish method
+approval or registration conformance.
 
 **Before you accept a verdict:**
 
 - read the violations and possible-leak columns;
 - read two or three transcripts per arm.
 
-**Optional mixed model.** Needs pandas and statsmodels:
+**Proposed separate mixed model.** Not fitted by `analyze.py`; it needs pandas
+and statsmodels and pre-freeze method reconciliation:
 
 ```python
 import pandas as pd, statsmodels.formula.api as smf
@@ -270,7 +474,12 @@ print(smf.mixedlm("mean_ccn ~ C(arm) * k + C(suite)", d, groups=d["run_id"]).fit
 
 1. Export each final code base without arm labels: delete `DESIGN.md` and `REVIEW.md`, and give each a random code.
 2. Two or three reviewers answer the same five questions per code base. Example: "Where is the rule that blocks installation without consent?"
-3. Record accuracy and minutes per code base in a CSV, then compare arms with rank tests and Â12.
+3. Record accuracy and minutes per code base in a CSV, then compare arms with rank tests and A12.
+
+The current analyzer does not ingest these reviewer data or calculate a full
+H4 verdict. Preserve the blinded-review record and complete the approved
+analysis separately before reporting H4 as evaluated. HIR extraction and
+author verification also remain separate, unimplemented work in this kit.
 
 ## 10. Archive and publish
 
@@ -298,7 +507,7 @@ The excluded smoke run used 14.54324 credits across two sessions, averaging 7.27
 | `make: not found` | Install make, for example `apt-get install make`. |
 | `./tcr: Permission denied` | The runner sets the executable bit, because zip files and synced folders drop it. In other copies, run `chmod +x tcr`. |
 | The agent ends at once or asks for approval | Keep `--allow-all-tools` for prompt mode. Check that the CLI policy is enabled and the token has Copilot Requests. |
-| `usage.json` missing or without credits | Report incomplete accounting. Inspect any analyser fallback, but do not silently mix tokens or seconds with the primary AI-credit comparison; recover the records or mark that cost comparison not evaluable. |
+| `usage.json` missing or without credits | Report incomplete accounting. Recover the records or mark that cost comparison not evaluable. The analyzer does not automatically substitute tokens or seconds for the requested AI-credit comparison. |
 | Many `examples modified` violations | The agent is weakening tests. The runner already restores them; report the counts per arm. |
 | Hidden pass rate near zero in both arms | The features are too large or the API is unclear. Revise and re-freeze before the first pass, never after. |
-| `possible_leak` true | Read the transcript. If the agent saw hidden tests, discard the run, log it and fix isolation. |
+| `possible_leak` true | Preserve and flag the run and transcript, stop affected execution and investigate. Do not silently delete or replace a run; apply the approved exposure policy or obtain an owner decision before restarting. |

@@ -17,6 +17,8 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
+from evaluation_env import evaluation_environment
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -33,59 +35,136 @@ def suite_items(suite_dir, k, cr):
     return ids
 
 
+def _class_tests(node, classes, module, ancestors=()):
+    if node.name in ancestors:
+        raise ValueError(f"Cyclic test class inheritance: {module}::{node.name}")
+    methods = {method.name for method in node.body
+               if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef))
+               and method.name.startswith("test")}
+    is_test_case = False
+    for base in node.bases:
+        base_name = getattr(base, "id", getattr(base, "attr", None))
+        is_test_case = is_test_case or base_name == "TestCase"
+        if isinstance(base, ast.Name) and base_name in classes:
+            inherited, inherited_case = _class_tests(classes[base_name], classes, module, ancestors + (node.name,))
+            methods.update(inherited)
+            is_test_case = is_test_case or inherited_case
+    return methods, is_test_case
+
+
 def expected_tests(files):
-    """Every hidden test id (module::function), so that a module that fails to import counts all its tests."""
+    """Discover fixed test identities without importing candidate-dependent modules."""
     ids = []
-    for p in files:
-        mod = os.path.splitext(os.path.basename(p))[0]
-        tree = ast.parse(open(p, encoding="utf-8").read())
-        ids += [f"{mod}::{n.name}" for n in tree.body
-                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("test")]
+    for path in files:
+        mod = os.path.splitext(os.path.basename(path))[0]
+        if not mod.startswith("test"):
+            continue
+        with open(path, encoding="utf-8") as source:
+            tree = ast.parse(source.read(), filename=path)
+        classes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test"):
+                ids.append(f"{mod}::{node.name}")
+            elif isinstance(node, ast.ClassDef):
+                methods, is_test_case = _class_tests(node, classes, mod)
+                if node.name.startswith("Test") or is_test_case:
+                    ids.extend(f"{mod}::{node.name}::{method}" for method in sorted(methods))
+    if len(ids) != len(set(ids)):
+        raise ValueError("Duplicate discovered test identities")
     return ids
 
 
-def run_hidden(repo, suite_dir, ids, runner, timeout=600):
-    # Copy hidden tests next to the run's repository, never into the system temp folder: the coding agent may
-    # read the temp folder by default, and with parallel runs another run's agent could be active right now.
-    tmp = tempfile.mkdtemp(prefix=".hidden-", dir=os.path.dirname(os.path.abspath(repo)))
-    files = []
-    for fid in ids:
-        for p in glob.glob(os.path.join(suite_dir, "features" if not fid.startswith("cr") else "", fid, "hidden", "*.py")):
-            shutil.copy(p, tmp)
-            files.append(p)
-    expected = expected_tests(files)
-    src = os.path.join(repo, "src")
-    env = dict(os.environ, PYTHONPATH=src, PYTHONDONTWRITEBYTECODE="1")
-    out = {}
+def validated_results(results, expected):
+    """Map exact identities to the fixed denominator; collection errors leave tests unrun."""
+    if not expected or not isinstance(results, dict) or not results:
+        raise RuntimeError("Test runner produced no test results")
+    modules = {test.split("::", 1)[0] for test in expected}
+    collection_errors = {f"{module}::<import>" for module in modules}
+    for test, outcome in results.items():
+        if not isinstance(test, str) or outcome not in ("passed", "failed", "error", "skipped", "timeout"):
+            raise RuntimeError("Test runner produced malformed test results")
+        if test not in expected and not (test in collection_errors and outcome == "error"):
+            raise RuntimeError(f"Test runner reported an unexpected test identity: {test}")
+    return {test: results.get(test, "error") for test in expected}
+
+
+def load_stdlib_results(path, expected):
     try:
+        with open(path, encoding="utf-8") as report:
+            payload = json.load(report)
+    except (OSError, ValueError) as error:
+        raise RuntimeError("Test runner did not produce a readable JSON report") from error
+    if not isinstance(payload, dict):
+        raise RuntimeError("Test runner produced a malformed JSON report")
+    return validated_results(payload.get("tests"), expected)
+
+
+def run_hidden(repo, suite_dir, ids, runner, timeout=600):
+    if not ids or runner not in ("pytest", "stdlib"):
+        raise ValueError("Hidden evaluation requires suite items and a supported test runner")
+    repo = os.path.abspath(repo)
+    src = os.path.join(repo, "src")
+    with tempfile.TemporaryDirectory(prefix=".hidden-", dir=os.path.dirname(repo)) as tmp, \
+            evaluation_environment() as env:
+        files = []
+        names = set()
+        for fid in ids:
+            feature_files = sorted(glob.glob(os.path.join(
+                suite_dir, "features" if not fid.startswith("cr") else "", fid, "hidden", "*.py")))
+            if not expected_tests(feature_files):
+                raise ValueError(f"{fid}: no discovered hidden tests")
+            for path in feature_files:
+                name = os.path.basename(path)
+                if name in names:
+                    raise ValueError(f"Duplicate hidden test filename: {name}")
+                names.add(name)
+                shutil.copy(path, tmp)
+                files.append(path)
+        expected = expected_tests(files)
         if runner == "pytest":
             xml = os.path.join(tmp, "junit.xml")
-            cmd = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", f"--junit-xml={xml}", tmp]
+            bootstrap = "import sys, pytest; sys.path.insert(0, sys.argv.pop(1)); raise SystemExit(pytest.main(sys.argv[1:]))"
+            cmd = [sys.executable, "-I", "-B", "-c", bootstrap, src, "-q", "-p", "no:cacheprovider",
+                   "--continue-on-collection-errors", f"--junit-xml={xml}", tmp]
             if importlib.util.find_spec("pytest_timeout"):
-                cmd.insert(-1, "--timeout=10")  # signal method: a hung test fails, the run and the XML survive
-            subprocess.run(cmd, cwd=tmp, env=env, capture_output=True, text=True, timeout=timeout)
-            for tc in ET.parse(xml).getroot().iter("testcase"):
-                mod = [c for c in tc.get("classname", "").split(".") if c.startswith("test")]
-                key = f"{mod[-1] if mod else tc.get('classname')}::{tc.get('name')}"
-                if tc.find("failure") is not None:
-                    out[key] = "failed"
-                elif tc.find("error") is not None:
-                    out[key] = "error"
-                elif tc.find("skipped") is not None:
-                    out[key] = "skipped"
-                else:
-                    out[key] = "passed"
+                cmd[-1:-1] = ["-p", "pytest_timeout", "--timeout=10"]
         else:
             js = os.path.join(tmp, "res.json")
-            subprocess.run([sys.executable, os.path.join(HERE, "stdlib_tests.py"), tmp, "--src", src, "--json", js, "-q"],
-                           cwd=tmp, env=env, capture_output=True, text=True, timeout=timeout)
-            out = json.load(open(js, encoding="utf-8"))["tests"]
-    except subprocess.TimeoutExpired:
-        out = {}
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
-    # Fixed denominator: tests that never ran (import or collection error, timeout) count as errors.
-    return {t: out.get(t, "error") for t in expected}
+            cmd = [sys.executable, "-I", "-B", os.path.join(HERE, "stdlib_tests.py"), tmp,
+                   "--src", src, "--json", js, "-q"]
+        try:
+            process = subprocess.run(cmd, cwd=tmp, env=env, capture_output=True, text=True, timeout=timeout)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise RuntimeError(f"Hidden {runner} subprocess failed") from error
+        if process.returncode not in (0, 1):
+            raise RuntimeError(f"Hidden {runner} exited with code {process.returncode}")
+        if runner == "pytest":
+            try:
+                root = ET.parse(xml).getroot()
+            except (OSError, ET.ParseError) as error:
+                raise RuntimeError("Hidden pytest did not produce a readable JUnit report") from error
+            if root.tag not in ("testsuite", "testsuites"):
+                raise RuntimeError("Hidden pytest produced a malformed JUnit report")
+            out = {}
+            for case in root.iter("testcase"):
+                classname = case.get("classname", "")
+                name = case.get("name", "")
+                key = f"{classname.replace('.', '::')}::{name}"
+                outcome = "error" if case.find("error") is not None else \
+                    "failed" if case.find("failure") is not None else \
+                    "skipped" if case.find("skipped") is not None else "passed"
+                if not classname and outcome == "error":
+                    key = f"{name.removesuffix('.py')}::<import>"
+                if key in out:
+                    raise RuntimeError(f"Hidden pytest reported a duplicate test identity: {key}")
+                out[key] = outcome
+            result = validated_results(out, expected)
+        else:
+            result = load_stdlib_results(js, expected)
+        not_passed = any(outcome in ("failed", "error", "timeout") for outcome in result.values())
+        if (process.returncode == 0 and not_passed) or (process.returncode == 1 and not not_passed):
+            raise RuntimeError(f"Hidden {runner} exit status disagrees with its test report")
+        return result
 
 
 def integrity(repo, suite_dir, ids):
@@ -106,8 +185,8 @@ def test_counts(repo):
     for p in glob.glob(os.path.join(repo, "tests", "**", "*.py"), recursive=True):
         try:
             tree = ast.parse(open(p, encoding="utf-8").read())
-        except SyntaxError:
-            continue
+        except SyntaxError as error:
+            raise ValueError(f"Cannot count invalid Python tests: {p}") from error
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test"):
                 tests += 1
@@ -121,11 +200,17 @@ def test_counts(repo):
 def diff_stats(repo, prev_ref):
     if not prev_ref:
         return None
-    r = subprocess.run(["git", "diff", "--numstat", prev_ref, "HEAD"], cwd=repo, capture_output=True, text=True)
+    with evaluation_environment() as env:
+        r = subprocess.run(["git", "diff", "--numstat", prev_ref, "HEAD"], cwd=repo, capture_output=True, text=True,
+                           env=env)
+    if r.returncode != 0:
+        raise RuntimeError(f"git diff exited with code {r.returncode}")
     stats = {"src": [0, 0], "tests": [0, 0], "docs": [0, 0], "other": [0, 0]}
     for line in r.stdout.splitlines():
         parts = line.split("\t")
-        if len(parts) != 3 or parts[0] == "-":
+        if len(parts) != 3:
+            raise RuntimeError("git diff produced malformed numstat output")
+        if parts[0] == "-":
             continue
         add, rem, path = int(parts[0]), int(parts[1]), parts[2]
         kind = "src" if path.startswith("src/") else "tests" if path.startswith("tests/") else \
@@ -154,7 +239,12 @@ def main():
     ids = suite_items(a.suite, a.k, a.cr)
     hidden = run_hidden(a.repo, a.suite, ids, a.runner)
     m = code_metrics(a.repo, a.complexity, a.duplication, a.lint)
-    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=a.repo, capture_output=True, text=True).stdout.strip()
+    with evaluation_environment() as env:
+        head_result = subprocess.run(["git", "rev-parse", "--verify", "HEAD"], cwd=a.repo, capture_output=True,
+                                     text=True, env=env)
+    if head_result.returncode != 0 or not head_result.stdout.strip():
+        raise RuntimeError("git rev-parse did not produce a valid HEAD")
+    head = head_result.stdout.strip()
     result = {
         "head": head,
         "k": a.k,
@@ -167,6 +257,8 @@ def main():
         "test_counts": test_counts(a.repo),
         "diff": diff_stats(a.repo, a.prev_ref),
         "test_runner": a.runner,
+        "evaluation": {"execution": "local_subprocess", "environment": "allowlisted_subprocesses",
+                       "os_isolated": False, "network_isolated": False},
     }
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=1)
