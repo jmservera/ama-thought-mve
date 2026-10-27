@@ -426,6 +426,38 @@ def test_given_skipped_unittest_when_stdlib_hidden_tests_run_then_not_recorded_a
     assert result == {"test_feature::T::test_it": "skipped"}
 
 
+@pytest.mark.parametrize("missing_implementation", [False, True])
+def test_given_inherited_tests_when_hidden_tests_run_then_denominator_matches_execution(
+    hidden_candidate, measure_module, runner, missing_implementation
+):
+    repo, suite, test = hidden_candidate
+    test.write_text(
+        "import unittest\n"
+        + ("import missing_implementation\n" if missing_implementation else "")
+        + "\nclass SharedMixin:\n"
+        "    def test_mixin(self):\n        assert True\n"
+        "\nclass BaseCase(unittest.TestCase):\n"
+        "    def test_base(self):\n        assert True\n"
+        "\nclass TestDerived(BaseCase, SharedMixin):\n"
+        "    def test_own(self):\n        assert True\n"
+        "    def test_base(self):\n        assert True\n"
+        "\nclass LeafCase(TestDerived):\n    pass\n",
+        encoding="utf-8",
+    )
+    expected = {
+        "test_feature::BaseCase::test_base",
+        *(f"test_feature::{name}::{method}" for name in ("TestDerived", "LeafCase")
+          for method in ("test_base", "test_mixin", "test_own")),
+    }
+    discovered = measure_module.expected_tests([str(test)])
+    assert set(discovered) == expected
+    assert len(discovered) == len(set(discovered))
+    result = measure_module.run_hidden(str(repo), str(suite), ["f1"], runner)
+
+    outcomes = {identity: "error" if missing_implementation else "passed" for identity in expected}
+    assert result == outcomes
+
+
 @pytest.fixture
 def validator_module(monkeypatch):
     monkeypatch.syspath_prepend(str(KIT_ROOT / "harness"))
@@ -576,6 +608,26 @@ def test_given_parent_credentials_when_reference_tests_run_then_the_child_enviro
     result = validator_module.run_isolated([str(test)], str(suite / "reference" / "f1" / "workbench"))
 
     assert result == {"test_f1_hidden::test_f1_hidden": "passed"}
+
+
+def test_given_inherited_tests_when_reference_is_validated_then_all_identities_pass(
+    suite_candidate, validator_module
+):
+    suite, _ = suite_candidate
+    test = suite / "features" / "f1" / "hidden" / "test_f1_hidden.py"
+    test.write_text(
+        "import unittest\nfrom workbench import FIRST\n"
+        "\nclass BaseCase(unittest.TestCase):\n"
+        "    def test_first(self):\n        self.assertEqual(FIRST, 1)\n"
+        "\nclass TestDerived(BaseCase):\n    pass\n"
+        "\nclass LeafCase(TestDerived):\n    pass\n",
+        encoding="utf-8",
+    )
+
+    result = validator_module.run_isolated([str(test)], str(suite / "reference" / "f1" / "workbench"))
+
+    assert result == {f"test_f1_hidden::{name}::test_first": "passed"
+                      for name in ("BaseCase", "TestDerived", "LeafCase")}
 
 
 @pytest.mark.parametrize("report", [None, "not JSON", "[]", '{"tests": {}}'])

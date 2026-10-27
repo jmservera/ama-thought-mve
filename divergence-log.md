@@ -1,8 +1,41 @@
 ---
 title: Consolidation Harness Protocol Divergence Log
 description: Dated changes to the unexecuted experiment protocol
-ms.date: 2026-10-25
+ms.date: 2026-10-27
 ---
+
+## 2026-10-27: PR 1 Review-Comment Reconciliation
+
+Reviewed every inline thread, author reply, discussion comment and automated
+review summary on PR 1. Eight substantive findings already had source fixes at
+`b6372b8`; this follow-up fixes the remaining inherited-test discovery defect
+and strengthens the evidence for two existing fixes.
+
+| Review finding | Implementation and verification |
+| --- | --- |
+| Bootstrap intervals with fewer than two runs per stratum | Existing fix preserves point estimates and makes intervals unavailable; analyzer regressions pass. |
+| Skipped unittest outcomes | Existing fix retains skips/expected failures as skipped and unexpected successes as failed; measurement regressions pass. |
+| Admission after a recorded overrun | Existing fix refuses new reservations even with aggregate headroom; accounting regressions pass. |
+| Atomic setup metadata | Existing temporary-write, fsync and replace implementation retained. New serialization/replacement fault injections prove the exact scheduled `run.json` survives both interruptions. |
+| Journal missing its final newline | Existing recovery refusal retained; regression verifies the torn journal remains unchanged. |
+| Inherited source commits in a results branch | Existing full proposed-diff allowlist retained; local publication regression refuses inherited source changes. |
+| Ordinary test-function return values | Existing outcome-shape validation retained; a function returning `True` still produces its report. |
+| H7 interval CSV fields | Existing export filter retained. Replaced source-string inspection with generated CSV assertions for finite and unavailable endpoints of both contrasts. |
+| Inherited test-method discovery | Fixed static discovery to traverse module-local class ancestry and mixins, recognize transitive unittest subclasses, and deduplicate overridden methods without importing candidate code. Five new regression cases cover both runners, missing implementation imports and reference validation. |
+
+Validation uses a restored local virtual environment: the system interpreter
+had user-installed pytest unavailable to isolated subprocesses. No isolation
+setting, test gate or billing limit was weakened. All 352 harness regressions
+pass; S1 reference validation passes all stages, including 164/164 at F10 and
+182/182 with CR1. Shell syntax, ShellCheck and diff whitespace checks pass.
+Ruff reports 11 pre-existing findings in the changed Python files and no new
+findings relative to the PR head; this is not a clean-lint claim.
+
+This is implementation evidence, not a new independent review or human
+acceptance. No protocol definition, historical data or freeze tag changed.
+No live agent session or OSF registration was executed. Owner scientific
+decisions, independent oracle review, containment/access acceptance and the
+provider-enforced hard billing boundary remain separate prerequisites.
 
 ## 2026-10-26: Unattended tooling, not a study freeze
 

@@ -35,8 +35,25 @@ def suite_items(suite_dir, k, cr):
     return ids
 
 
+def _class_tests(node, classes, module, ancestors=()):
+    if node.name in ancestors:
+        raise ValueError(f"Cyclic test class inheritance: {module}::{node.name}")
+    methods = {method.name for method in node.body
+               if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef))
+               and method.name.startswith("test")}
+    is_test_case = False
+    for base in node.bases:
+        base_name = getattr(base, "id", getattr(base, "attr", None))
+        is_test_case = is_test_case or base_name == "TestCase"
+        if isinstance(base, ast.Name) and base_name in classes:
+            inherited, inherited_case = _class_tests(classes[base_name], classes, module, ancestors + (node.name,))
+            methods.update(inherited)
+            is_test_case = is_test_case or inherited_case
+    return methods, is_test_case
+
+
 def expected_tests(files):
-    """Every hidden test id (module::function), so that a module that fails to import counts all its tests."""
+    """Discover fixed test identities without importing candidate-dependent modules."""
     ids = []
     for path in files:
         mod = os.path.splitext(os.path.basename(path))[0]
@@ -44,17 +61,14 @@ def expected_tests(files):
             continue
         with open(path, encoding="utf-8") as source:
             tree = ast.parse(source.read(), filename=path)
+        classes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
         for node in tree.body:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test"):
                 ids.append(f"{mod}::{node.name}")
-            elif isinstance(node, ast.ClassDef) and (
-                node.name.startswith("Test") or any(
-                    getattr(base, "id", getattr(base, "attr", None)) == "TestCase" for base in node.bases
-                )
-            ):
-                ids.extend(f"{mod}::{node.name}::{method.name}" for method in node.body
-                           if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef))
-                           and method.name.startswith("test"))
+            elif isinstance(node, ast.ClassDef):
+                methods, is_test_case = _class_tests(node, classes, mod)
+                if node.name.startswith("Test") or is_test_case:
+                    ids.extend(f"{mod}::{node.name}::{method}" for method in sorted(methods))
     if len(ids) != len(set(ids)):
         raise ValueError("Duplicate discovered test identities")
     return ids

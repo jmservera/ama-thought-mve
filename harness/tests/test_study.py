@@ -359,6 +359,43 @@ def test_setup_metadata_write_is_atomic(study, config, tmp_path, monkeypatch):
         assert "run_id" in json.loads(path.read_text())
 
 
+@pytest.mark.parametrize("failure", ["serialize", "replace"])
+def test_setup_interruption_preserves_exact_scheduled_metadata(study, config, tmp_path, monkeypatch, failure):
+    current = controller(study, config, tmp_path)
+    runner = importlib.import_module("runner")
+    cell = current.state["cells"][0]
+    args = study.SimpleNamespace(config=str(current.runtime_config), suite=str(ROOT / "suites/s1-retrofit"),
+                                 arm=cell["arm"], run_id=cell["run_id"], phase=current.phase,
+                                 features=cell["features"], no_cr=not cell["change_request"], allow_draft=False)
+    run = study.StudyRun(args, current, cell)
+    path = Path(run.dir) / "run.json"
+    previous = path.read_bytes()
+    real_dump, real_replace = runner.json.dump, runner.os.replace
+
+    def interrupted_dump(value, stream, **kwargs):
+        if stream.name == str(path) + ".tmp":
+            stream.write('{"run_id":')
+            raise OSError("Synthetic serialization interruption")
+        return real_dump(value, stream, **kwargs)
+
+    def interrupted_replace(source, destination):
+        if destination == str(path):
+            assert json.loads(Path(source).read_text())["run_id"] == cell["run_id"]
+            raise OSError("Synthetic replacement interruption")
+        return real_replace(source, destination)
+
+    if failure == "serialize":
+        monkeypatch.setattr(runner.json, "dump", interrupted_dump)
+    else:
+        monkeypatch.setattr(runner.os, "replace", interrupted_replace)
+
+    with pytest.raises(OSError, match="Synthetic"):
+        run.setup()
+
+    assert path.read_bytes() == previous
+    assert json.loads(previous)["run_id"] == cell["run_id"]
+
+
 def test_journal_without_final_newline_is_refused_before_resume(study, config, tmp_path):
     current = controller(study, config, tmp_path)
     assert current.go()

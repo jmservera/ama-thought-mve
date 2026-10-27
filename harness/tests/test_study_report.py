@@ -176,12 +176,23 @@ def test_publish_auth_and_push_failures_are_explicit(modules, reports, publicati
     assert git(root, "worktree", "list", "--porcelain").count("worktree ") == 1
 
 
-def test_h7_intervals_are_exported(modules, reports):
-    _, report = modules
-    rows = report.flat_values({"intervals": {"B_minus_A": [None, 1.0]}})
-    assert [field for field, _ in rows] == ["intervals.B_minus_A.0", "intervals.B_minus_A.1"]
-    source = (ROOT / "harness/study_report.py").read_text()
-    assert '"intervals" in parts' in source
+def test_h7_intervals_are_exported(modules, reports, monkeypatch):
+    study, report = modules
+    state = study.read_json(reports.parent / "state.json")
+    summary = study.read_json(reports / "summary.json")
+    summary["hypotheses"]["H7"]["intervals"] = {"B_minus_A": [None, 1.0], "B_minus_C": [-2.0, None]}
+    monkeypatch.setattr(report, "analyze_hypotheses", lambda *args, **kwargs: summary["hypotheses"])
+
+    report.export(reports.parent, state, "export-test")
+
+    with (reports / "intervals.csv").open() as stream:
+        rows = [row for row in csv.DictReader(stream) if row["hypothesis"] == "H7"]
+    assert {row["field"]: (row["value"], row["available"]) for row in rows} == {
+        "intervals.B_minus_A.0": ("", "False"),
+        "intervals.B_minus_A.1": ("1.0", "True"),
+        "intervals.B_minus_C.0": ("-2.0", "True"),
+        "intervals.B_minus_C.1": ("", "False"),
+    }
 
 
 def test_publish_refuses_remote_results_branch_with_source_commits(modules, reports, publication_repo):
