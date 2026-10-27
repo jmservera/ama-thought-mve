@@ -294,6 +294,8 @@ def boot_effects(groups, statistic, n=10000, seed=2026):
                          for arm in groups.values()):
         return {}, {}
     point = statistic(groups)
+    if any(len(rows) < 2 for strata in groups.values() for rows in strata.values()):
+        return point, {name: (None, None) for name in point}
     draws = {name: [] for name in point}
     unavailable = {name for name, value in point.items() if _num(value) is None}
     if len(unavailable) == len(point):
