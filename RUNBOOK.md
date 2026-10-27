@@ -15,6 +15,148 @@ freeze or registration; this correction is not an approval to run the study.
 
 Tool facts were checked on 24 October 2026 against GitHub Copilot CLI 1.0.95 help and the official documentation. The latest CLI release at that date was 1.0.103. Re-check the flags on the version you pin.
 
+## Unattended controller
+
+The 26 October controller adds a single command, not permission to run the
+study. The older manual procedures below are historical operator instructions,
+**not a way around its safety gates**. No paid session is launched by this
+revision; there is no implemented provider-enforced hard billing backend.
+
+```bash
+./run-study.sh --smoke
+```
+
+Smoke requires only Linux, Python 3.11+, git and make. It is one feature per
+A/B/C, five fake-agent sessions total, with no CR1. The fake agent deliberately
+attempts a forbidden C edit to exercise enforcement. No token, Docker, network,
+Copilot or plotting dependency is required. All output is explicitly diagnostic.
+The check-only `./scripts/bootstrap-vm.sh --smoke` checks this minimal VM;
+without `--smoke` it reports live tool/version/Docker/auth/freeze/budget blockers.
+It never installs anything, invokes sudo, changes groups or provisions services.
+If using a virtual environment, activate it or set `PYTHON=/path/to/python`;
+keep required executables on PATH.
+
+`./run-study.sh --dry-run --phase first` prints the immutable proposed 12-cell
+schedule (four runs per A/B/C, ten features and CR1, 212 sessions) and all
+preflight blockers. `--phase pilot` proposes one run/arm with no CR1.
+`--phase confirmatory` is explicitly gated too. Dry-run never creates state or
+calls `copilot -p`. `--smoke --dry-run` checks only offline prerequisites.
+An unsuccessful preflight exits 2, a partial pipeline exits 1, success exits 0.
+No unattended main-study mode is authorised.
+
+### Configuration and real execution gates
+
+The controller reads `harness/study-config.json`; `--config PATH` selects a
+different JSON object. Settings are seed, ceiling (positive, never >2,500 AI
+credits), prior pilot spending, per-session reservation, maximum attempts,
+absolute study allowance and minimum disk space. The supplied `prior_credits`
+is **null**, not a claim of zero earlier spending. Live preflight rejects it.
+Smoke explicitly has zero paid usage and does not consume a live allocation.
+No config field contains a token; set `COPILOT_GITHUB_TOKEN` only in the
+environment. Presence is checked without printing its value. `.env` is ignored,
+never loaded by the controller and never eligible for publication.
+
+Live checks include Python, git/make, Copilot **1.0.103**, Docker daemon access,
+gh, ruff **0.17.2**, lizard **1.24.3**, jscpd **5.4.1**, free disk, clean git,
+known prior spending and owner freeze provenance. No model calls are used to
+check versions. The existing image recipe and legacy configs are not evidence
+of pinned execution; real use needs a verified immutable image and tools.
+
+The owner must separately supply `protocol/freeze.json`, containing:
+`commit` (full frozen source SHA), a new authorised versioned `tag`, `inputs_sha256`
+(the controller's complete protocol/harness/skeleton/suite digest),
+`registration_url`, `registration_date`, immutable `image_digest`, and nonempty
+evidence references for each gate: `independent_suite_review`, `access_probe`,
+`docker_amendment`, `missing_feature_policy`, `retry_policy`,
+`evaluator_information_policy`, `analysis_reconciliation`, `h4_definition`,
+`h7_definition`, `telemetry_coverage`, `prior_data_disclosure`,
+`budget_calibration`. A file is a machine-checkable provenance record, not
+independent proof that its claims are true. No such file or tag is created here.
+The historical `protocol-frozen` tag alone is rejected. Owner-defined H7 and
+H4 choices are never defaulted by code.
+The manifest itself is excluded from the input digest. HEAD must match the
+frozen source or differ only by a subsequent manifest-only commit, avoiding
+an impossible self-referential commit hash.
+Dry-run prints `inputs_sha256`; the digest includes the launcher/bootstrap
+scripts and executable bits as well as protocol, harness, skeleton and suites.
+
+Even complete freeze evidence cannot enable paid execution: the inspected CLI
+exposes only a soft session cap and final usage. The ledger atomically reserves
+before launch; reconciled spending plus every outstanding reservation and
+earlier pilot spending must fit the immutable ceiling. Missing/partial usage
+holds its reservation and blocks new work; an overrun is retained and stops
+admission. This is a **hard launch-admission check**, not hard actual billing.
+No timeout or guessed overshoot buffer can guarantee the latter. Integrating
+an actually hard-bounded provider/billing service is prerequisite future work.
+The Docker command builder is preparation only, not a wired paid backend.
+
+### State and recovery
+
+All private material lives in ignored `.study/<study-id>/`: `state.json`,
+`runtime.json`, per-cell disposable git repositories, canonical `steps.jsonl`,
+attempt logs and `results/`. A single-writer lock covers execution and
+publication. Atomic state writes are fsynced before dependent actions. Input
+hash, source HEAD, schedule, budget and prior spending cannot change on resume.
+Do not edit state to extend a budget or deadline; retain it and use an explicitly
+authorised new study identity instead. Do not delete partial cells.
+
+Repeat the same command to resume. A durable measured step is never retried,
+including a measured failed feature. An unmeasured evaluator interruption can
+retry at most `max_attempts` from the previous committed checkpoint, in the
+**same** scheduled cell; all attempts/costs remain linked to that step, never new
+replicates. Unknown attempt credit costs remain unavailable. If a step record
+is torn/ambiguous, or a recorded process group may still be alive, recovery
+refuses rather than guessing or replacing the run. Stop that specific recorded
+writer safely before resuming; the controller does not kill unrelated processes.
+
+Agent/evaluator subprocess groups have timeouts and TERM/KILL/reap handling.
+The absolute study deadline persists across restarts. Work after expiry is
+unattempted, not silently excluded. Each cell's metadata is created before any
+session, so even zero-step cells enter reporting. Normal smoke runs use separate
+disposable repositories and credential-minimal fake-agent environments, **not
+OS isolation**. The proposed Docker builder mounts only a run repository and a
+fresh attempt directory, not suites, references, evaluator outputs or the host
+Docker socket. Root filesystem/resource restrictions are not proof of network
+containment. Switching from D11's local choice still requires owner approval.
+
+### Paper outputs and result-only publication
+
+`results/` contains `report.md`, `summary.md`, `summary.json`, `series.csv`,
+`hypotheses.csv`, `intervals.csv`, `runs.csv`, `attempts.csv`,
+`availability.json`, `provenance.json`, `trajectories.svg`, `hypotheses.tex`,
+`trajectories.tex`. Use `\input{hypotheses.tex}` and
+`\input{trajectories.tex}`; the figure requires no optional plotting package.
+JSON/flat CSV retain all implemented estimates and interval endpoints.
+Tables explicitly include failed, partial and unattempted cells and attempts.
+They do not replace missing endpoints with last observed outcomes.
+
+The existing corrected statistical functions are reused, not silently changed
+to the paper's proposed mixed model. H4 comprehension, H7's unresolved full
+contrast, HIR/IDR without verified event coverage, the proposed decay amendment
+and currency conversion stay unavailable. No numerical threshold is invented.
+Existing provisional comparison labels are explicitly diagnostic/exploratory,
+not confirmatory conclusions. Stub zero credits are real **zero model usage**,
+not an estimate for later sessions. Existing `results/smoke` is never pooled in.
+
+Add `--publish` to the same smoke command to publish derived diagnostics:
+
+```bash
+./run-study.sh --smoke --study-id vm-check --publish
+```
+
+This explicitly authorises a normal push to `results/vm-check` and gh PR
+create/update against the current source branch. Authenticated gh, push
+permission and git author identity are required. The source branch is never
+checked out or changed by publication. An isolated temporary results worktree
+stages only the fixed generated allowlist under `results/<study-id>/`.
+No `.env`, raw transcript, repository, arbitrary archive or prompt is eligible.
+Files must be regular, not linked, <=512 KiB each and <=4 MiB combined; token
+patterns and known environment secret values block publishing. Oversized
+results cause an explicit stop, never silent truncation of measurements.
+Private attempt stdout/stderr are capped at 1 MiB each after execution.
+Remote results are fetched, updated without force, and existing PRs edited.
+Publication errors leave durable results available to retry.
+
 ## 0. What you need
 
 - **Machine.** A dedicated Linux machine: a VM, a dev container or WSL2. It needs Python 3.11 or later, git, make, Node.js 22 or later (for the CLI) and, ideally, Docker. Do not use the machine for anything else during runs.

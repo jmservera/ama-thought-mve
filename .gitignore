@@ -6,3 +6,6 @@ results-dry/
 .venv/
 __pycache__/
 probe-transcript.md
+.study/
+.env
+.env.*
