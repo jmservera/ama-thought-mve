@@ -1,0 +1,170 @@
+"""Offline submission/readiness and oracle-repeatability boundary tests."""
+import importlib
+import json
+import shutil
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture
+def registration(monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / "harness"))
+    return importlib.import_module("prepare_registration")
+
+
+@pytest.fixture
+def config():
+    return json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
+
+
+@pytest.fixture
+def draft_root(tmp_path, registration, monkeypatch):
+    for relative in registration.SUBMISSION_FILES:
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / relative, target)
+    shutil.copytree(ROOT / "suites", tmp_path / "suites")
+    shutil.copyfile(ROOT / "run-study.sh", tmp_path / "run-study.sh")
+    monkeypatch.setattr(registration, "command", lambda args, **kwargs: "a" * 40 if "rev-parse" in args else "")
+    return tmp_path
+
+
+def test_candidate_panel_matches_exact_source_and_never_approves_itself(registration):
+    module = importlib.import_module("contract_panel")
+    suite = ROOT / "suites/s1-retrofit"
+    actual = module.checked_panel(ROOT / "protocol/contract-panel.json", suite)
+    assert actual == module.build_panel(suite)
+    assert len(actual["contracts"]) == 142 and not module.accepted(actual)
+    assert len({item["id"] for item in actual["contracts"]}) == 142
+
+
+def test_changed_oracle_source_invalidates_panel(registration, draft_root):
+    path = draft_root / "suites/s1-retrofit/features/f01/hidden/test_f01_hidden.py"
+    path.write_text(path.read_text() + "\n# synthetic source change\n")
+    with pytest.raises(ValueError, match="differs"):
+        registration.prepare(draft_root / ".study/draft", draft_root)
+    assert not (draft_root / ".study").exists()
+
+
+def test_draft_complete_is_separate_from_submission_registration_and_execution(registration, config):
+    report = registration.readiness(config, {"review": {"accepted": False}})
+    assert report["draft_complete"] and report["no_registration_required_to_prepare_draft"]
+    assert not report["author_submission_ready"] and not report["registration_recorded"]
+    assert not report["execution_ready"] and report["unresolved"]
+
+
+def test_explicit_decisions_and_approval_do_not_invent_registration_or_live_backend(registration, config):
+    config["owner_decisions"] = dict.fromkeys(registration.DECISIONS, "Synthetic owner resolution")
+    config["required_evidence"] = dict.fromkeys(registration.EVIDENCE, "Synthetic independent evidence")
+    config["owner_approval"] = {"approved": True, "date": "2026-10-27", "evidence": "Synthetic approval"}
+    report = registration.readiness(config, {"review": {"accepted": True, "evidence": "Synthetic review"}})
+    assert report["author_submission_ready"]
+    assert not report["registration_recorded"] and not report["execution_ready"]
+    config["owner_decisions"]["post_after_failed_feature"] = "TODO choose policy"
+    assert not registration.readiness(config, {"review": {"accepted": True, "evidence": "review"}})["author_submission_ready"]
+    config["owner_decisions"] = {}
+    with pytest.raises(registration.StudyError, match="ledger fields"):
+        registration.readiness(config, {"review": {}})
+
+
+def test_draft_rejects_incomplete_duplicate_or_unapproved_model_roster(registration, config):
+    models = config["study"]["model_roster"]
+    for roster in (models[:2], [models[0], models[0], models[2]],
+                   [*models[:2], "unapproved-model"], [*models[:2], {}]):
+        config["study"]["model_roster"] = roster
+        assert not registration.readiness(config, {"review": {}})["draft_complete"]
+
+
+def test_draft_rejects_old_allocation_budget_or_singular_runtime(registration, config):
+    for section, key, wrong in (("study", "runs_per_arm", 4),
+                                ("resources", "credit_ceiling", 2500),
+                                ("resources", "separate_monetary_budget_usd", 500),
+                                ("runtime", "model", "claude-sonnet-5.5")):
+        original = config[section][key]
+        config[section][key] = wrong
+        assert not registration.readiness(config, {"review": {}})["draft_complete"]
+        config[section][key] = original
+
+
+def test_both_stage_session_caps_are_required_by_approved_draft(registration, config):
+    for key in ("pilot_session_credit_cap", "calibration_session_credit_cap"):
+        config["resources"][key] = 301
+        assert not registration.readiness(config, {"review": {}})["draft_complete"]
+        config["resources"][key] = 300
+
+
+def test_alignment_evidence_blocks_submission_after_other_approvals(registration, config):
+    config["required_evidence"] = dict.fromkeys(registration.EVIDENCE, "Synthetic independent evidence")
+    config["required_evidence"]["multi_model_harness_alignment"] = None
+    config["owner_approval"] = {"approved": True, "date": "2026-10-27", "evidence": "Synthetic approval"}
+    report = registration.readiness(config, {"review": {"accepted": True, "evidence": "Synthetic review"}})
+    assert report["draft_complete"] and not report["author_submission_ready"]
+    assert report["unresolved"] == ["required_evidence.multi_model_harness_alignment"]
+    del config["required_evidence"]["multi_model_harness_alignment"]
+    with pytest.raises(registration.StudyError, match="ledger fields"):
+        registration.readiness(config, {"review": {}})
+
+
+def test_package_is_allowlisted_hashed_private_and_refuses_overwrite(registration, draft_root):
+    (draft_root / ".env").write_text("synthetic private data")
+    out = draft_root / ".study/draft"
+    report = registration.prepare(out, draft_root)
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["readiness"] == report and manifest["approval_inferred"] is False
+    copied = {path.relative_to(out).as_posix() for path in out.rglob("*") if path.is_file()}
+    assert copied == set(registration.SUBMISSION_FILES) | {"manifest.json", "readiness.json"}
+    assert set(manifest["package_sha256"]) == set(registration.SUBMISSION_FILES)
+    assert not out.stat().st_mode & 0o077
+    before = (out / "manifest.json").read_bytes()
+    with pytest.raises(registration.StudyError, match="already exists"):
+        registration.prepare(out, draft_root)
+    assert (out / "manifest.json").read_bytes() == before
+
+
+@pytest.mark.parametrize("attack", ["outside", "symlink", "secret"])
+def test_package_rejects_unsafe_boundary_and_credentials(registration, draft_root, monkeypatch, attack):
+    out = draft_root / ".study/draft"
+    if attack == "outside":
+        out = draft_root / "public"
+    elif attack == "symlink":
+        (draft_root / "elsewhere").mkdir()
+        (draft_root / ".study").symlink_to(draft_root / "elsewhere", target_is_directory=True)
+    else:
+        monkeypatch.setenv("SYNTHETIC_API_KEY", "synthetic-only-credential-canary")
+        (draft_root / "protocol/osf-preregistration.md").write_text("synthetic-only-credential-canary")
+    with pytest.raises(registration.StudyError):
+        registration.prepare(out, draft_root)
+    assert not out.exists()
+
+
+def test_unchanged_oracle_repeats_reject_instability(registration, monkeypatch):
+    validator = importlib.import_module("validate_suite")
+    calls = iter([{"test": "passed"}, {"test": "failed"}])
+    monkeypatch.setattr(validator, "run_isolated", lambda *_: next(calls))
+    with pytest.raises(RuntimeError, match="instability"):
+        validator.run_repeated([], None, 2)
+
+
+def test_stable_repeats_compare_exact_outcomes_and_do_not_approve(registration, monkeypatch):
+    validator = importlib.import_module("validate_suite")
+    seen = []
+    def fixed(files, reference):
+        seen.append((files, reference))
+        return {"test": "passed"}
+    monkeypatch.setattr(validator, "run_isolated", fixed)
+    assert validator.run_repeated(["synthetic"], "reference", 3) == {"test": "passed"}
+    assert len(seen) == 3
+
+
+def test_reference_metrics_are_raw_backend_labelled_unapproved_evidence(registration):
+    validator = importlib.import_module("validate_suite")
+    suite_path = ROOT / "suites/s1-retrofit"
+    suite = json.loads((suite_path / "suite.json").read_text())
+    suite["features"] = suite["features"][:1]
+    metrics = validator.reference_metrics(str(suite_path), suite, ("internal", "internal", "none"))
+    assert metrics["accepted_for_gaps"] is False
+    assert metrics["rows"][0]["metrics"]["backends"]["complexity"] == "internal"
+    assert metrics["rows"][0]["reference_sha256"] and metrics["lint_config_sha256"]

@@ -1,6 +1,10 @@
 <!-- markdownlint-disable-file -->
 # MVE Experiment Design: feature-consolidation-harness
 
+> **Historical proposal.** Use [pilot-estimation.md](pilot-estimation.md) and
+> [the OSF draft](osf-preregistration.md); older scope and formal analyses below
+> are preserved for provenance only.
+
 Phase 4 output (HVE Core Experiment Designer). Experiment type: LLM / agentic software-engineering process, controlled comparison.
 
 ## 1. Approach in one paragraph

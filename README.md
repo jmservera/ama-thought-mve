@@ -6,6 +6,23 @@ ms.date: 2026-10-26
 
 Tooling for the experiment in *Everything but the Software*, Section 8: does a consolidation step after every feature keep agent-built software working, understandable and changeable, and at what cost?
 
+**Current scope:** an eighteen-trajectory S1 **pilot/estimation study**, not seven
+confirmatory hypothesis tests. Start with [the canonical protocol](protocol/pilot-estimation.md)
+and [OSF submission draft](protocol/osf-preregistration.md). Source paper is pinned
+to `196b97644bb9bffa43d41a9921d6a06a93b2699e`, with the owner's explicit
+three-model amendment: GPT 6.1 Sol, Sonnet 5.5 and Gemini 4 Argon, two
+trajectories per arm/model; nine excluded calibration trajectories.
+The total ceiling is **300,000 AI Credits**, including prior spend/calibration,
+with fixed 300-credit/session soft caps. Independent acceptance, final source
+approval, actual registration and execution readiness remain open.
+
+The controller schedules the model-aware allocation, preserves model/replicate
+identity on resume and exports separate primary estimates per model, never a
+pooled primary result. Infrastructure retries share the original step allowances;
+measurement retries do not replay agent work. Independent
+`multi_model_harness_alignment` acceptance is still required before submission;
+implemented engineering is not study approval.
+
 ## One-command quick start
 
 On Linux with Python 3.11+, git and make:
@@ -24,7 +41,7 @@ or committing a different source revision.
 ```bash
 ./run-study.sh --smoke --dry-run      # read-only offline preflight and schedule
 ./scripts/bootstrap-vm.sh            # checks only; no installs, sudo or agents
-./run-study.sh --dry-run --phase first  # reports all live execution blockers
+./run-study.sh --dry-run --phase pilot-estimation  # 18 model-aware trajectories; no agent calls
 ./run-study.sh --smoke --publish     # explicitly push derived stub results + PR
 ```
 
@@ -34,12 +51,12 @@ your source branch, and creates/updates a PR against that source branch.
 Files are allowlisted, credential-checked and capped at 512 KiB each / 4 MiB total.
 
 **Paid execution is deliberately unavailable.** Copilot CLI 1.0.103's credit
-limit is soft, not a hard spending boundary. The runner enforces a <=2,500-credit
+limit is soft, not a hard spending boundary. The runner enforces a <=300,000-credit
 aggregate *admission* ledger with explicit prior spending and unknown-usage
 stops, but refuses all real sessions until a provider-enforced hard billing
 backend exists. A nominal CLI cap, a freeze file or a container cannot bypass
 this stop. No protocol has been frozen or registered by this work. Owner freeze,
-H4/H7 definitions, independent reviews and other method gates also remain open.
+secondary-scope decisions, independent reviews and other method gates also remain open.
 See [RUNBOOK.md](RUNBOOK.md#unattended-controller) for state, recovery and gates.
 
 ## Integrity correction status
@@ -48,7 +65,7 @@ The measurement-integrity branch corrects TCR rollback/logging, partial-feature
 evaluation, suite validation, metrics and interval-based analysis. It does not
 register or approve a study. The existing `protocol-frozen` tag and earlier
 runs/results are preserved; these code and method changes need reconciliation
-with a new authorised snapshot before registration and fresh confirmatory runs.
+with a new authorised snapshot before registration and fresh pilot collection.
 
 Evaluator, metric and test subprocesses use an allowlisted environment and
 temporary home/cache directories, but this is not an OS or network sandbox.
@@ -56,9 +73,10 @@ Direct CLI callers retain their own process environment. Generated code can stil
 reach host files and hidden/reference assets subject to host permissions.
 No access-probe acceptance or containment is established by these fixes.
 
-The analyzer reports full H4 as not evaluable without comprehension evidence,
-and full H7 as not evaluable without its H3 package comparison. HIR telemetry
-extraction is not implemented by these changes. Independent suite review,
+Default analysis estimates H1 coverage, H2 retained-contract losses and H6 CR1
+with missingness and all-attempt costs; it issues no hypothesis verdicts.
+Formal H4/H7 claims are deferred, not undefined thresholds to supply.
+HIR/IDR remain unavailable without verified coverage/adjudication. Independent suite review,
 remaining method decisions, runtime/access checks and registration remain gates.
 
 The later owner-authorised follow-up retains partial and zero-step runs in
@@ -71,8 +89,8 @@ preserved separately from the follow-up's implementation/test evidence in
 | Folder | What it holds |
 | --- | --- |
 | `RUNBOOK.md` | Step-by-step instructions, decisions to freeze, time and cost, troubleshooting. Start here. |
-| `protocol/` | Earlier design drafts, not evidence of completed registration. Reconcile the exact approved snapshot and divergence record before making a new freeze. |
-| `harness/` | `runner.py` (one run of one arm), `measure.py` (hidden tests and metrics, outside the agent), `analyze.py` (hypothesis table), `schedule.py` (randomised run order), `validate_suite.py` (tests the tests), `fake_agent.py` (offline dry run), prompts, configurations and the agent `Dockerfile`. |
+| `protocol/` | Current pilot protocol, OSF draft, decision ledger and candidate contract panel; older proposals explicitly labelled historical. |
+| `harness/` | Runner, external measurement, estimation-only analysis/exports, offline registration packager and suite validation; historical verdict analysis requires `--legacy-proposal`. |
 | `skeleton/` | The starting repository for every run: `Makefile`, `tcr`, quality report, empty package. |
 | `suites/s1-retrofit/` | Suite S1: ten features and the change request CR1, each with a specification and API, visible tests, hidden tests (142 in total) and a cumulative reference solution. Validated; needs your review before the freeze. |
 
@@ -88,7 +106,41 @@ python3 runner.py --config config.dry-run.json --suite ../suites/s1-retrofit --a
 python3 analyze.py --runs ../runs-dry --phase dry --out ../results-dry --cost-unit seconds
 ```
 
-The stand-in agent applies the reference solution, so both arms reach 100%; the point is to check the pipeline, not the hypothesis. Real runs use `config.local.json` or `config.docker.json`, as described in the runbook.
+The stand-in agent applies the reference solution; it checks pipeline mechanics,
+not agent performance. Historical local/Docker configurations are not launch
+authorisation. The unattended paid backend remains disabled.
+
+## Prepare an offline OSF draft
+
+```bash
+.venv/bin/python -B harness/contract_panel.py --out protocol/contract-panel.json --check
+.venv/bin/python -B harness/prepare_registration.py --out .study/osf-draft
+```
+
+The package refuses overwrites and contains only explicit submission inputs,
+source hashes and readiness checks, not raw logs. It neither contacts OSF nor
+registers or authorises a run. Owner choices are recorded in
+`protocol/pilot-estimation.json`; independently accept the model-aware harness,
+obtain independent reviews, and approve the
+exact snapshot before submitting through OSF. No registration URL is required
+to prepare a draft. Use a new directory when regenerating it.
+
+The controller's `calibration` (legacy `pilot`) proposes nine excluded
+ten-feature runs without CR1; `pilot-estimation` (legacy `first`) proposes
+eighteen with CR1. Never pool stages or turn
+historical development smoke into registered pilot data.
+
+For standalone analysis of controller runs, supply its explicit journal:
+
+```bash
+.venv/bin/python -B harness/analyze.py --runs .study/STUDY-ID/runs \
+  --study-state .study/STUDY-ID/state.json --out .study/STUDY-ID/reanalysis
+```
+
+Without a matching journal, measured-step costs remain descriptive and
+**all-attempt** consumption is unavailable. Empty attempt lists are not assumed
+free without no-billing evidence. Final H2 contrasts use P10 open losses;
+accumulated test-cycle losses are separately labelled descriptive companions.
 
 Historical diagnostics used the stand-in through ten features and CR1 and a
 paid CLI 1.0.95 feature-1 smoke. They are not new study data. The unattended

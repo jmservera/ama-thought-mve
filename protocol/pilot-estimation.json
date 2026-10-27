@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "status": "draft-not-registered",
+  "paper": {
+    "repository": "jmservera/ama",
+    "commit": "196b97644bb9bffa43d41a9921d6a06a93b2699e",
+    "path": "docs/capstone/thought-leadership/everything-but-the-software/main.tex",
+    "sha256": "240335ea4f2015dc91cbdc1e55315f65cc552691b0579aa93b2498c1b590bad2"
+  },
+  "mve_baseline": "1fee4535dd65ccedcee9638ef3a77ff3f9ce12a2",
+  "historical_tag": {
+    "name": "protocol-frozen",
+    "commit": "20e7f97c5c162cffd0f771ce501e146081912edc",
+    "authorizes_current_protocol": false
+  },
+  "study": {
+    "purpose": "pilot-estimation",
+    "suite": "s1-retrofit",
+    "arms": ["A", "B", "C"],
+    "runs_per_arm": 2,
+    "model_roster": ["gpt-6.1-sol", "claude-sonnet-5.5", "gemini-4-argon"],
+    "features": 10,
+    "change_request": true,
+    "formal_hypotheses": [],
+    "core_endpoints": ["H1", "H2", "H6"],
+    "deferred_formal_claims": ["H4", "H7"],
+    "calibration_runs_per_arm": 1,
+    "calibration_change_request": false,
+    "phase_aliases": {
+      "pilot": "calibration",
+      "calibration": "calibration",
+      "first": "pilot-estimation",
+      "pilot-estimation": "pilot-estimation",
+      "dry": "diagnostic"
+    }
+  },
+  "resources": {
+    "feature_seconds": 1800,
+    "post_seconds": 900,
+    "change_request_seconds": 2700,
+    "credit_ceiling": 300000,
+    "calibration_session_credit_cap": 300,
+    "pilot_session_credit_cap": 300,
+    "separate_monetary_budget_usd": null,
+    "approximate_monetary_equivalent_usd": 3000,
+    "credit_currency_conversion": null
+  },
+  "runtime": {
+    "model": null,
+    "reasoning_effort": "medium",
+    "copilot_cli": "1.0.103",
+    "execution": "local",
+    "ruff": "0.17.2",
+    "lizard": "1.24.3",
+    "jscpd": "5.4.1",
+    "lint_rules": "E,F,W,C90,B,SIM",
+    "duplication_min_tokens": 50,
+    "duplication_min_lines": 5
+  },
+  "analysis": {
+    "bootstrap_resamples": 10000,
+    "seed": 2027,
+    "bootstrap_interval": "pointwise 95% percentile; whole runs within arm within model; no undefined draws discarded",
+    "cr_interval": "97.5% equal-tailed Clopper-Pearson per arm; opposite endpoints give at least 95% per-comparison coverage",
+    "comparisons": ["B-A", "B-C"],
+    "primary_stratification": "model",
+    "overall_summary": "Exploratory only; equal model weights; do not silently pool model-specific runs",
+    "multiplicity": "No family-wide or confirmatory coverage claim",
+    "power_simulation_completed": false
+  },
+  "owner_decisions": {
+    "post_after_failed_feature": "Owner selected 2026-10-27: after a completed unsuccessful feature attempt, retain green-only rollback and run scheduled B/C post-step on the last retained green state without replaying the failed feature request; A has no extra session.",
+    "prerequisite_continuation_and_later_recovery": "Owner selected 2026-10-27: continue scheduled later features and CR1 from retained state; allow incidental recovery only within normal prompts, permissions and budgets; no dedicated make-up attempts or replacement trajectories.",
+    "evaluator_information_boundary": "Owner selected 2026-10-27: task specifications and approved visible examples only; hidden evaluator scores, identities, messages and reference solutions stay external and are never fed back; withhold CR1 text until its session; verify actual access independently.",
+    "outage_retry_and_missing_measurement_rules": "Owner selected 2026-10-27: at most one documented infrastructure-only retry per step from its pre-attempt snapshot within the original aggregate time/credit allowance; log all attempts and charges, never retry poor outcomes. Retry infrastructure-failed measurement once on the same immutable snapshot; contradictory valid outcomes halt collection for oracle investigation. Exhausted/unrecoverable observations remain missing, never replacements.",
+    "agent_failure_classification": "Owner selected 2026-10-27: only documented terminal agent-caused inability makes unattempted CR1 unsuccessful; infrastructure, measurement failure or unresolved causes remain missing with bounds. Missing data alone do not prove agent failure.",
+    "assisted_run_disposition_and_telemetry": "Owner selected 2026-10-27: logged infrastructure administration only, no code fixes, task hints or design advice. Retain and flag content-assisted trajectories and all costs, without replacement or silent complete-case primary comparisons. HIR/IDR require verified attempted-cycle coverage and adjudication, otherwise unavailable.",
+    "comprehension_include_or_defer": "Owner selected 2026-10-27: defer comprehension assessment; make no comprehension-effect claim in this pilot.",
+    "oracle_repeat_count_and_failure_rules": "Owner selected 2026-10-27: require three unchanged reference executions at every feature stage and CR1, exact outcome agreement and all expected tests passing. Any discrepancy blocks fresh collection until investigated, versioned and revalidated, not rerun until green. Independent suite/panel review remains required.",
+    "post_calibration_credit_cap_and_affordability": "Owner selected 2026-10-27: fixed 300-AI-Credit/session SOFT cap for calibration and pilot; final corrected total is 300000 AI Credits including prior spend and calibration, superseding 2500 credits and the intermediate $6000 proposal. Approximately $3000 is an unverified estimate, not a conversion or separate precise ceiling. Require a cost-only full-design affordability check after calibration; if unaffordable halt and amend, never silently shrink sample. Provider-enforced hard billing still required before launch.",
+    "actual_prior_data_seen_and_chronology": "Owner confirmed 2026-10-27: planned registered study has not run and starts only after OSF registration. Earlier manual work was unmeasured; disclose existing measured MVE smoke-01 (Sonnet 5.5, B/F1 plus consolidation, 14.54324 credits) as excluded development diagnostics, alongside offline/fake checks. Exact diagnostic run/exposure dates are not established by summary commit time. Unrelated hve-squad benchmarking (https://github.com/Peter-N91/hve-squad/pull/212) is not pooled or used as MVE evidence."
+  },
+  "required_evidence": {
+    "independent_suite_review": null,
+    "contract_panel_review": null,
+    "oracle_stability": null,
+    "local_runtime_evidence": null,
+    "access_probe_including_cr1_text": null,
+    "analysis_and_reference_metrics_acceptance": null,
+    "telemetry_coverage_or_explicit_secondary_unavailability": null,
+    "prior_data_disclosure": null,
+    "multi_model_harness_alignment": null
+  },
+  "owner_approval": {"approved": false, "date": null, "evidence": null},
+  "registration": {"submitted": false, "url": null, "date": null}
+}

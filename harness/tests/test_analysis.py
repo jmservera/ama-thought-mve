@@ -58,6 +58,20 @@ def test_given_complete_tokens_without_credits_when_tokens_selected_then_availab
     assert analysis.cost_of(accounting, "credits") is None
 
 
+def test_given_usage_telemetry_models_when_present_then_stays_descriptive_not_identity():
+    """usage_quality['models'] is billed-session telemetry only; never an assigned-model identity."""
+    accounting = analysis.step_usage("unused", {"agent": {"usage": {"modelMetrics": {"gpt-6.1-sol": {}}}}})
+
+    assert accounting["models"] == ["gpt-6.1-sol"]
+    run = {"dir": "unused", "meta": {"arm": "A", "suite": "S1", "run_id": "synthetic", "features": 1,
+                                     "change_request": False},
+           "recs": [make_record("feature", 1)]}
+    run["recs"][0]["agent"]["usage"]["modelMetrics"] = {"claude-sonnet-5.5": {}}
+    summary = analysis.summarise_run(run, "credits")
+    assert summary["usage_quality"]["models"] == ["claude-sonnet-5.5"]
+    assert "assigned_model" not in summary
+
+
 def make_record(kind, index, *, hidden=None, credits=1.0, complete=True, metrics=None):
     hidden = {"test_f01.py::test_feature": "passed"} if hidden is None else hidden
     return {"kind": kind, "k": index,
@@ -779,7 +793,7 @@ def test_given_synthetic_cli_input_when_reported_then_declared_unit_and_incomple
     original = analysis.analyze_hypotheses
     monkeypatch.setattr(analysis, "analyze_hypotheses", lambda runs, seed: original(runs, seed=seed, n=100))
     monkeypatch.setitem(sys.modules, "matplotlib", None)
-    monkeypatch.setattr(sys, "argv", ["analyze.py", "--runs", str(tmp_path / "synthetic-only"),
+    monkeypatch.setattr(sys, "argv", ["analyze.py", "--legacy-proposal", "--runs", str(tmp_path / "synthetic-only"),
                                       "--out", str(tmp_path / "reports"), "--cost-unit", unit])
 
     analysis.main()
@@ -874,7 +888,7 @@ def test_given_complete_synthetic_cli_input_when_default_resampling_used_then_re
                  for index in range(4)]
     monkeypatch.setattr(analysis, "load_runs", lambda *_: raw_runs)
     monkeypatch.setitem(sys.modules, "matplotlib", None)
-    monkeypatch.setattr(sys, "argv", ["analyze.py", "--runs", str(tmp_path / "synthetic-only"),
+    monkeypatch.setattr(sys, "argv", ["analyze.py", "--legacy-proposal", "--runs", str(tmp_path / "synthetic-only"),
                                       "--out", str(tmp_path / "reports")])
 
     analysis.main()
@@ -900,7 +914,7 @@ def test_given_partial_and_zero_step_runs_when_reported_then_all_runs_and_observ
     original = analysis.analyze_hypotheses
     monkeypatch.setattr(analysis, "analyze_hypotheses", lambda runs, seed: original(runs, seed=seed, n=100))
     monkeypatch.setitem(sys.modules, "matplotlib", None)
-    monkeypatch.setattr(sys, "argv", ["analyze.py", "--runs", str(tmp_path / "runs"),
+    monkeypatch.setattr(sys, "argv", ["analyze.py", "--legacy-proposal", "--runs", str(tmp_path / "runs"),
                                       "--out", str(tmp_path / "reports")])
 
     analysis.main()

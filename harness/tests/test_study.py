@@ -35,7 +35,7 @@ def test_invalid_credits_never_default_to_zero(study, bad):
 
 
 def test_exact_credit_boundary_prior_all_attempts_and_overrun(study):
-    ledger = {"ceiling_nano": study.MAX_CREDITS, "prior_nano": 2000 * study.NANO, "entries": {}}
+    ledger = {"ceiling_nano": study.MAX_CREDITS, "prior_nano": study.MAX_CREDITS - 500 * study.NANO, "entries": {}}
     study.reserve(ledger, "failed", 300 * study.NANO)
     study.reconcile(ledger, "failed", {"totalNanoAiu": 100 * study.NANO, "credits_complete": True})
     study.reserve(ledger, "retry", 400 * study.NANO)  # Exact remaining boundary.
@@ -65,8 +65,8 @@ def test_ceiling_cannot_be_raised_or_prior_spend_assumed(study, config):
     with pytest.raises(study.StudyError, match="explicit"):
         study.validate_config(config, smoke=False)
     config["prior_credits"] = 0
-    config["ceiling_credits"] = 2501
-    with pytest.raises(study.StudyError, match="2,500"):
+    config["ceiling_credits"] = 300001
+    with pytest.raises(study.StudyError, match="300,000"):
         study.validate_config(config, smoke=False)
 
 
@@ -106,7 +106,9 @@ def test_missing_freeze_and_legacy_tag_are_not_authorisation(study, config, tmp_
     (tmp_path / "protocol/freeze.json").write_text(json.dumps({"tag": "protocol-frozen"}))
     errors = study.freeze_errors(config, tmp_path)
     assert any("legacy protocol-frozen" in error for error in errors)
-    assert any("h7_definition" in error for error in errors)
+    for gate in ("local_runtime_evidence", "contract_panel_review", "oracle_stability",
+                 "cr1_estimands", "secondary_scope", "outage_assistance_policy"):
+        assert any(gate in error for error in errors)
     assert any("registration" in error for error in errors)
 
 
@@ -115,24 +117,40 @@ def test_valid_freeze_hash_tag_and_commit_are_checked(study, config, tmp_path, m
     commit = "a" * 40
     manifest = dict(commit=commit, tag="protocol-frozen-v2", inputs_sha256="digest",
                     registration_url="https://example.org/registration", registration_date="2026-10-26",
-                    image_digest="sha256:" + "b" * 64, **{gate: "Owner evidence record" for gate in study.GATES})
+                    **{gate: "Owner evidence record" for gate in study.GATES})
     (tmp_path / "protocol/freeze.json").write_text(json.dumps(manifest))
     monkeypatch.setattr(study, "fingerprint", lambda root: "digest")
     monkeypatch.setattr(study, "command", lambda *args, **kwargs: commit)
     assert study.freeze_errors(config, tmp_path) == []
+    for gate in ("local_runtime_evidence", "contract_panel_review", "oracle_stability",
+                 "cr1_estimands", "secondary_scope", "outage_assistance_policy"):
+        missing = dict(manifest)
+        missing.pop(gate)
+        (tmp_path / "protocol/freeze.json").write_text(json.dumps(missing))
+        assert any(gate in error for error in study.freeze_errors(config, tmp_path))
     manifest["inputs_sha256"] = "wrong"
     (tmp_path / "protocol/freeze.json").write_text(json.dumps(manifest))
     assert any("hash mismatch" in error for error in study.freeze_errors(config, tmp_path))
 
 
-def test_schedule_matches_212_sessions_and_excludes_pilot_cr(study):
+def test_schedule_matches_model_matrix_and_excludes_calibration_cr(study):
     cells = study.schedule(False, "first", 2027)
-    assert len(cells) == 12
+    assert len(cells) == 18
     assert sum(cell["features"] * (1 if cell["arm"] == "A" else 2) + cell["change_request"]
-               for cell in cells) == 212
-    assert len(study.schedule(False, "pilot", 2027)) == 3
+               for cell in cells) == 318
+    assert len(study.schedule(False, "pilot", 2027)) == 9
     assert not any(cell["change_request"] for cell in study.schedule(False, "pilot", 2027))
+    for alias, legacy in (("calibration", "pilot"), ("pilot-estimation", "first")):
+        actual = study.schedule(False, alias, 2027)
+        original = study.schedule(False, legacy, 2027)
+        assert [dict(cell, run_id="") for cell in actual] == [dict(cell, run_id="") for cell in original]
     assert study.schedule(False, "first", 2027) == cells
+    for model in ("gpt-6.1-sol", "claude-sonnet-5.5", "gemini-4-argon"):
+        for arm in "ABC":
+            selected = [cell for cell in cells if cell["assigned_model"] == model and cell["arm"] == arm]
+            assert {cell["replicate"] for cell in selected} == {1, 2}
+            assert all(cell["analysis_design"] == "model-stratified-v1" for cell in selected)
+    assert len({cell["run_id"] for cell in cells}) == 18
 
 
 def test_lock_is_exclusive(study, tmp_path):
@@ -295,14 +313,14 @@ def test_stub_pipeline_resume_deduplicates_steps_and_never_creates_tags(study, c
     assert all(not list((path.parent / "repo/.git/refs/tags").glob("*")) for path in before)
     summary = json.loads((tmp_path / "results/summary.json").read_text())
     assert len(summary["runs"]) == 3
-    assert summary["hypotheses"]["H4"]["verdict"] == "not evaluable"
-    assert summary["hypotheses"]["H7"]["verdict"] == "not evaluable"
+    assert set(summary["endpoints"]) == {"H1", "H2", "H6", "resources"}
+    assert "verdict" not in json.dumps(summary)
     assert summary["provenance"]["diagnostic_stub"] is True
     assert not list(tmp_path.rglob("*.env"))
 
 
 def test_interrupted_unmeasured_attempt_retries_without_adding_replicates(study, config, tmp_path, monkeypatch):
-    original = study.StudyRun.measure
+    original = study.StudyRun._measure_once
     interrupted = []
 
     def fail_once(run, *args, **kwargs):
@@ -311,16 +329,18 @@ def test_interrupted_unmeasured_attempt_retries_without_adding_replicates(study,
             raise study.RetryableError("Synthetic evaluator outage")
         return original(run, *args, **kwargs)
 
-    monkeypatch.setattr(study.StudyRun, "measure", fail_once)
+    monkeypatch.setattr(study.StudyRun, "_measure_once", fail_once)
     current = controller(study, config, tmp_path)
     assert current.go()
-    assert sum(len(cell["attempts"]) for cell in current.state["cells"]) == 6
+    assert sum(len(cell["attempts"]) for cell in current.state["cells"]) == 5
+    assert sum(attempt["measurement"]["calls"] for cell in current.state["cells"]
+               for attempt in cell["attempts"]) == 6
     summary = json.loads((tmp_path / "results/summary.json").read_text())
     assert len(summary["runs"]) == 3
     records = [json.loads(line) for path in (tmp_path / "runs").glob("*/steps.jsonl")
                for line in path.read_text().splitlines()]
     assert len(records) == 5
-    assert sum(len(record["attempts"]) for record in records) == 6
+    assert sum(len(record["attempts"]) for record in records) == 5
 
 
 def test_dry_run_is_read_only_and_live_refusal_never_calls_agent(study, monkeypatch, capsys):
@@ -406,3 +426,176 @@ def test_journal_without_final_newline_is_refused_before_resume(study, config, t
     with pytest.raises(study.StudyError, match="final newline"):
         current.run_cell(cell)
     assert path.read_text() == torn
+
+
+def study_run(study, current, cell=None):
+    cell = cell or current.state["cells"][0]
+    args = study.SimpleNamespace(
+        config=str(current.runtime_config), suite=str(ROOT / "suites/s1-retrofit"),
+        arm=cell["arm"], run_id=cell["run_id"], phase=current.phase,
+        features=cell["features"], no_cr=not cell["change_request"], allow_draft=False,
+        assigned_model=cell.get("assigned_model"), analysis_design=cell.get("analysis_design"),
+        replicate=cell.get("replicate"), study_id=current.study_id, diagnostic=current.smoke)
+    run = study.StudyRun(args, current, cell)
+    run.current_step = "f01-feature"
+    return run
+
+
+def test_current_model_identity_survives_atomic_setup(study, config, tmp_path):
+    current = study.Controller(tmp_path, dict(config, prior_credits=0), smoke=False,
+                               phase="pilot-estimation", study_id="planned")
+    for model in ("gpt-6.1-sol", "claude-sonnet-5.5", "gemini-4-argon"):
+        cell = next(cell for cell in current.state["cells"] if cell["assigned_model"] == model)
+        run = study_run(study, current, cell)
+        run.setup()
+        meta = json.loads((Path(run.dir) / "run.json").read_text())
+        assert meta["assigned_model"] == meta["config"]["agent_values"]["model"] == model
+        assert meta["analysis_design"] == "model-stratified-v1"
+        assert meta["replicate"] == cell["replicate"] and meta["diagnostic"] is False
+    assert study.Controller(tmp_path, dict(config, prior_credits=0), smoke=False,
+                            phase="pilot-estimation", study_id="planned").state["identity"]["model_roster"]
+
+
+def test_resume_rejects_tampered_model_allocation_and_raw_identity(study, config, tmp_path):
+    for kind in ("roster", "cell", "metadata"):
+        directory = tmp_path / kind
+        cfg = dict(config, prior_credits=0)
+        current = study.Controller(directory, cfg, smoke=False, phase="first", study_id="planned")
+        if kind == "roster":
+            current.state["identity"]["model_roster"][0] = "unapproved-model"
+            current.save()
+        elif kind == "cell":
+            current.state["cells"][0]["assigned_model"] = "unapproved-model"
+            current.save()
+        else:
+            path = directory / "runs" / current.state["cells"][0]["run_id"] / "run.json"
+            meta = json.loads(path.read_text())
+            meta["replicate"] = 99
+            path.write_text(json.dumps(meta))
+        with pytest.raises(study.StudyError, match="Resume inputs|immutable"):
+            study.Controller(directory, cfg, smoke=False, phase="first", study_id="planned")
+
+
+def test_current_budget_and_retry_configuration_boundaries(study, config):
+    config["prior_credits"] = 0
+    study.validate_config(config, smoke=False)
+    for key, wrong in (("ceiling_credits", 300001), ("max_attempts", 3),
+                       ("session_reserve_credits", 301)):
+        changed = dict(config, **{key: wrong})
+        with pytest.raises(study.StudyError):
+            study.validate_config(changed, smoke=False)
+    assert 133.5 * 3600 < config["study_timeout_seconds"] <= 30 * 86400
+
+
+def test_agent_retry_uses_remaining_original_time_and_credits(study, config, tmp_path, monkeypatch):
+    current = controller(study, config, tmp_path)
+    run = study_run(study, current)
+    run.setup()
+    previous = current.new_attempt(run.cell, run.current_step)
+    previous.update(seconds=40, usage={"totalNanoAiu": 200 * study.NANO, "credits_complete": True})
+    seen = []
+
+    def bounded(args, cwd, env, out, err, timeout):
+        seen.append(timeout)
+        return 0, False, 0.1
+
+    monkeypatch.setattr(run, "bounded_process", bounded)
+    run.run_agent("synthetic", str(tmp_path / "session"), 120)
+    assert seen == [80]
+    assert run.cell["attempts"][-1]["credit_limit_nano"] == 100 * study.NANO
+    assert len(run.cell["attempts"]) == 2
+
+
+def test_unknown_duration_never_becomes_a_free_retry(study, config, tmp_path, monkeypatch):
+    current = controller(study, config, tmp_path)
+    run = study_run(study, current)
+    previous = current.new_attempt(run.cell, run.current_step)
+    previous["usage"] = {"totalNanoAiu": 0, "credits_complete": True}
+    monkeypatch.setattr(run, "bounded_process", lambda *_: pytest.fail("Unknown duration launched work"))
+    for duration in (None, -1, True, float("nan")):
+        previous["seconds"] = duration
+        with pytest.raises(study.StudyError, match="Unknown"):
+            run.run_agent("synthetic", "unused", 120)
+    assert len(run.cell["attempts"]) == 1
+
+
+def test_exhausted_step_allowance_never_launches_another_attempt(study, config, tmp_path, monkeypatch):
+    current = controller(study, config, tmp_path)
+    run = study_run(study, current)
+    previous = current.new_attempt(run.cell, run.current_step)
+    monkeypatch.setattr(run, "bounded_process", lambda *_: pytest.fail("Exhausted allowance launched work"))
+    for seconds, nano in ((120, 0), (0, 300 * study.NANO)):
+        previous.update(seconds=seconds, usage={"totalNanoAiu": nano, "credits_complete": True})
+        with pytest.raises(study.StudyError, match="exhausted"):
+            run.run_agent("synthetic", "unused", 120)
+    previous.update(seconds=0, usage=None)
+    with pytest.raises(study.StudyError, match="Unknown"):
+        run.run_agent("synthetic", "unused", 120)
+    assert len(run.cell["attempts"]) == 1
+
+
+def test_measurement_exhaustion_is_durable_and_never_replays_agent(study, config, tmp_path, monkeypatch):
+    current = controller(study, config, tmp_path)
+    run = study_run(study, current)
+    run.setup()
+    attempt = current.new_attempt(run.cell, run.current_step)
+    attempt.update(seconds=1, usage={"totalNanoAiu": 0, "credits_complete": True})
+    seen = []
+
+    def failed(*args):
+        seen.append(True)
+        raise study.RetryableError("Synthetic evaluator outage")
+
+    monkeypatch.setattr(study.StudyRun, "_measure_once", failed)
+    with pytest.raises(study.StudyError, match="exhausted"):
+        run.measure(1, "unused", "")
+    assert len(seen) == 2 and attempt["measurement"]["status"] == "exhausted"
+    resumed = study_run(study, controller(study, config, tmp_path))
+    with pytest.raises(study.StudyError, match="retry limit"):
+        resumed.measure(1, "unused", "")
+    for status in ("pending", "running", "infrastructure_failure", "complete", "exhausted", "snapshot_changed"):
+        resumed.cell["attempts"][0]["measurement"]["status"] = status
+        with pytest.raises(study.StudyError, match="replay"):
+            resumed.run_agent("synthetic", "unused", 120)
+    assert len(seen) == 2 and len(resumed.cell["attempts"]) == 1
+
+
+def test_evaluator_snapshot_mismatch_halts_future_collection(study, config, tmp_path, monkeypatch):
+    current = controller(study, config, tmp_path)
+    run = study_run(study, current)
+    run.setup()
+    current.new_attempt(run.cell, run.current_step)
+    monkeypatch.setattr(run, "_measure_once", lambda *_: {"head": "wrong-snapshot"})
+    with pytest.raises(study.StudyError, match="snapshot"):
+        run.measure(1, "unused", "")
+    assert current.state["oracle_halt"] is True
+    monkeypatch.setattr(study.StudyRun, "run_agent", lambda *_: pytest.fail("Halted oracle launched work"))
+    assert not controller(study, config, tmp_path).go()
+    recovery = controller(study, config, tmp_path / "recovery")
+    retained = study_run(study, recovery)
+    retained.setup()
+    attempt = recovery.new_attempt(retained.cell, retained.current_step)
+    attempt["measurement"] = {"head": "wrong-retained-snapshot", "calls": 1, "status": "infrastructure_failure"}
+    with pytest.raises(study.StudyError, match="snapshot"):
+        retained.measure(1, "unused", "")
+    assert recovery.state["oracle_halt"] is True
+
+
+def test_prepared_command_selects_only_an_approved_model(study, tmp_path):
+    for model in ("gpt-6.1-sol", "claude-sonnet-5.5", "gemini-4-argon"):
+        args = study.docker_command(tmp_path, tmp_path, "sha256:" + "a" * 64,
+                                   "synthetic", 300, "mve-test", model=model)
+        assert args[args.index("--model") + 1] == model
+    with pytest.raises(study.StudyError, match="Unapproved"):
+        study.docker_command(tmp_path, tmp_path, "sha256:" + "a" * 64,
+                             "synthetic", 300, "mve-test", model="unapproved-model")
+
+
+def test_smoke_never_claims_an_experimental_model(study, config, tmp_path):
+    current = controller(study, config, tmp_path)
+    assert len(current.state["cells"]) == 3
+    assert "model_roster" not in current.state["identity"]
+    for cell in current.state["cells"]:
+        assert "assigned_model" not in cell and "analysis_design" not in cell
+        meta = json.loads((tmp_path / "runs" / cell["run_id"] / "run.json").read_text())
+        assert meta["diagnostic"] is True and "assigned_model" not in meta

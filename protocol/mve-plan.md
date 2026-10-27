@@ -1,6 +1,10 @@
 <!-- markdownlint-disable-file -->
 # MVE Plan: feature-consolidation-harness
 
+> **Historical proposal, not current approval or launch instructions.**
+> [pilot-estimation.md](pilot-estimation.md) is authoritative for the prospective
+> S1 estimation pilot; the adoption thresholds below are not pilot verdicts.
+
 Phase 5 output (HVE Core Experiment Designer). Status: **draft, awaiting owner confirmation**. Details live in context.md, hypotheses.md, vetting.md and experiment-design.md in this folder.
 
 ## Problem and context

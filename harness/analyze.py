@@ -1,4 +1,4 @@
-"""Analyse experiment runs against the pre-committed hypotheses.
+"""Estimate prospective pilot outcomes; --legacy-proposal reproduces historical hypotheses.
 
 Usage: python3 analyze.py --runs ../runs --phase first [--out ../results] [--seed 2026]
 
@@ -707,11 +707,43 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", required=True)
     ap.add_argument("--phase", default=None)
+    ap.add_argument("--legacy-proposal", action="store_true",
+                    help="Explicit historical seven-hypothesis proposal, not current pilot inference")
+    ap.add_argument("--study-state", type=Path,
+                    help="Explicit controller journal for complete all-attempt accounting")
     ap.add_argument("--out", default="results")
     ap.add_argument("--cost-unit", default="credits", choices=USAGE_UNITS,
                     help="credits (AI credits, default), tokens, premium (requests) or seconds")
-    ap.add_argument("--seed", type=int, default=2026)
+    ap.add_argument("--seed", type=int, default=None)
     a = ap.parse_args()
+    if a.seed is None:
+        a.seed = 2026 if a.legacy_proposal else 2027
+    if not a.legacy_proposal:
+        from pilot_analysis import ROLES, analyze_pilot
+        from study_report import write_pilot
+
+        raw = load_runs(a.runs, None)
+        if a.phase:
+            target = ROLES.get(a.phase, "unclassified")
+            raw = [run for run in raw if ROLES.get(run["meta"].get("phase"), "unclassified") == target]
+        try:
+            cells = None
+            if a.study_state:
+                with a.study_state.open(encoding="utf-8") as source:
+                    state = json.load(source)
+                phase = state["identity"]["phase"]
+                if (a.phase and ROLES.get(phase, "unclassified") != ROLES.get(a.phase, "unclassified")
+                        or any(run["meta"].get("phase") != phase for run in raw)):
+                    ap.error("Attempt journal phase differs from selected collection")
+                cells = state["cells"]
+            result = analyze_pilot(raw, seed=a.seed, cost_unit=a.cost_unit, cells=cells)
+        except (ValueError, KeyError, TypeError, OSError) as error:
+            ap.error(str(error))
+        write_pilot(Path(a.out), result)
+        print((Path(a.out) / "summary.md").read_text(encoding="utf-8"))
+        return
+    if a.study_state:
+        ap.error("--study-state is for current estimation analysis, not historical proposal reproduction")
     runs = [summarise_run(r, a.cost_unit) for r in load_runs(a.runs, a.phase)]
     os.makedirs(a.out, exist_ok=True)
     unit = a.cost_unit

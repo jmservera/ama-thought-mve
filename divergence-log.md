@@ -309,3 +309,16 @@ an explicit upstream. Verify the remote SHA and original checkout/tag again.
 The publication state at
 `/tmp/ama-thought-mve-integrity-20261025-publication-state.json` will be the
 post-snapshot delivery record. No merge or protocol-tag replacement is allowed.
+# Prospective pilot / OSF alignment - 27 October 2026
+
+Paper source: jmservera/ama `196b97644bb9bffa43d41a9921d6a06a93b2699e`.
+The active protocol is now [protocol/pilot-estimation.md](protocol/pilot-estimation.md);
+the OSF form answers are a draft, not a completed registration or approval.
+Earlier seven-hypothesis thresholds and confirmatory wording are historical.
+H1/H2/H6 are estimation labels; formal H4/H7 are deferred. The twelve-run S1
+ABC pilot and excluded three-run calibration retain their budgets.
+Legacy CLI `pilot` still means calibration; `first` means estimation.
+Historical `protocol-frozen` and all smoke/result records remain unchanged.
+Prior data/exposure chronology and unresolved owner/independent evidence are
+explicit gates, not silently backdated approvals. No study or OSF submission
+is performed by this amendment.

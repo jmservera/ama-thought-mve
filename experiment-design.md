@@ -1,6 +1,11 @@
 <!-- markdownlint-disable-file -->
 # MVE Experiment Design: feature-consolidation-harness
 
+> **Historical proposal, superseded for the prospective first pass.**
+> Use [pilot-estimation.md](protocol/pilot-estimation.md): S1, A/B/C, four
+> trajectories per arm, ten features and full CR1, estimation only.
+> Eight-feature/two-arm, formal-verdict and model proposals below are historical.
+
 Phase 4 output (HVE Core Experiment Designer). Experiment type: LLM / agentic software-engineering process, controlled comparison.
 
 Status: proposed, awaiting recorded owner approval and freezing of the dated protocol version before the pilot. Sample sizes, study scope and optional arm C are frozen before any non-pilot run.

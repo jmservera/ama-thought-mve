@@ -5,13 +5,16 @@ For every feature k in a complete, ready suite it checks that
     2. prior-reference passes are reported for coverage review, not rejected automatically.
 Usage: python3 validate_suite.py ../suites/s1-retrofit
 """
+import argparse
 import glob
+import hashlib
 import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -75,8 +78,62 @@ def reference_package(suite_dir, item_id):
     return path
 
 
+def run_repeated(files, reference, repeats):
+    baseline = run_isolated(files, reference)
+    for _ in range(repeats - 1):
+        if run_isolated(files, reference) != baseline:
+            raise RuntimeError("Oracle instability: repeated unchanged-reference outcomes differ")
+    return baseline
+
+
+def reference_metrics(suite_dir, suite, backends):
+    """Unapproved raw reference metrics, with explicit diagnostic backend provenance."""
+    sys.path.insert(0, str(Path(HERE).parent / "skeleton/tools"))
+    from metrics_core import measure as code_metrics
+
+    template = Path(HERE).parent / "skeleton/pyproject.toml"
+    versions = {"python": sys.version.split()[0]}
+    with evaluation_environment() as env:
+        for backend in backends:
+            if backend in ("lizard", "jscpd", "ruff"):
+                version = subprocess.run([backend, "--version"], env=env, capture_output=True,
+                                         text=True, timeout=60, check=False)
+                versions[backend] = (version.stdout or version.stderr).strip() if version.returncode == 0 else None
+    rows = []
+    for item in suite["features"] + [suite["change_request"]]:
+        reference = Path(reference_package(suite_dir, item["id"]))
+        with tempfile.TemporaryDirectory(prefix="reference-metrics-") as directory:
+            repo = Path(directory)
+            shutil.copytree(reference, repo / "src/workbench")
+            shutil.copyfile(template, repo / "pyproject.toml")
+            metrics = code_metrics(str(repo), *backends)
+        rows.append({"stage": item["id"], "metrics": metrics,
+                     "reference_sha256": {path.relative_to(reference).as_posix():
+                         hashlib.sha256(path.read_bytes()).hexdigest()
+                         for path in sorted(reference.rglob("*.py"))}})
+    return {"status": "candidate-unreviewed", "accepted_for_gaps": False,
+            "backends_requested": dict(zip(("complexity", "duplication", "lint"), backends)),
+            "tool_versions": versions,
+            "lint_config_sha256": hashlib.sha256(template.read_bytes()).hexdigest(),
+            "metrics_code_sha256": hashlib.sha256(
+                (Path(HERE).parent / "skeleton/tools/metrics_core.py").read_bytes()).hexdigest(),
+            "rows": rows,
+            "interpretation": "Raw original units only; matching versions/settings, coverage and independent acceptance required"}
+
+
 def main():
-    suite_dir = os.path.abspath(sys.argv[1])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("suite")
+    parser.add_argument("--repeats", type=int, default=1,
+                        help="Diagnostic repeats; author must freeze the final count and failure policy")
+    parser.add_argument("--reference-metrics", type=Path)
+    parser.add_argument("--complexity", choices=["internal", "lizard"], default="lizard")
+    parser.add_argument("--duplication", choices=["internal", "jscpd"], default="jscpd")
+    parser.add_argument("--lint", choices=["none", "ruff"], default="ruff")
+    args = parser.parse_args()
+    if args.repeats < 1:
+        parser.error("--repeats must be positive")
+    suite_dir = os.path.abspath(args.suite)
     try:
         with open(os.path.join(suite_dir, "suite.json"), encoding="utf-8") as source:
             suite = json.load(source)
@@ -93,10 +150,10 @@ def main():
         files = []
         for index, (feature, visible, hidden, ref) in enumerate(prepared):
             files += visible + hidden
-            res = run_isolated(files, ref)
+            res = run_repeated(files, ref, args.repeats)
             bad = [test for test, outcome in res.items() if outcome != "passed"]
             prev = prepared[index - 1][3] if index else None
-            res_prev = run_isolated(hidden, prev)
+            res_prev = run_repeated(hidden, prev, args.repeats)
             passing_without = [test for test, outcome in res_prev.items() if outcome == "passed"]
             status = "OK" if not bad else "FAIL"
             ok = ok and not bad
@@ -107,14 +164,23 @@ def main():
                 print(f"   failing on reference: {test}")
             for test in passing_without:
                 print(f"   prior-reference pass (review coverage): {test}")
-        ok = check_change_request(suite_dir, suite) and ok
+        ok = check_change_request(suite_dir, suite, repeats=args.repeats) and ok
+        if args.reference_metrics:
+            if not ok:
+                raise RuntimeError("Reference failures prevent metric evidence export")
+            payload = reference_metrics(suite_dir, suite, (args.complexity, args.duplication, args.lint))
+            payload["oracle_repeats"] = args.repeats
+            payload["oracle_stability_accepted"] = False
+            with args.reference_metrics.open("x", encoding="utf-8") as output:
+                json.dump(payload, output, indent=2, allow_nan=False)
+                output.write("\n")
     except (OSError, ValueError, SyntaxError, RuntimeError) as error:
         print(f"FAIL: {error}")
         sys.exit(1)
     sys.exit(0 if ok else 1)
 
 
-def check_change_request(suite_dir, suite):
+def check_change_request(suite_dir, suite, repeats=1):
     """Check CR1 cumulatively and report prior-reference passes without rejecting valid edge cases."""
     cr = suite.get("change_request") or {}
     cr_visible, cr_hidden = item_tests(suite_dir, cr, kind="")
@@ -124,10 +190,10 @@ def check_change_request(suite_dir, suite):
     for feature in suite["features"]:
         visible, hidden = item_tests(suite_dir, feature)
         files += visible + hidden
-    res = run_isolated(files + cr_visible + cr_hidden, reference_package(suite_dir, cr["id"]))
+    res = run_repeated(files + cr_visible + cr_hidden, reference_package(suite_dir, cr["id"]), repeats)
     bad = [t for t, o in res.items() if o != "passed"]
     last = reference_package(suite_dir, suite["features"][-1]["id"])
-    res_prev = run_isolated(cr_hidden, last)
+    res_prev = run_repeated(cr_hidden, last, repeats)
     weak = [t for t, o in res_prev.items() if o == "passed"]
     print(f"{cr['id']}: {len(res) - len(bad)}/{len(res)} tests (all features plus the change request) pass on the "
           f"reference [{'OK' if not bad else 'FAIL'}]; {len(weak)}/{len(res_prev)} change-request hidden tests already "

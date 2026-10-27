@@ -1,10 +1,10 @@
 {
   "seed": 2027,
-  "ceiling_credits": 2500,
+  "ceiling_credits": 300000,
   "prior_credits": null,
   "session_reserve_credits": 300,
   "max_attempts": 2,
-  "study_timeout_seconds": 432000,
+  "study_timeout_seconds": 1209600,
   "min_disk_gib": 10,
   "freeze_manifest": "protocol/freeze.json"
 }

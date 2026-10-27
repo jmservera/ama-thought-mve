@@ -1,6 +1,11 @@
 <!-- markdownlint-disable-file -->
 # MVE Vetting: feature-consolidation-harness
 
+> **Historical vetting, not present scientific acceptance.** See the
+> [current estimation protocol](protocol/pilot-estimation.md). No seven-hypothesis
+> go/no-go verdict applies to the twelve trajectories; all owner and independent
+> review gates remain explicit in the current decision ledger.
+
 Phase 3 output (HVE Core Experiment Designer). Verdict: **viable as an MVE**, with two concerns to mitigate (confirmation bias and scope creep).
 
 ## Vetting criteria

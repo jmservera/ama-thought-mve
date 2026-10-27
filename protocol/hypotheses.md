@@ -1,6 +1,10 @@
 <!-- markdownlint-disable-file -->
 # MVE Hypotheses: feature-consolidation-harness
 
+> **Historical seven-hypothesis proposal.** The active
+> [estimation protocol](pilot-estimation.md) has no pass/fail hypothesis verdicts.
+> Do not use the historical thresholds below for the twelve-run pilot.
+
 Phase 2 output (HVE Core Experiment Designer). Thresholds are proposals set before any run; the owner accepts, revises or rejects each one before execution. Criteria changed after execution starts are recorded as divergence, never silently replaced.
 
 ## Project goal
