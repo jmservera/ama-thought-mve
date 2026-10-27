@@ -112,7 +112,12 @@ class Run:
         meta = {"run_id": self.run_id, "arm": self.arm, "phase": self.phase, "suite": self.suite["name"],
                 "features": self.n, "change_request": self.do_cr, "started": dt.datetime.now(dt.timezone.utc).isoformat(),
                 "config": self.cfg, "versions": versions}
-        json.dump(meta, open(os.path.join(self.dir, "run.json"), "w", encoding="utf-8"), indent=1)
+        meta_path = os.path.join(self.dir, "run.json")
+        with open(meta_path + ".tmp", "w", encoding="utf-8") as fh:
+            json.dump(meta, fh, indent=1)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(meta_path + ".tmp", meta_path)
 
     # ------------------------------------------------------------------ helpers
     def env(self):

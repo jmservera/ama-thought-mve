@@ -1050,3 +1050,14 @@ def test_given_failed_hidden_process_when_evaluating_then_owned_home_and_test_co
 
     assert owned_paths
     assert all(not path.exists() for path in owned_paths)
+
+
+def test_given_test_function_returning_non_outcome_when_stdlib_runs_then_report_is_written(
+    hidden_candidate, measure_module
+):
+    repo, suite, test = hidden_candidate
+    test.write_text("def test_it():\n    return True\n", encoding="utf-8")
+
+    result = measure_module.run_hidden(str(repo), str(suite), ["f1"], "stdlib")
+
+    assert result == {"test_feature::test_it": "passed"}

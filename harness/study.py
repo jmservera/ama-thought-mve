@@ -115,6 +115,8 @@ def reserve(ledger: dict, attempt: str, amount: int) -> None:
     entries = ledger["entries"].values()
     if any(entry["status"] == "unknown" for entry in entries):
         raise StudyError("Unknown usage holds its reservation and blocks new work")
+    if any(entry["status"] == "complete" and entry["actual_nano"] > entry["reserved_nano"] for entry in entries):
+        raise StudyError("Actual credits exceeded a reservation; new work stays blocked")
     used = ledger["prior_nano"] + sum(
         entry["actual_nano"] if entry["status"] == "complete" else entry["reserved_nano"]
         for entry in ledger["entries"].values())
@@ -524,7 +526,10 @@ class Controller:
         records = []
         path = Path(run.steps_path)
         if path.exists():
-            for line in path.read_text().splitlines():
+            text = path.read_text()
+            if text and not text.endswith("\n"):
+                raise StudyError("Journal lacks final newline: preserve partial run for manual recovery")
+            for line in text.splitlines():
                 try:
                     records.append(json.loads(line))
                 except json.JSONDecodeError as error:

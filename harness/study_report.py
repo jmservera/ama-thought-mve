@@ -161,7 +161,8 @@ def export(directory: Path, state: dict, study_id: str) -> None:
             row = {"hypothesis": name, "field": field, "value": value, "available": value is not None,
                    "interpretation": "diagnostic" if diagnostic else "exploratory"}
             hypothesis_rows.append(row)
-            if "ci" in field.split(".") or any(part.endswith("_ci") for part in field.split(".")):
+            parts = field.split(".")
+            if "ci" in parts or "intervals" in parts or any(part.endswith("_ci") for part in parts):
                 interval_rows.append(row)
     columns = ["hypothesis", "field", "value", "available", "interpretation"]
     write_csv(out / "hypotheses.csv", columns, hypothesis_rows)
@@ -318,7 +319,8 @@ def publish(directory: Path, study_id: str, root: Path = ROOT) -> str:
                               cwd=root, capture_output=True, text=True, timeout=60, check=False)
     if existing.returncode not in (0, 2):
         raise StudyError("Cannot inspect remote results branch; no changes pushed")
-    base = command(["git", "rev-parse", "HEAD"], cwd=root)
+    source_head = command(["git", "rev-parse", "HEAD"], cwd=root)
+    base = source_head
     if existing.returncode == 0:
         command(["git", "fetch", "--quiet", "origin", f"refs/heads/{branch}"], cwd=root)
         base = command(["git", "rev-parse", "FETCH_HEAD"], cwd=root)
@@ -342,6 +344,9 @@ def publish(directory: Path, study_id: str, root: Path = ROOT) -> str:
                 message = (f"data(study): publish {study_id} derived results\n\n"
                            "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>")
                 command(["git", "commit", "--quiet", "-m", message], cwd=worktree)
+            proposed = command(["git", "diff", "--name-only", f"{source_head}...HEAD"], cwd=worktree).splitlines()
+            if any(not name.startswith(f"results/{study_id}/") for name in proposed):
+                raise StudyError("Results branch history contains files outside result-only boundary")
             command(["git", "push", "--quiet", "origin", f"HEAD:refs/heads/{branch}"], cwd=worktree)
         finally:
             command(["git", "worktree", "remove", "--force", str(worktree)], cwd=root)

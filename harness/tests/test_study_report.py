@@ -174,3 +174,24 @@ def test_publish_auth_and_push_failures_are_explicit(modules, reports, publicati
     with pytest.raises(study.StudyError, match="git failed"):
         report.publish(reports, "export-test", root)
     assert git(root, "worktree", "list", "--porcelain").count("worktree ") == 1
+
+
+def test_h7_intervals_are_exported(modules, reports):
+    _, report = modules
+    rows = report.flat_values({"intervals": {"B_minus_A": [None, 1.0]}})
+    assert [field for field, _ in rows] == ["intervals.B_minus_A.0", "intervals.B_minus_A.1"]
+    source = (ROOT / "harness/study_report.py").read_text()
+    assert '"intervals" in parts' in source
+
+
+def test_publish_refuses_remote_results_branch_with_source_commits(modules, reports, publication_repo):
+    _, report = modules
+    root, _origin, _log = publication_repo
+    git(root, "checkout", "-q", "-b", "results/export-test")
+    (root / "extra.txt").write_text("source change\n")
+    git(root, "add", "extra.txt")
+    git(root, "commit", "-qm", "inherited source commit")
+    git(root, "push", "-q", "origin", "results/export-test")
+    git(root, "checkout", "-q", "feat/test")
+    with pytest.raises(modules[0].StudyError, match="outside result-only boundary"):
+        report.publish(reports, "export-test", root)

@@ -332,3 +332,40 @@ def test_dry_run_is_read_only_and_live_refusal_never_calls_agent(study, monkeypa
     monkeypatch.setattr(sys, "argv", ["study", "--dry-run"])
     assert study.main() == 2
     assert "soft credit caps" in capsys.readouterr().out
+
+
+def test_recorded_overrun_blocks_admission_even_with_aggregate_room(study):
+    ledger = {"ceiling_nano": study.MAX_CREDITS, "prior_nano": 0, "entries": {}}
+    study.reserve(ledger, "first", 300 * study.NANO)
+    with pytest.raises(study.StudyError, match="exceeded reservation"):
+        study.reconcile(ledger, "first", {"totalNanoAiu": 301 * study.NANO, "credits_complete": True})
+    with pytest.raises(study.StudyError, match="stays blocked"):
+        study.reserve(ledger, "second", 300 * study.NANO)
+
+
+def test_setup_metadata_write_is_atomic(study, config, tmp_path, monkeypatch):
+    current = controller(study, config, tmp_path)
+    runner = importlib.import_module("runner")
+    real_replace = os.replace
+
+    def interrupted(src, dst):
+        if str(dst).endswith("run.json") and '"config"' in Path(src).read_text():
+            raise OSError("Synthetic interruption")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(runner.os, "replace", interrupted)
+    assert not current.go()
+    for path in (tmp_path / "runs").glob("*/run.json"):
+        assert "run_id" in json.loads(path.read_text())
+
+
+def test_journal_without_final_newline_is_refused_before_resume(study, config, tmp_path):
+    current = controller(study, config, tmp_path)
+    assert current.go()
+    path = next((tmp_path / "runs").glob("*/steps.jsonl"))
+    torn = path.read_text().rstrip("\n")
+    path.write_text(torn)
+    cell = next(c for c in current.state["cells"] if c["run_id"] == path.parent.name)
+    with pytest.raises(study.StudyError, match="final newline"):
+        current.run_cell(cell)
+    assert path.read_text() == torn

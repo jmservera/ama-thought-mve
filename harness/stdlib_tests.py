@@ -36,7 +36,10 @@ def _run(fn, timeout):
     signal.alarm(timeout)
     try:
         outcome = fn()
-        return outcome if outcome else ("passed", "")
+        valid = (isinstance(outcome, tuple) and len(outcome) == 2
+                 and outcome[0] in ("skipped", "failed", "error", "timeout")
+                 and isinstance(outcome[1], str))
+        return outcome if valid else ("passed", "")
     except _Timeout:
         return "timeout", "timed out"
     except AssertionError:
