@@ -13,8 +13,10 @@ to `196b97644bb9bffa43d41a9921d6a06a93b2699e`, with the owner's explicit
 three-model amendment: GPT 6.1 Sol, Sonnet 5.5 and Gemini 4 Argon, two
 trajectories per arm/model; nine excluded calibration trajectories.
 The total ceiling is **300,000 AI Credits**, including prior spend/calibration,
-with fixed 300-credit/session soft caps. Independent acceptance, final source
-approval, actual registration and execution readiness remain open.
+with fixed 300-credit/session soft caps. Owner approval for preregistration
+submission is recorded on 28 October 2026: document licence CC BY-NC-ND 4.0
+and embargo through 2026-12-31. Independent acceptance, actual registration
+and execution readiness remain open.
 
 The controller schedules the model-aware allocation, preserves model/replicate
 identity on resume and exports separate primary estimates per model, never a

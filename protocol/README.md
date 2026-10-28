@@ -5,7 +5,8 @@ Start with [pilot-estimation.md](pilot-estimation.md) and
 [pilot-estimation.json](pilot-estimation.json) is the machine-readable design
 and owner-decision ledger. Choices now specify three models, two trajectories
 per arm/model (18 pilot plus nine excluded calibration), and 300,000 total
-AI Credits. No registration or final-source approval is recorded.
+AI Credits. Owner approval for submission is recorded on 28 October 2026;
+no registration or permission to collect data is recorded.
 
 The controller/analysis implement model-aware scheduling and separate primary
 estimates per model, with immutable assigned-model/replicate identity. Required
@@ -13,7 +14,9 @@ estimates per model, with immutable assigned-model/replicate identity. Required
 unresolved; engineering and an updated draft do not authorise the expanded study.
 These are precollection safeguards, **not ordinary OSF submission requirements**.
 The owner authorised submitting an honestly unreviewed plan on 28 October 2026,
-subject to final source-bound approval. Follow
+with actual approval of 235489c content plus selected metadata now recorded.
+The selected document licence is CC BY-NC-ND 4.0, with embargo through
+2026-12-31; contributors/affiliations are entered directly in OSF. Follow
 [osf-submission-checklist.md](osf-submission-checklist.md) for the live form and
 safe attachments. Readiness reports separate submission and collection blockers;
 no pending evidence is marked accepted to prepare a registration.

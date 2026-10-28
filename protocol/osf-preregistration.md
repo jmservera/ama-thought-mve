@@ -1,6 +1,7 @@
 # OSF Preregistration submission draft
 
-**DRAFT - not submitted, not registered, not author-approved.**
+**OWNER-APPROVED FOR SUBMISSION, 28 October 2026. Not submitted or registered;
+not authorised for data collection.**
 Use the general-purpose **OSF Preregistration** form. Field wording may change:
 transfer these answers into the live form and attach the approved protocol,
 decision ledger, candidate contract panel and checksums. The panel is not
@@ -12,8 +13,19 @@ do not upload private session logs or the private reviewer bundle.
 **Title:** Scheduled consolidation during agentic feature delivery:
 an eighteen-trajectory, three-model S1 pilot/estimation study.
 
-**Contributors, affiliations, licence, registration visibility/embargo:**
-owner to complete in OSF. Do not infer coauthor participation or endorsement.
+**Contributors and affiliations:** owner confirmed authorship and permissions
+are settled; enter personal details directly in OSF. Do not infer identities
+or coauthor endorsement from this repository.
+
+**Licence:** [Creative Commons Attribution-NonCommercial-NoDerivatives 4.0
+International (CC BY-NC-ND 4.0)](https://creativecommons.org/licenses/by-nc-nd/4.0/),
+selected by the owner for owner-controlled preregistration documents and
+submission attachments. Repository code and third-party materials are not
+relicensed by this selection.
+
+**Visibility:** owner selected embargo until **31 December 2026**
+(`2026-12-31`). These settings must still be entered in OSF; no active embargo
+or completed registration is claimed.
 
 **Description:** We compare feature-only delivery (A), consolidation after each
 feature (B), and read-only review (C), fully crossed with GPT 6.1 Sol, Sonnet 5.5
@@ -48,7 +60,10 @@ the evidence and uncertainty, including offline reference outcomes used to
 revise tooling. No outcome-blind development process is claimed.
 Unrelated [hve-squad benchmarking](https://github.com/Peter-N91/hve-squad/pull/212)
 is not this MVE's data or validation evidence. Reconcile this disclosure with
-actual artifacts before signing the live existing-data answers.
+actual artifacts before signing the live existing-data answers. During final
+approval on 28 October the owner reconfirmed this inventory is accurate and
+complete, with no additional work/data exposure or calibration/registered
+pilot collected.
 
 No timestamp, lack of prior exposure, complete calibration or registration is
 asserted from a local draft, manuscript statement or historical Git tag.
@@ -61,8 +76,11 @@ Model/runtime entitlement, effort/routing/accounting and actual information
 boundaries remain unverified. Ordinary OSF preregistration records the plan;
 it does not require independent scientific peer review or certify validity.
 
-On 28 October the owner authorised submitting the plan with this disclosure
-after final source-bound owner approval. The project retains all outstanding
+On 28 October the owner explicitly approved the content at source commit
+`235489cc8b63307d35d624b1b7bb02124c1bfec1`, plus the selected metadata and
+approval-record updates, for submission with this disclosure. The owner
+confirmed no additional approvals are required before preregistration.
+The project retains all outstanding
 review and operational checks as prerequisites before calibration/pilot
 collection. No checks are marked accepted merely to prepare or submit this
 registration. Any substantive method changes arising from review will be

@@ -1,6 +1,7 @@
 # Submission readiness and precollection review assignment
 
-**Prospective draft; not owner-approved, registered or execution-ready.**
+**Owner-approved for submission on 28 October 2026; not registered or
+execution-ready. No independent review has been received.**
 Use the exact new candidate commit and input fingerprint supplied by the owner,
 not the earlier review packet. Source changes require review of affected evidence.
 
@@ -16,6 +17,11 @@ disclosure and actual approval of the final source candidate. Use
 [osf-submission-checklist.md](osf-submission-checklist.md).
 The readiness report separates `submission_unresolved` from
 `collection_unresolved`; `unresolved` aliases the submission list.
+The owner has now explicitly approved the 235489c content plus selected
+metadata/approval updates: CC BY-NC-ND 4.0 for submission documents and embargo
+through 2026-12-31. Contributors/permissions are settled and personal details
+will be entered directly in OSF. No additional preregistration approvals were
+reported as required. This closes only the submission approval entry.
 All review/operator requirements below remain prerequisites before collecting
 calibration/pilot data. Substantive changes must be documented prospectively
 before collecting affected data; the old candidate packet is not an approval.
@@ -68,7 +74,6 @@ independent acceptance. Return actual findings, not just checked boxes.
 |---|---|
 | `local_runtime_evidence` | Exact executable/runtime configuration, actual model entitlement/effort/routing/usage semantics and final frozen environment, accepted by owner; offline help/version checks are partial only. |
 | `access_probe_including_cr1_text` | Controlled independently reviewed filesystem/network/hidden/reference/prompt/CR1-text boundaries. Do not claim isolation for a temporary evaluator directory or expose held-out material to a study agent. |
-| `owner_approval` | Actual dated approval of the exact preregistration candidate and its pending-check disclosures, not inferred from requesting edits. Collection additionally requires accepted evidence and an owner-authorised freeze. |
 
 The owner's disclosed-only inventory and exact repository chronology are
 recorded in [prior-data-disclosure.md](prior-data-disclosure.md). This resolves
@@ -78,8 +83,10 @@ historical smoke (14.54324 credits, B/F1 plus consolidation) and
 offline/fake/reference diagnostics stay excluded from study trajectories.
 No new calibration or registered pilot has been performed by this preparation.
 
-Owner must also complete OSF contributors/affiliations/licence and
-visibility/embargo in the live form. Keep personal details and private reviewer
+Owner must enter settled contributor/affiliation details, selected
+CC BY-NC-ND 4.0 licence and embargo end 2026-12-31 in the live form.
+Collection additionally requires accepted evidence and an owner-authorised
+freeze; submission approval supplies neither. Keep personal details and private reviewer
 records out of the public repository. Transfer private evidence through an
 owner-controlled channel; do not upload raw logs automatically.
 

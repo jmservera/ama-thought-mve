@@ -1,6 +1,7 @@
 # Prospective S1 pilot / estimation protocol
 
-**Status: draft, not registered; study not authorised to run.** This is the
+**Status: owner-approved for submission on 28 October 2026, not registered;
+study not authorised to run.** This is the
 active protocol for the owner's three-model amendment to the paper. It supersedes the
 seven-hypothesis proposals preserved in the other historical protocol notes.
 It is not a retrospective amendment to earlier data or `protocol-frozen`.
@@ -84,6 +85,11 @@ Reviews and runtime/access acceptance are pending and will be disclosed as such.
 Submission requires a complete consistent plan, recorded owner choices,
 secondary scope, prior-data disclosure and actual final source-bound owner
 approval. See [the OSF checklist](osf-submission-checklist.md).
+The owner has now explicitly approved source content at 235489c plus the
+selected metadata/approval updates, reconfirmed the data inventory unchanged
+and selected CC BY-NC-ND 4.0 for submission documents with embargo through
+2026-12-31. Contributor details will be entered directly in OSF; no additional
+preregistration approvals were reported as required. This is not a study launch.
 `submission_unresolved` (also exposed as `unresolved`) lists only those blockers;
 `collection_unresolved` retains all outstanding methodological/operator evidence
 and panel acceptance. Registration alone never authorises execution.

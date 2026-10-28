@@ -17,7 +17,9 @@ def registration(monkeypatch):
 
 @pytest.fixture
 def config():
-    return json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
+    config = json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
+    config["owner_approval"] = {"approved": False, "date": None, "evidence": None}
+    return config
 
 
 @pytest.fixture

@@ -1,6 +1,7 @@
 # OSF preregistration submission checklist
 
-**DRAFT: not submitted, not independently reviewed, not owner-approved.**
+**OWNER-APPROVED FOR SUBMISSION, 28 October 2026. Not submitted or registered;
+not independently reviewed or authorised for collection.**
 Use the ordinary **OSF Preregistration** template, not Registered Reports.
 Independent scientific review is not an OSF requirement for this submission.
 The project retains it as a prerequisite before collecting calibration/pilot data.
@@ -15,15 +16,32 @@ unverified. Do not describe the candidate as independently validated.
 
 `readiness.json` reports `submission_unresolved` separately from
 `collection_unresolved`. `unresolved` is an alias for submission blockers.
-Final source-bound owner approval remains required; requesting these edits
-does not supply it. Even after approval, registration and execution are separate.
+Actual source-bound owner approval is now recorded; it was supplied explicitly,
+not inferred from an edit request. Registration and execution remain separate.
+
+## Recorded final owner decisions
+
+The owner approved content at `235489cc8b63307d35d624b1b7bb02124c1bfec1`
+plus only the selected metadata/approval updates, on 28 October 2026.
+The agreed protocol and prior-data inventory were reconfirmed unchanged, with
+no additional work/data exposure or calibration/registered pilot collected.
+The owner chose to submit with independent review/runtime checks pending,
+confirmed contributors/permissions settled and no additional preregistration
+approvals required.
+
+**Document licence:** [CC BY-NC-ND 4.0 International](https://creativecommons.org/licenses/by-nc-nd/4.0/).
+This applies only to owner-controlled preregistration documents/attachments,
+not repository code or third-party materials.
+**Visibility:** embargo through **2026-12-31**, selected but not configured here.
+Personal contributor/affiliation details must be entered directly in OSF.
 
 ## Complete the live OSF form
 
 1. Select the general-purpose OSF Preregistration template.
 2. Enter the title/description from [osf-preregistration.md](osf-preregistration.md).
-   Complete actual contributors, affiliations, licence and visibility/embargo
-   in OSF. Do not infer coauthors or publish private reviewer details.
+   Enter the settled contributors/affiliations directly in OSF, select
+   **CC BY-NC-ND 4.0 International**, and choose embargo ending **2026-12-31**.
+   Do not infer coauthors or publish private reviewer details.
 3. Transfer the existing-data disclosure, including excluded historical smoke,
    manual work and offline/reference diagnostics. Git dates are source-history
    dates, not verified historical collection/first-inspection dates.
@@ -56,13 +74,14 @@ deliberately and never expose the panel or other held-out material to a study
 agent. Actual containment remains an unresolved precollection requirement.
 Retain an owner-controlled backup of the exact submitted package and checksums.
 
-## Owner review and submission
+## Verify the approved package and submit
 
 Review the exact source commit, input fingerprint and package inventory.
-Confirm the recorded choices and prior-data disclosure; explicitly approve the
-submission candidate. Record actual dated approval and evidence in the ledger,
-then regenerate a clean exact package if any tracked file changed.
-Owner approval covers preregistration, not permission to collect data.
+The owner has explicitly approved the recorded choices, prior-data disclosure
+and limited metadata updates; dated evidence is in the ledger. Verify that the
+package matches that approved scope. Further substantive changes require
+renewed approval; regenerate a clean exact package if any tracked file changes.
+The recorded approval covers preregistration, not permission to collect data.
 
 Submit through OSF and complete its actual contributor-approval/archive process.
 A local package or saved live draft is not completed registration. Record the

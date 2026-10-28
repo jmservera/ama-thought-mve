@@ -9,6 +9,11 @@ ledger and approve the exact submission candidate. Independent acceptance is
 a project prerequisite before collection, not before ordinary OSF registration.
 Use [the OSF checklist](protocol/osf-submission-checklist.md) and disclose
 independent reviews and runtime/access checks as pending.
+Owner submission approval is now recorded for 235489c content plus selected
+metadata/approval updates: CC BY-NC-ND 4.0 for submission documents and embargo
+through 2026-12-31. Enter settled contributor/affiliation details directly in
+OSF. No completed registration, independent acceptance or collection permission
+is implied; all execution gates below remain in force.
 The owner-amended first pass is an estimation pilot, not confirmatory testing:
 GPT 6.1 Sol, Sonnet 5.5 and Gemini 4 Argon, each with two trajectories per A/B/C
 arm (18 pilot, plus nine excluded calibration). There are 318 pilot and 150
