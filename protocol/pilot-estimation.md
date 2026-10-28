@@ -51,8 +51,10 @@ tests and writes DESIGN.md (at most 300 words); C may only write REVIEW.md.
 Neither contrast identifies pure refactoring or an equal-total-budget effect.
 
 Model candidates are `gpt-6.1-sol`, `claude-sonnet-5.5` and `gemini-4-argon`.
-The earlier medium-effort/CLI 1.0.103 candidate is not verified for all three;
-the locally inspected CLI reports 1.0.104. Verify exact availability, compatible
+On 28 October the owner selected a prospective current-toolchain amendment: CLI 1.0.105,
+Ruff 0.17.3, Lizard 1.24.3 and jscpd 5.4.1, with medium effort still a candidate.
+This replaces the earlier CLI 1.0.103/Ruff 0.17.2 candidates; it does not establish
+model entitlement or actual effort behavior. Verify exact availability, compatible
 reasoning settings and one frozen runtime before collection. AI credits are primary;
 tokens, elapsed seconds and currency are separate. The combined prospective
 calibration/pilot ceiling is **300,000 AI Credits**, including prior spending.
@@ -167,10 +169,12 @@ H3 structural metrics and H5 cost/slope thresholds are not pilot verdicts.
 Formal H4 joint size/accuracy/time and H7 dependent half-gap claims are deferred;
 no non-inferiority margin or replacement threshold is invented.
 The owner deferred comprehension assessment; this pilot makes no
-comprehension-effect claim. HIR/IDR use attempted feature cycles,
-including failed ones, not sessions; repeated events affect a cycle once in the
-rate, while counts/minutes are separate. CR1 help is reported separately.
-Absent verified telemetry/adjudication makes these measures unavailable.
+comprehension-effect claim. On 28 October the owner explicitly excluded HIR/IDR
+outcomes from this pilot; their report fields remain unavailable, never zero.
+This does not waive assistance/intervention logging, CR1-help records,
+unassisted-comparison eligibility or primary usage/cost coverage.
+See [readiness-handoff.md](readiness-handoff.md) for the recorded scope decision
+and remaining reviewer/operator evidence.
 
 Structural metrics use frozen lizard/ruff/jscpd settings and raw trajectories.
 Reference gaps require independently accepted cumulative reference versions,

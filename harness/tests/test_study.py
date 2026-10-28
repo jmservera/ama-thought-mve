@@ -92,12 +92,41 @@ def test_complete_nominal_freeze_cannot_bypass_soft_billing_stop(study, config, 
     monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "synthetic-token-never-output")
     monkeypatch.setattr(study.shutil, "which", lambda tool: f"/tools/{tool}")
     monkeypatch.setattr(study, "freeze_errors", lambda *args: [])
-    versions = {"copilot": "1.0.103", "ruff": "0.17.2", "lizard": "1.24.3", "jscpd": "5.4.1"}
-    monkeypatch.setattr(study, "command", lambda args, **kwargs: versions.get(args[0], ""))
+    versions = {"copilot": "GitHub Copilot CLI 1.0.105.\nRun 'copilot update' to check for updates.",
+                "ruff": "0.17.3", "lizard": "1.24.3", "jscpd": "5.4.1"}
+    def version_output(args, **kwargs):
+        if args[0] == "copilot":
+            assert args == ["copilot", "--no-auto-update", "--version"]
+        return versions.get(args[0], "")
+    monkeypatch.setattr(study, "command", version_output)
     errors = study.preflight(config, smoke=False)
     assert len(errors) == 1
     assert "provider-enforced hard billing" in errors[0]
     assert "synthetic-token" not in str(errors)
+
+
+@pytest.mark.parametrize(("output", "accepted"), [
+    ("1.0.105", True),
+    ("GitHub Copilot CLI 1.0.105", True),
+    ("GitHub Copilot CLI 1.0.105.\nRun 'copilot update' to check for updates.", True),
+    ("GitHub Copilot CLI 1.0.104.", False),
+    ("GitHub Copilot CLI 1.0.1050.", False),
+    ("GitHub Copilot CLI 1.0.105.1", False),
+    ("GitHub Copilot CLI 1.0.105-beta", False),
+    ("not a version\nGitHub Copilot CLI 1.0.105.", False),
+    ("", False),
+])
+def test_cli_version_requires_exact_release_and_retains_paid_stop(
+        study, config, monkeypatch, output, accepted):
+    config["prior_credits"] = 0
+    monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "synthetic-token-never-output")
+    monkeypatch.setattr(study.shutil, "which", lambda tool: f"/tools/{tool}")
+    monkeypatch.setattr(study, "freeze_errors", lambda *args: [])
+    versions = {"copilot": output, "ruff": "0.17.3", "lizard": "1.24.3", "jscpd": "5.4.1"}
+    monkeypatch.setattr(study, "command", lambda args, **kwargs: versions.get(args[0], ""))
+    errors = study.preflight(config, smoke=False)
+    assert ("copilot must be pinned to 1.0.105" not in errors) is accepted
+    assert any("provider-enforced hard billing" in error for error in errors)
 
 
 def test_missing_freeze_and_legacy_tag_are_not_authorisation(study, config, tmp_path):

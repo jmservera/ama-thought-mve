@@ -224,19 +224,26 @@ def preflight(cfg: dict, *, smoke: bool, root: Path = ROOT) -> list[str]:
         if shutil.which("git") and command(["git", "status", "--porcelain"], cwd=root):
             errors.append("Live execution requires a clean git worktree")
         for tool, args, version in (
-            ("copilot", ["copilot", "--version"], "1.0.103"),
-            ("ruff", ["ruff", "--version"], "0.17.2"),
+            ("copilot", ["copilot", "--no-auto-update", "--version"], "1.0.105"),
+            ("ruff", ["ruff", "--version"], "0.17.3"),
             ("lizard", ["lizard", "--version"], "1.24.3"),
             ("jscpd", ["jscpd", "--version"], "5.4.1"),
         ):
-            if shutil.which(tool) and not re.search(rf"(?<![\d.]){re.escape(version)}(?![\d.])", command(args)):
-                errors.append(f"{tool} must be pinned to {version}")
+            if shutil.which(tool):
+                output = command(args).strip()
+                if tool == "copilot":
+                    matched = re.fullmatch(rf"(?:GitHub Copilot CLI )?{re.escape(version)}\.?",
+                                           output.splitlines()[0] if output else "")
+                else:
+                    matched = re.search(rf"(?<![\d.]){re.escape(version)}(?![\d.])", output)
+                if not matched:
+                    errors.append(f"{tool} must be pinned to {version}")
         if isinstance(cfg.get("freeze_manifest"), str):
             try:
                 errors.extend(freeze_errors(cfg, root))
             except (StudyError, OSError, ValueError, subprocess.TimeoutExpired):
                 errors.append("Freeze evidence unreadable or tag verification failed")
-        errors.append("Paid execution disabled: Copilot 1.0.103 has only soft credit caps; "
+        errors.append("Paid execution disabled: Copilot 1.0.105 has only soft credit caps; "
                       "a provider-enforced hard billing boundary is required")
     return errors
 

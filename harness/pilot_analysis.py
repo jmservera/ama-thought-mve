@@ -354,7 +354,7 @@ def analyze_pilot(raw_runs: list[dict], *, panel: dict | None = None, seed: int 
                         "H2": "Final P10 open-loss count is primary; accumulated test-cycle losses are descriptive companions",
                         "costs": "All-attempt consumption requires an explicit matching journal; measured-step costs alone are descriptive; empty attempts are not presumed free",
                         "cr1": "97.5% equal-tailed Clopper-Pearson components; opposite endpoints; at least 95% per comparison, not family-wide",
-                        "HIR_IDR": "Unavailable without verified attempted-cycle coverage and adjudication; never inferred as zero",
+                        "HIR_IDR": "Explicitly excluded from this pilot; assistance and usage coverage still required, never inferred as zero",
                         "reference_gaps": "Unavailable without accepted compatible reference metrics and complete feature coverage",
                         "H4_H7": "Formal claims deferred; no pilot hypothesis decisions",
                         "missing": "All allocations retained; no complete-case substitution; no last-observed final endpoints"}}
@@ -465,7 +465,7 @@ def _analyze_pilot_model_stratified(stratified: list[dict], panel: dict, seed: i
                         "H2": "Final P10 open-loss count is primary; accumulated test-cycle losses are descriptive companions",
                         "costs": "All-attempt consumption requires an explicit matching journal; measured-step costs alone are descriptive; empty attempts are not presumed free",
                         "cr1": "97.5% equal-tailed Clopper-Pearson components; opposite endpoints; at least 95% per comparison, not family-wide",
-                        "HIR_IDR": "Unavailable without verified attempted-cycle coverage and adjudication; never inferred as zero",
+                        "HIR_IDR": "Explicitly excluded from this pilot; assistance and usage coverage still required, never inferred as zero",
                         "reference_gaps": "Unavailable without accepted compatible reference metrics and complete feature coverage",
                         "H4_H7": "Formal claims deferred; no pilot hypothesis decisions",
                         "missing": "All allocations retained; no complete-case substitution; no last-observed final endpoints",

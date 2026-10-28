@@ -88,12 +88,29 @@ Measurement infrastructure may be retried once on the same retained snapshot,
 without replaying agent work; exhausted evaluation retries remain exhausted on
 resume. A snapshot inconsistency halts collection rather than rerunning until green.
 
-Live checks include Python, git/make, Copilot **1.0.103**,
-gh, ruff **0.17.2**, lizard **1.24.3**, jscpd **5.4.1**, free disk, clean git,
+Live checks include Python, git/make, Copilot **1.0.105**,
+gh, ruff **0.17.3**, lizard **1.24.3**, jscpd **5.4.1**, free disk, clean git,
 known prior spending and owner freeze provenance. No model calls are used to
 check versions. The existing image recipe and legacy configs are not evidence
 of pinned execution; the selected local design needs verified runtime/tool
 evidence and access probes, not a fictional approved Docker amendment.
+
+For the owner's 28 October prospective toolchain amendment, use the pinned
+Python requirements and a repository-local duplication tool, without changing
+global installations:
+
+```bash
+.venv/bin/python -m pip install -r harness/requirements-measure.txt
+npm install --prefix .study/runtime-tools --no-audit --no-fund --save-exact jscpd@5.4.1
+export PATH="$PWD/.venv/bin:$PWD/.study/runtime-tools/node_modules/.bin:$PATH"
+```
+
+Separately ensure the selected Copilot executable reports exactly 1.0.105.
+These setup commands install tools, not model access, isolation or billing
+controls. Do not start a study to test them. The original reviewer packet is
+superseded for changed inputs, not overwritten; use a fresh candidate and
+[the consolidated reviewer assignment](protocol/readiness-handoff.md).
+The owner excluded HIR/IDR outcomes; assistance/usage coverage remains mandatory.
 
 The owner must separately supply `protocol/freeze.json`, containing:
 `commit` (full frozen source SHA), a new authorised versioned `tag`, `inputs_sha256`

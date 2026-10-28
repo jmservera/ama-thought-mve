@@ -56,6 +56,19 @@ def test_draft_complete_is_separate_from_submission_registration_and_execution(r
     assert not report["execution_ready"] and report["unresolved"]
 
 
+def test_explicit_secondary_exclusion_resolves_only_its_alternative_gate(registration, config):
+    config["required_evidence"] = dict.fromkeys(registration.EVIDENCE)
+    pending = registration.readiness(config, {"review": {"accepted": False}})
+    config["required_evidence"]["telemetry_coverage_or_explicit_secondary_unavailability"] = (
+        "Owner explicitly excludes HIR/IDR outcomes; assistance and primary accounting remain required.")
+    report = registration.readiness(config, {"review": {"accepted": False}})
+    assert set(pending["unresolved"]) - set(report["unresolved"]) == {
+        "required_evidence.telemetry_coverage_or_explicit_secondary_unavailability"}
+    assert len(report["unresolved"]) == 10
+    assert not report["author_submission_ready"] and not report["execution_ready"]
+    assert not report["registration_recorded"]
+
+
 def test_explicit_decisions_and_approval_do_not_invent_registration_or_live_backend(registration, config):
     config["owner_decisions"] = dict.fromkeys(registration.DECISIONS, "Synthetic owner resolution")
     config["required_evidence"] = dict.fromkeys(registration.EVIDENCE, "Synthetic independent evidence")

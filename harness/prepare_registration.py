@@ -17,6 +17,7 @@ SUBMISSION_FILES = (
     "protocol/README.md", "protocol/pilot-estimation.md",
     "protocol/osf-preregistration.md", "protocol/pilot-estimation.json",
     "protocol/contract-panel.json",
+    "protocol/readiness-handoff.md",
     "harness/prompts/feature-step.prompt.md", "harness/prompts/consolidation-step.prompt.md",
     "harness/prompts/review-only-step.prompt.md", "harness/prompts/change-request.prompt.md",
 )

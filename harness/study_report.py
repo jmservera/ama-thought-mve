@@ -32,8 +32,8 @@ EXPORTS = (
 UNAVAILABLE = {
     "H4": "Formal joint size/accuracy/time claim deferred; comprehension include/defer decision pending.",
     "H7": "Formal dependent half-gap claim deferred, not a threshold to invent.",
-    "HIR": "Human corrective-action coverage and verified annotations absent; not zero.",
-    "IDR": "Human-help demand coverage and verified annotations absent; not zero.",
+    "HIR": "Explicitly excluded from this pilot by owner decision; assistance logging still required, not zero.",
+    "IDR": "Explicitly excluded from this pilot by owner decision; help-demand logging still required, not zero.",
     "decay_amendment": "F/P diagnostics implemented; independent panel/oracle acceptance still required.",
     "mixed_effects": "Not claimed for this estimation pilot.",
     "currency": "No verified AI-credit-to-currency conversion.",

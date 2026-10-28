@@ -50,8 +50,9 @@ There are **no formal pass/fail hypotheses for this pilot**. H1/H2/H6 retain
 traceability labels: what behaviour remains; whether previously passing
 unchanged contracts are lost/recovered; whether the final repository absorbs CR1.
 Resource use is the practical counterbalance. Formal H4/H7 claims are deferred;
-structural metrics and HIR/IDR are descriptive secondary scope subject to their
-evidence gates. Comprehension assessment is deferred; no comprehension-effect
+structural metrics are descriptive secondary scope subject to their evidence
+gates. The owner explicitly excluded HIR/IDR outcomes on 28 October;
+unavailable fields are not zero intervention. Comprehension assessment is deferred; no comprehension-effect
 claim will be made.
 Earlier numeric thresholds do not decide adoption or seven hypothesis verdicts.
 
@@ -93,7 +94,8 @@ do not claim OS isolation for local execution. The owner deferred comprehension
 assessment; no comprehension-effect claim will be made.
 Only logged infrastructure administration is permitted, with no human code
 fixes, hints or design advice. Flag any content-assisted trajectory and retain
-all data/costs; HIR/IDR need verified coverage/adjudication or remain unavailable.
+all data/costs. HIR/IDR outcomes are excluded; assistance/intervention logging,
+unassisted eligibility, CR1-help records and primary cost coverage remain required.
 
 No trajectory is excluded for poor outcomes. Assisted trajectories are retained
 and labelled; their data/costs are shown separately from the unassisted comparison,
@@ -172,7 +174,9 @@ per-model primary estimates. Before submission obtain independent
 eighteen-trajectory model-aware schedule, model-specific analysis, revised
 budget and chosen operational rules. Requested model/runtime availability and
 compatible reasoning settings also require verification; no live probe or
-paid collection was performed by this work.
+paid collection was performed by this work. The owner selected the prospective
+CLI 1.0.105/Ruff 0.17.3/Lizard 1.24.3/jscpd 5.4.1 amendment on 28 October;
+these candidates do not by themselves establish runtime acceptance.
 
 Attach `pilot-estimation.md`, `pilot-estimation.json`, reviewed
 `contract-panel.json`, protocol/harness/suite source hashes, fixed prompts,
