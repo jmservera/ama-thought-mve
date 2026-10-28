@@ -3,10 +3,41 @@ description: "Runbook for the feature-consolidation MVE with D1-D12 settled on 2
 ---
 # Runbook: running the feature-consolidation MVE
 
-This runbook turns the protocol in `protocol/` into results you can put in Section 8 of the paper. Use sections 3 to 5 for suite review, environment checks and the excluded pilot, then complete the final protocol freeze and registration in section 1 before the confirmatory first pass in section 6. Record pre-freeze changes in the working divergence log and promote it with the plan; after freeze, record deviations in `protocol/divergence-log.md`.
+The active scientific authority is [protocol/pilot-estimation.md](protocol/pilot-estimation.md).
+Prepare [the OSF draft](protocol/osf-preregistration.md), resolve the decision
+ledger and approve the exact submission candidate. Independent acceptance is
+a project prerequisite before collection, not before ordinary OSF registration.
+Use [the OSF checklist](protocol/osf-submission-checklist.md) and disclose
+independent reviews and runtime/access checks as pending.
+Owner submission approval is now recorded for 235489c content plus selected
+metadata/approval updates: CC BY-NC-ND 4.0 for submission documents and embargo
+through 2026-12-31. Enter settled contributor/affiliation details directly in
+OSF. No completed registration, independent acceptance or collection permission
+is implied; all execution gates below remain in force.
+The owner-amended first pass is an estimation pilot, not confirmatory testing:
+GPT 6.1 Sol, Sonnet 5.5 and Gemini 4 Argon, each with two trajectories per A/B/C
+arm (18 pilot, plus nine excluded calibration). There are 318 pilot and 150
+calibration sessions, at most 193.5 combined agent-hours. The current total
+ceiling is **300,000 AI Credits**, prior spend/calibration included, with
+300-credit/session soft caps. The approximately $3,000 equivalent is unverified;
+the earlier $500 limit and intermediate $6,000 proposal are superseded.
+
+The controller implements the model matrix, immutable model/replicate identity,
+300,000-credit admission ceiling and bounded infrastructure retries; analysis
+exports separate primary estimates per model. Before collection, require
+independent `multi_model_harness_alignment` evidence covering scheduling,
+model-specific inference, budgets and selected operational rules. Actual model access/runtime,
+independent acceptance and provider-enforced hard billing remain unverified.
 
 > [!IMPORTANT]
-> D1-D12 were settled by the owner on 25 October 2026. The [working plan](.copilot-tracking/mve/2026-10-24/feature-consolidation-harness/mve-plan.md) and supporting artifacts are updated, but have not been promoted to `protocol/`, frozen or registered. Remaining hypothesis thresholds (including H7), pilot calibration, independent hidden-test review and local-access checks remain gates before confirmatory execution.
+> D1-D12 from 25 October remain historical decisions where compatible with the
+> pinned paper. The 27 October prospective amendment defers formal H4/H7,
+> retains H1/H2/H6 as estimation labels. Owner policy choices are now recorded;
+> required independent/alignment evidence remains null.
+> A complete draft is not owner approval, completed registration or execution readiness.
+> `submission_unresolved` lists plan/disclosure/owner-approval blockers;
+> `collection_unresolved` retains outstanding scientific/operational checks.
+> `unresolved` aliases submission blockers. No checks have been marked accepted.
 
 The measurement-integrity correction is recorded in [divergence-log.md](divergence-log.md).
 It preserves earlier data and the existing `protocol-frozen` tag. Reconcile its
@@ -31,15 +62,20 @@ A/B/C, five fake-agent sessions total, with no CR1. The fake agent deliberately
 attempts a forbidden C edit to exercise enforcement. No token, Docker, network,
 Copilot or plotting dependency is required. All output is explicitly diagnostic.
 The check-only `./scripts/bootstrap-vm.sh --smoke` checks this minimal VM;
-without `--smoke` it reports live tool/version/Docker/auth/freeze/budget blockers.
+without `--smoke` it reports live tool/version/auth/freeze/budget blockers.
 It never installs anything, invokes sudo, changes groups or provisions services.
 If using a virtual environment, activate it or set `PYTHON=/path/to/python`;
 keep required executables on PATH.
 
-`./run-study.sh --dry-run --phase first` prints the immutable proposed 12-cell
-schedule (four runs per A/B/C, ten features and CR1, 212 sessions) and all
-preflight blockers. `--phase pilot` proposes one run/arm with no CR1.
-`--phase confirmatory` is explicitly gated too. Dry-run never creates state or
+`./run-study.sh --dry-run --phase pilot-estimation` (legacy `first`) prints an 18-cell
+schedule (two runs per A/B/C per model, ten features and CR1, 318 sessions) and all
+preflight blockers. `--phase calibration` (legacy `pilot`) proposes one run/arm/model,
+ten features and no CR1: nine trajectories/150 sessions, excluded from the eighteen.
+Replicate numbers are unique within each arm/model pair and intentionally repeat
+across other arms/models. Counts are planned sessions: permitted infrastructure
+retries can add calls but share the original step's time/credit allowance.
+Confirmatory collection is
+outside this pilot protocol. Dry-run never creates state or
 calls `copilot -p`. `--smoke --dry-run` checks only offline prerequisites.
 An unsuccessful preflight exits 2, a partial pipeline exits 1, success exits 0.
 No unattended main-study mode is authorised.
@@ -47,7 +83,7 @@ No unattended main-study mode is authorised.
 ### Configuration and real execution gates
 
 The controller reads `harness/study-config.json`; `--config PATH` selects a
-different JSON object. Settings are seed, ceiling (positive, never >2,500 AI
+different JSON object. Its settings are seed, ceiling (positive, never >300,000 AI
 credits), prior pilot spending, per-session reservation, maximum attempts,
 absolute study allowance and minimum disk space. The supplied `prior_credits`
 is **null**, not a claim of zero earlier spending. Live preflight rejects it.
@@ -56,24 +92,50 @@ No config field contains a token; set `COPILOT_GITHUB_TOKEN` only in the
 environment. Presence is checked without printing its value. `.env` is ignored,
 never loaded by the controller and never eligible for publication.
 
-Live checks include Python, git/make, Copilot **1.0.103**, Docker daemon access,
-gh, ruff **0.17.2**, lizard **1.24.3**, jscpd **5.4.1**, free disk, clean git,
+The supplied finite study deadline is 14 days. Each original step keeps its
+30/15/45-minute allowance and fixed 300-credit soft reservation across at most
+two agent attempts. Unknown or exhausted prior time/usage blocks a retry.
+Measurement infrastructure may be retried once on the same retained snapshot,
+without replaying agent work; exhausted evaluation retries remain exhausted on
+resume. A snapshot inconsistency halts collection rather than rerunning until green.
+
+Live checks include Python, git/make, Copilot **1.0.105**,
+gh, ruff **0.17.3**, lizard **1.24.3**, jscpd **5.4.1**, free disk, clean git,
 known prior spending and owner freeze provenance. No model calls are used to
 check versions. The existing image recipe and legacy configs are not evidence
-of pinned execution; real use needs a verified immutable image and tools.
+of pinned execution; the selected local design needs verified runtime/tool
+evidence and access probes, not a fictional approved Docker amendment.
+
+For the owner's 28 October prospective toolchain amendment, use the pinned
+Python requirements and a repository-local duplication tool, without changing
+global installations:
+
+```bash
+.venv/bin/python -m pip install -r harness/requirements-measure.txt
+npm install --prefix .study/runtime-tools --no-audit --no-fund --save-exact jscpd@5.4.1
+export PATH="$PWD/.venv/bin:$PWD/.study/runtime-tools/node_modules/.bin:$PATH"
+```
+
+Separately ensure the selected Copilot executable reports exactly 1.0.105.
+These setup commands install tools, not model access, isolation or billing
+controls. Do not start a study to test them. The original reviewer packet is
+superseded for changed inputs, not overwritten; use a fresh candidate and
+[the consolidated reviewer assignment](protocol/readiness-handoff.md).
+The owner excluded HIR/IDR outcomes; assistance/usage coverage remains mandatory.
 
 The owner must separately supply `protocol/freeze.json`, containing:
 `commit` (full frozen source SHA), a new authorised versioned `tag`, `inputs_sha256`
 (the controller's complete protocol/harness/skeleton/suite digest),
-`registration_url`, `registration_date`, immutable `image_digest`, and nonempty
+`registration_url`, `registration_date`, and nonempty
 evidence references for each gate: `independent_suite_review`, `access_probe`,
-`docker_amendment`, `missing_feature_policy`, `retry_policy`,
-`evaluator_information_policy`, `analysis_reconciliation`, `h4_definition`,
-`h7_definition`, `telemetry_coverage`, `prior_data_disclosure`,
-`budget_calibration`. A file is a machine-checkable provenance record, not
+`local_runtime_evidence`, `missing_feature_policy`, `retry_policy`,
+`evaluator_information_policy`, `analysis_reconciliation`, `contract_panel_review`,
+`oracle_stability`, `cr1_estimands`, `secondary_scope`,
+`outage_assistance_policy`, `telemetry_coverage`, `prior_data_disclosure`,
+`budget_calibration`, `multi_model_harness_alignment`. A file is a machine-checkable provenance record, not
 independent proof that its claims are true. No such file or tag is created here.
-The historical `protocol-frozen` tag alone is rejected. Owner-defined H7 and
-H4 choices are never defaulted by code.
+The historical `protocol-frozen` tag alone is rejected. Formal H4/H7 definitions
+and an image digest are not requirements of this local estimation pilot.
 The manifest itself is excluded from the input digest. HEAD must match the
 frozen source or differ only by a subsequent manifest-only commit, avoiding
 an impossible self-referential commit hash.
@@ -122,7 +184,8 @@ containment. Switching from D11's local choice still requires owner approval.
 ### Paper outputs and result-only publication
 
 `results/` contains `report.md`, `summary.md`, `summary.json`, `series.csv`,
-`hypotheses.csv`, `intervals.csv`, `runs.csv`, `attempts.csv`,
+`hypotheses.csv`, `intervals.csv`, `runs.csv`, `attempts.csv`, `retention.csv`,
+`episodes.csv`,
 `availability.json`, `provenance.json`, `trajectories.svg`, `hypotheses.tex`,
 `trajectories.tex`. Use `\input{hypotheses.tex}` and
 `\input{trajectories.tex}`; the figure requires no optional plotting package.
@@ -130,12 +193,13 @@ JSON/flat CSV retain all implemented estimates and interval endpoints.
 Tables explicitly include failed, partial and unattempted cells and attempts.
 They do not replace missing endpoints with last observed outcomes.
 
-The existing corrected statistical functions are reused, not silently changed
-to the paper's proposed mixed model. H4 comprehension, H7's unresolved full
-contrast, HIR/IDR without verified event coverage, the proposed decay amendment
-and currency conversion stay unavailable. No numerical threshold is invented.
-Existing provisional comparison labels are explicitly diagnostic/exploratory,
-not confirmatory conclusions. Stub zero credits are real **zero model usage**,
+Whole-run bootstrap and conservative exact-binomial helpers are reused, not
+the historical seven-verdict engine. Reports estimate H1/H2/H6 and resources,
+preserve paired F/P losses/episodes, all allocations and missing CR1 bounds.
+Unreviewed panels provide diagnostics only. Reference gaps and HIR/IDR remain
+unavailable without compatible evidence; formal H4/H7 and mixed-model claims
+are deferred. No numerical threshold or hypothesis verdict is invented.
+Stub zero credits are real **zero model usage**,
 not an estimate for later sessions. Existing `results/smoke` is never pooled in.
 
 Add `--publish` to the same smoke command to publish derived diagnostics:
@@ -156,6 +220,14 @@ results cause an explicit stop, never silent truncation of measurements.
 Private attempt stdout/stderr are capped at 1 MiB each after execution.
 Remote results are fetched, updated without force, and existing PRs edited.
 Publication errors leave durable results available to retry.
+
+## Historical manual procedures (not current launch instructions)
+
+The numbered sections below preserve the earlier proposal/operator record.
+Their confirmatory wording, H4/H7 thresholds, Docker guidance and phase labels
+do not supersede the current protocol or safety gates above. Use immutable
+history for earlier snapshots; do not execute historical launch examples to
+bypass the disabled paid backend.
 
 ## 0. What you need
 

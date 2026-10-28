@@ -5,6 +5,7 @@ import argparse
 import fcntl
 import hashlib
 import json
+import math
 import os
 import random
 import re
@@ -19,17 +20,21 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from analyze import step_usage
+from pilot_analysis import collection_role
 from runner import Run, git, head
 from study_io import ROOT, StudyError, atomic_json, command, read_json
 
 NANO = 1_000_000_000
-MAX_CREDITS = 2500 * NANO
+MAX_CREDITS = 300000 * NANO
+MODEL_DESIGN = "model-stratified-v1"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "scripts")
 GATES = (
-    "independent_suite_review", "access_probe", "docker_amendment",
+    "independent_suite_review", "access_probe", "local_runtime_evidence",
     "missing_feature_policy", "retry_policy", "evaluator_information_policy",
-    "analysis_reconciliation", "h4_definition", "h7_definition",
+    "analysis_reconciliation", "contract_panel_review", "oracle_stability",
+    "cr1_estimands", "secondary_scope", "outage_assistance_policy",
     "telemetry_coverage", "prior_data_disclosure", "budget_calibration",
+    "multi_model_harness_alignment",
 )
 
 
@@ -57,13 +62,15 @@ def validate_config(cfg: dict, *, smoke: bool) -> None:
     if set(cfg) != expected:
         raise StudyError("Configuration has missing or unknown fields; never put credentials in config")
     if not 0 < credits(cfg["ceiling_credits"]) <= MAX_CREDITS:
-        raise StudyError("Aggregate ceiling must be positive and at most 2,500 AI credits")
+        raise StudyError("Aggregate ceiling must be positive and at most 300,000 AI credits")
     prior = 0 if smoke else credits(cfg["prior_credits"])
     if prior > credits(cfg["ceiling_credits"]):
         raise StudyError("Prior pilot spending exceeds aggregate ceiling")
-    if not 0 < credits(cfg["session_reserve_credits"]) <= credits(cfg["ceiling_credits"]):
+    if credits(cfg["session_reserve_credits"]) != 300 * NANO:
+        raise StudyError("Session reservation must match the approved 300-credit soft allowance")
+    if credits(cfg["session_reserve_credits"]) > credits(cfg["ceiling_credits"]):
         raise StudyError("Session reservation must fit the aggregate ceiling")
-    for name, upper in (("max_attempts", 10), ("study_timeout_seconds", 30 * 86400),
+    for name, upper in (("max_attempts", 2), ("study_timeout_seconds", 30 * 86400),
                         ("min_disk_gib", 10000)):
         if type(cfg[name]) is not int or not 1 <= cfg[name] <= upper:
             raise StudyError(f"{name} must be an integer in 1..{upper}")
@@ -96,13 +103,30 @@ def schedule(smoke: bool, phase: str, seed: int) -> list[dict]:
     """Randomise arm order in fixed replicate blocks; smoke is never study data."""
     rng = random.Random(seed)
     cells = []
-    for replicate in range(1, 2 if smoke or phase == "pilot" else 5):
-        arms = list("ABC")
-        rng.shuffle(arms)
-        for arm in arms:
-            cells.append({"run_id": f"{'smoke' if smoke else phase}-{arm}-{replicate:02d}",
-                          "arm": arm, "features": 1 if smoke else 10,
-                          "change_request": not smoke and phase != "pilot"})
+    calibration = phase in ("pilot", "calibration")
+    design = read_json(ROOT / "protocol/pilot-estimation.json")["study"]
+    models = design["model_roster"]
+    if (not isinstance(models, list) or len(models) != 3
+            or any(not isinstance(model, str) for model in models)
+            or set(models) != {"gpt-6.1-sol", "claude-sonnet-5.5", "gemini-4-argon"}):
+        raise StudyError("Protocol must declare the three approved model candidates")
+    count = design["calibration_runs_per_arm"] if calibration else design["runs_per_arm"]
+    if type(count) is not int or count != (1 if calibration else 2):
+        raise StudyError("Protocol allocation differs from the approved per-model design")
+    for replicate in range(1, 2 if smoke else count + 1):
+        block_models = [None] if smoke else list(models)
+        rng.shuffle(block_models)
+        for model in block_models:
+            arms = list("ABC")
+            rng.shuffle(arms)
+            for arm in arms:
+                prefix = "smoke" if smoke else f"{phase}-{model}"
+                cell = {"run_id": f"{prefix}-{arm}-{replicate:02d}",
+                        "arm": arm, "features": 1 if smoke else 10,
+                        "change_request": not smoke and not calibration}
+                if not smoke:
+                    cell.update(assigned_model=model, analysis_design=MODEL_DESIGN, replicate=replicate)
+                cells.append(cell)
     return cells
 
 
@@ -176,8 +200,6 @@ def freeze_errors(cfg: dict, root: Path = ROOT) -> list[str]:
     for gate in GATES:
         if not isinstance(manifest.get(gate), str) or not manifest[gate].strip():
             errors.append(f"Owner evidence missing: {gate}")
-    if not re.fullmatch(r"sha256:[0-9a-f]{64}", str(manifest.get("image_digest", ""))):
-        errors.append("Immutable Docker image digest missing")
     return errors
 
 
@@ -190,7 +212,7 @@ def preflight(cfg: dict, *, smoke: bool, root: Path = ROOT) -> list[str]:
         errors.append(str(error))
     if sys.version_info < (3, 11):  # noqa: UP036 - check the VM, not just the development interpreter.
         errors.append("Python 3.11+ required")
-    for tool in (("git", "make") if smoke else ("git", "make", "docker", "copilot", "gh", "ruff", "lizard", "jscpd")):
+    for tool in (("git", "make") if smoke else ("git", "make", "copilot", "gh", "ruff", "lizard", "jscpd")):
         if not shutil.which(tool):
             errors.append(f"Required tool missing: {tool}")
     minimum = cfg.get("min_disk_gib")
@@ -202,24 +224,26 @@ def preflight(cfg: dict, *, smoke: bool, root: Path = ROOT) -> list[str]:
         if shutil.which("git") and command(["git", "status", "--porcelain"], cwd=root):
             errors.append("Live execution requires a clean git worktree")
         for tool, args, version in (
-            ("copilot", ["copilot", "--version"], "1.0.103"),
-            ("ruff", ["ruff", "--version"], "0.17.2"),
+            ("copilot", ["copilot", "--no-auto-update", "--version"], "1.0.105"),
+            ("ruff", ["ruff", "--version"], "0.17.3"),
             ("lizard", ["lizard", "--version"], "1.24.3"),
             ("jscpd", ["jscpd", "--version"], "5.4.1"),
         ):
-            if shutil.which(tool) and not re.search(rf"(?<![\d.]){re.escape(version)}(?![\d.])", command(args)):
-                errors.append(f"{tool} must be pinned to {version}")
-        if shutil.which("docker"):
-            try:
-                command(["docker", "info", "--format", "{{.ServerVersion}}"])
-            except (StudyError, subprocess.TimeoutExpired):
-                errors.append("Docker daemon unavailable to current user; no sudo attempted")
+            if shutil.which(tool):
+                output = command(args).strip()
+                if tool == "copilot":
+                    matched = re.fullmatch(rf"(?:GitHub Copilot CLI )?{re.escape(version)}\.?",
+                                           output.splitlines()[0] if output else "")
+                else:
+                    matched = re.search(rf"(?<![\d.]){re.escape(version)}(?![\d.])", output)
+                if not matched:
+                    errors.append(f"{tool} must be pinned to {version}")
         if isinstance(cfg.get("freeze_manifest"), str):
             try:
                 errors.extend(freeze_errors(cfg, root))
             except (StudyError, OSError, ValueError, subprocess.TimeoutExpired):
                 errors.append("Freeze evidence unreadable or tag verification failed")
-        errors.append("Paid execution disabled: Copilot 1.0.103 has only soft credit caps; "
+        errors.append("Paid execution disabled: Copilot 1.0.105 has only soft credit caps; "
                       "a provider-enforced hard billing boundary is required")
     return errors
 
@@ -246,7 +270,7 @@ def group_alive(pid: int) -> bool:
 
 
 def docker_command(repo: Path, session: Path, image: str, prompt: str, cap: int,
-                   name: str) -> list[str]:
+                   name: str, model: str = "claude-sonnet-5.5") -> list[str]:
     """Prepare a restricted fresh session; this is not a hard-billing backend."""
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", image):
         raise StudyError("Agent image must use an immutable sha256 digest")
@@ -254,6 +278,8 @@ def docker_command(repo: Path, session: Path, image: str, prompt: str, cap: int,
         raise StudyError("Invalid owned container name")
     if type(cap) is not int or cap <= 0:
         raise StudyError("Session cap must be a positive integer")
+    if model not in read_json(ROOT / "protocol/pilot-estimation.json")["study"]["model_roster"]:
+        raise StudyError("Unapproved assigned model")
     return [
         "docker", "run", "--rm", "--init", "--name", name,
         "--user", f"{os.getuid()}:{os.getgid()}",
@@ -265,7 +291,7 @@ def docker_command(repo: Path, session: Path, image: str, prompt: str, cap: int,
         "--workdir", "/work", "-e", "COPILOT_GITHUB_TOKEN",
         "-e", "HOME=/session/home", "-e", "COPILOT_HOME=/session/copilot-home",
         "-e", "COPILOT_AUTO_UPDATE=false", image,
-        "copilot", "-C", "/work", "-p", prompt, "--model", "claude-sonnet-5.5",
+        "copilot", "-C", "/work", "-p", prompt, "--model", model,
         "--reasoning-effort", "medium", "--allow-all-tools", "--no-ask-user",
         "--no-custom-instructions", "--disable-builtin-mcps", "--no-auto-update",
         "--deny-tool", "shell(git push)", "--deny-tool", "url",
@@ -327,7 +353,7 @@ class StudyRun(Run):
             return
         super().setup(existing_metadata=True)
         meta = read_json(metadata)
-        meta.update(diagnostic=True, study_id=self.controller.study_id)
+        meta.update(diagnostic=self.controller.smoke, study_id=self.controller.study_id)
         atomic_json(metadata, meta)
 
     def bounded_process(self, args: list[str], cwd: Path, env: dict, out: Path,
@@ -365,7 +391,9 @@ class StudyRun(Run):
         controller = self.controller
         if not controller.smoke:
             raise StudyError("No hard-bounded paid backend implemented")
-        attempt = controller.new_attempt(self.cell, self.current_step)
+        remaining_seconds, remaining_credits = self.remaining_allowance(budget)
+        attempt = controller.new_attempt(self.cell, self.current_step, remaining_credits)
+        attempt.update(seconds_limit=remaining_seconds, credit_limit_nano=remaining_credits)
         directory = Path(self.dir) / "attempts" / attempt["id"]
         directory.mkdir(parents=True, mode=0o700)
         attempt["directory"] = str(directory.relative_to(controller.directory))
@@ -378,7 +406,7 @@ class StudyRun(Run):
         status, timed_out, seconds = self.bounded_process(
             [sys.executable, str(ROOT / "harness/fake_agent.py"), "--prompt", prompt,
              "--repo", self.repo, "--suite", self.suite_dir],
-            Path(self.repo), env, directory / "stdout.txt", directory / "stderr.txt", budget)
+            Path(self.repo), env, directory / "stdout.txt", directory / "stderr.txt", remaining_seconds)
         usage = {"totalNanoAiu": 0, "credits_complete": True,
                  "tokenDetails": {name: {"tokenCount": 0}
                                   for name in ("input", "output", "cache_read", "cache_write")}}
@@ -387,6 +415,27 @@ class StudyRun(Run):
         controller.settle_attempt(attempt["id"], usage)
         return {"exit_code": status, "timed_out": timed_out, "seconds": seconds,
                 "usage": usage, "possible_leak": False, "diagnostic_stub": True}
+
+    def remaining_allowance(self, budget: int) -> tuple[float, int]:
+        previous = [attempt for attempt in self.cell["attempts"] if attempt["step"] == self.current_step]
+        seconds = 0.0
+        spent = 0
+        for attempt in previous:
+            measurement = attempt.get("measurement", {})
+            if measurement:
+                raise StudyError("Started measurement requires recovery, not agent replay")
+            duration = attempt.get("seconds")
+            usage = accounted_nano(attempt.get("usage"))
+            if (type(duration) not in (int, float) or not math.isfinite(duration) or duration < 0
+                    or usage is None):
+                raise StudyError("Unknown prior step duration or usage blocks retry")
+            seconds += duration
+            spent += usage
+        remaining_seconds = budget - seconds
+        remaining_credits = credits(self.controller.cfg["session_reserve_credits"]) - spent
+        if remaining_seconds <= 0 or remaining_credits <= 0:
+            raise StudyError("Original step time or credit allowance exhausted")
+        return remaining_seconds, remaining_credits
 
     def is_green(self) -> bool:
         """Bound visible-test writers under the same absolute study deadline."""
@@ -403,7 +452,47 @@ class StudyRun(Run):
         return code == 0
 
     def measure(self, k: int, step_dir: str, prev_ref: str, cr: bool = False) -> dict:
-        """Bound external evaluation as well as the agent."""
+        """Retry infrastructure evaluation, never the agent, on the retained state."""
+        attempt = self.cell["attempts"][-1]
+        current = head(self.repo)
+        status = git(self.repo, "status", "--porcelain").stdout
+        measurement = attempt.setdefault("measurement", {"head": current, "calls": 0, "status": "pending"})
+        if measurement["head"] != current or measurement["status"] == "snapshot_changed":
+            measurement["status"] = "snapshot_changed"
+            self.controller.state["oracle_halt"] = True
+            self.controller.save()
+            raise StudyError("Measurement snapshot changed; collection halted")
+        if measurement["status"] in ("complete", "exhausted"):
+            raise StudyError("Measurement snapshot or durable retry limit forbids replay")
+        while measurement["calls"] < 2:
+            measurement["calls"] += 1
+            measurement["status"] = "running"
+            self.controller.save()
+            try:
+                result = self._measure_once(k, step_dir, prev_ref, cr)
+            except (RetryableError, OSError, subprocess.TimeoutExpired) as error:
+                measurement["status"] = "exhausted" if measurement["calls"] == 2 else "infrastructure_failure"
+                measurement["error"] = type(error).__name__
+                self.controller.save()
+                if head(self.repo) != current or git(self.repo, "status", "--porcelain").stdout != status:
+                    measurement["status"] = "snapshot_changed"
+                    self.controller.state["oracle_halt"] = True
+                    self.controller.save()
+                    raise StudyError("Evaluator changed the retained snapshot; collection halted") from error
+                continue
+            if (head(self.repo) != current or git(self.repo, "status", "--porcelain").stdout != status
+                    or result.get("head") != current):
+                measurement["status"] = "snapshot_changed"
+                self.controller.state["oracle_halt"] = True
+                self.controller.save()
+                raise StudyError("Evaluator changed or misidentified the retained snapshot; collection halted")
+            measurement["status"] = "complete"
+            self.controller.save()
+            return result
+        raise StudyError("Measurement infrastructure retries exhausted; no agent replay")
+
+    def _measure_once(self, k: int, step_dir: str, prev_ref: str, cr: bool = False) -> dict:
+        """Execute one bounded external evaluation."""
         from evaluation_env import evaluation_environment
         directory = Path(self.dir) / "attempts" / self.cell["attempts"][-1]["id"] / "evaluation"
         directory.mkdir(parents=True, exist_ok=True)
@@ -452,6 +541,10 @@ class Controller:
         identity = {"study_id": study_id, "config": cfg, "smoke": smoke, "phase": self.phase,
                     "inputs_sha256": fingerprint(),
                     "commit": command(["git", "rev-parse", "HEAD"])}
+        proposed = schedule(smoke, phase, cfg["seed"])
+        if not smoke:
+            identity.update(analysis_design=MODEL_DESIGN,
+                            model_roster=read_json(ROOT / "protocol/pilot-estimation.json")["study"]["model_roster"])
         if self.path.exists():
             self.state = read_json(self.path)
             if self.state["identity"] != identity:
@@ -465,8 +558,12 @@ class Controller:
                           "ledger": {"ceiling_nano": credits(cfg["ceiling_credits"]),
                                      "prior_nano": 0 if smoke else credits(cfg["prior_credits"]), "entries": {}},
                           "cells": [dict(cell, status="pending", attempts=[], checkpoint=None)
-                                    for cell in schedule(smoke, phase, cfg["seed"])]}
+                                    for cell in proposed]}
             self.save()
+        if (len(self.state["cells"]) != len(proposed)
+                or any({key: actual.get(key) for key in expected} != expected
+                       for actual, expected in zip(self.state["cells"], proposed))):
+            raise StudyError("Stored allocation differs from immutable schedule")
         if (self.state["ledger"]["ceiling_nano"] != credits(cfg["ceiling_credits"])
                 or self.state["ledger"]["prior_nano"] != (0 if smoke else credits(cfg["prior_credits"]))
                 or self.state["deadline"] > self.state["started"] + cfg["study_timeout_seconds"]):
@@ -485,23 +582,33 @@ class Controller:
         for cell in self.state["cells"]:
             run_dir = directory / "runs" / cell["run_id"]
             metadata = run_dir / "run.json"
+            expected_metadata = {"run_id": cell["run_id"], "arm": cell["arm"],
+                                 "suite": "s1-retrofit", "phase": self.phase,
+                                 "collection_role": collection_role({"phase": self.phase}),
+                                 "features": cell["features"], "change_request": cell["change_request"],
+                                 "diagnostic": smoke, "study_id": study_id}
+            if not smoke:
+                expected_metadata.update({key: cell[key] for key in ("assigned_model", "analysis_design", "replicate")})
             if not metadata.exists():
-                atomic_json(metadata, {"run_id": cell["run_id"], "arm": cell["arm"],
-                                      "suite": "s1-retrofit", "phase": self.phase,
-                                      "features": cell["features"], "change_request": cell["change_request"],
-                                      "diagnostic": smoke, "study_id": study_id})
+                atomic_json(metadata, expected_metadata)
+            else:
+                stored_metadata = read_json(metadata)
+                if any(stored_metadata.get(key) != value for key, value in expected_metadata.items()):
+                    raise StudyError("Raw metadata differs from immutable scheduled identity")
 
     def save(self) -> None:
         """Persist all lifecycle and accounting transitions."""
         atomic_json(self.path, self.state)
 
-    def new_attempt(self, cell: dict, step: str) -> dict:
+    def new_attempt(self, cell: dict, step: str, allowance_nano: int | None = None) -> dict:
         """Reserve before launch, counting every infrastructure retry."""
         previous = [attempt for attempt in cell["attempts"] if attempt["step"] == step]
         if len(previous) >= self.cfg["max_attempts"]:
             raise StudyError("Bounded attempt limit reached; partial cell retained")
         attempt_id = f"{cell['run_id']}-{step}-{len(previous) + 1}"
         amount = 0 if self.smoke else credits(self.cfg["session_reserve_credits"])
+        if allowance_nano is not None:
+            amount = min(amount, allowance_nano)
         reserve(self.state["ledger"], attempt_id, amount)
         attempt = {"id": attempt_id, "step": step, "status": "running",
                    "started": time.time(), "seconds": None, "usage": None}
@@ -520,7 +627,9 @@ class Controller:
         """Resume only unmeasured work, never retry a recorded task failure."""
         args = SimpleNamespace(config=str(self.runtime_config), suite=str(ROOT / "suites/s1-retrofit"),
                                arm=cell["arm"], run_id=cell["run_id"], phase=self.phase,
-                               features=cell["features"], no_cr=not cell["change_request"], allow_draft=False)
+                               features=cell["features"], no_cr=not cell["change_request"], allow_draft=False,
+                               assigned_model=cell.get("assigned_model"), analysis_design=cell.get("analysis_design"),
+                               replicate=cell.get("replicate"), study_id=self.study_id, diagnostic=self.smoke)
         run = StudyRun(args, self, cell)
         run.setup()
         records = []
@@ -586,6 +695,9 @@ class Controller:
         self.save()
         try:
             for cell in self.state["cells"]:
+                if self.state.get("oracle_halt"):
+                    self.state["stop_reason"] = "Oracle snapshot integrity failed; manual investigation required"
+                    break
                 if cell["status"] == "completed":
                     continue
                 if time.time() >= self.state["deadline"]:
@@ -612,7 +724,7 @@ class Controller:
             self.save()
             raise
         success = all(cell["status"] == "completed" for cell in self.state["cells"])
-        self.state["status"] = "completed" if success else "partial"
+        self.state["status"] = "oracle_halt" if self.state.get("oracle_halt") else "completed" if success else "partial"
         self.save()
         from study_report import export
         export(self.directory, self.state, self.study_id)
@@ -627,7 +739,8 @@ def main() -> int:
     parser.add_argument("--smoke", action="store_true", help="one feature per A/B/C, built-in fake agent only")
     parser.add_argument("--dry-run", action="store_true", help="read-only preflight and schedule")
     parser.add_argument("--check-vm", action="store_true", help="check prerequisites; never install or run agents")
-    parser.add_argument("--phase", choices=["pilot", "first", "confirmatory"], default="first")
+    parser.add_argument("--phase", choices=["pilot", "first", "calibration", "pilot-estimation"],
+                        default="pilot-estimation")
     parser.add_argument("--publish", action="store_true", help="push only derived results and create/update a PR")
     args = parser.parse_args()
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", args.study_id):

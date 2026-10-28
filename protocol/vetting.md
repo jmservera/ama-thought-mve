@@ -1,6 +1,9 @@
 <!-- markdownlint-disable-file -->
 # MVE Vetting: feature-consolidation-harness
 
+> **Historical vetting.** Use [pilot-estimation.md](pilot-estimation.md);
+> this earlier assessment is not independent acceptance of the current design.
+
 Phase 3 output (HVE Core Experiment Designer). Verdict: **viable as an MVE**, with two concerns to mitigate (confirmation bias and scope creep).
 
 ## Vetting criteria

@@ -1,6 +1,9 @@
 <!-- markdownlint-disable-file -->
 # MVE Context: feature-consolidation-harness
 
+> **Historical proposal.** [pilot-estimation.md](pilot-estimation.md) is the
+> current scientific record; the earlier framing below is retained, not approved.
+
 Session date: 2026-10-24. Method: HVE Core Experiment Designer (Minimum Viable Experiment), Phase 1 output.
 Status: draft for owner review. The owner keeps authority over budget, model, thresholds and scope.
 

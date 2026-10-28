@@ -20,6 +20,7 @@ import sys
 import time
 
 from evaluation_env import evaluation_environment
+from pilot_analysis import collection_role
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
@@ -67,6 +68,13 @@ class Run:
         self.arm = a.arm
         self.run_id = a.run_id
         self.phase = a.phase
+        self.assigned_model = getattr(a, "assigned_model", None)
+        self.analysis_design = getattr(a, "analysis_design", None)
+        self.replicate = getattr(a, "replicate", None)
+        self.study_id = getattr(a, "study_id", None)
+        self.diagnostic = getattr(a, "diagnostic", None)
+        if self.assigned_model is not None:
+            self.cfg["agent_values"] = dict(self.cfg.get("agent_values", {}), model=self.assigned_model)
         self.n = a.features or self.cfg.get("features", 10)
         runs_dir = self.cfg.get("runs_dir", "../runs")
         runs_dir = runs_dir if os.path.isabs(runs_dir) else os.path.join(HERE, runs_dir)
@@ -110,8 +118,14 @@ class Run:
             except Exception as e:  # noqa: BLE001
                 versions[name] = f"unavailable: {e}"
         meta = {"run_id": self.run_id, "arm": self.arm, "phase": self.phase, "suite": self.suite["name"],
+                "collection_role": collection_role({"phase": self.phase}),
                 "features": self.n, "change_request": self.do_cr, "started": dt.datetime.now(dt.timezone.utc).isoformat(),
                 "config": self.cfg, "versions": versions}
+        if self.analysis_design is not None:
+            meta.update(assigned_model=self.assigned_model, analysis_design=self.analysis_design,
+                        replicate=self.replicate)
+        if self.study_id is not None:
+            meta.update(study_id=self.study_id, diagnostic=self.diagnostic)
         meta_path = os.path.join(self.dir, "run.json")
         with open(meta_path + ".tmp", "w", encoding="utf-8") as fh:
             json.dump(meta, fh, indent=1)
@@ -350,7 +364,8 @@ def main():
     ap.add_argument("--arm", required=True, choices=["A", "B", "C"])
     ap.add_argument("--run-id", required=True)
     ap.add_argument("--features", type=int)
-    ap.add_argument("--phase", default="main", choices=["pilot", "first", "main", "dry"])
+    ap.add_argument("--phase", default="pilot-estimation",
+                    choices=["pilot", "first", "calibration", "pilot-estimation", "main", "dry"])
     ap.add_argument("--no-cr", action="store_true")
     ap.add_argument("--allow-draft", action="store_true")
     Run(ap.parse_args()).go()

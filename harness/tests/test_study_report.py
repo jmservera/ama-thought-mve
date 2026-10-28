@@ -36,7 +36,8 @@ def test_exact_export_schemas_unavailable_values_and_figure(modules, reports):
     summary = study.read_json(reports / "summary.json")
     assert summary["cost_unit"] == "credits" and len(summary["runs"]) == 3
     assert summary["provenance"]["diagnostic_stub"] is True
-    assert summary["hypotheses"]["H1"]["diff_points"] is None
+    assert summary["endpoints"]["H1"]["B-A"]["difference"] is None
+    assert "verdict" not in json.dumps(summary) and "hypotheses" not in summary
     availability = study.read_json(reports / "availability.json")
     assert availability["zero_intervention_inferred"] is False
     assert {"H4", "H7", "HIR", "IDR", "mixed_effects", "decay_amendment"} <= availability["unavailable"].keys()
@@ -46,7 +47,7 @@ def test_exact_export_schemas_unavailable_values_and_figure(modules, reports):
     assert all(row["unattempted_cycles"] == "1" and row["HIR"] == "" for row in rows)
     with (reports / "intervals.csv").open() as stream:
         intervals = list(csv.DictReader(stream))
-    assert any(row["hypothesis"] == "H1" and row["field"] == "ci.0" for row in intervals)
+    assert any(row["hypothesis"] == "H1" and row["field"] == "B-A.ci.0" for row in intervals)
     assert ET.parse(reports / "trajectories.svg").getroot().tag.endswith("svg")
     assert "STUB DIAGNOSTIC" in (reports / "trajectories.tex").read_text()
     assert "unavailable" in (reports / "hypotheses.tex").read_text()
@@ -176,22 +177,22 @@ def test_publish_auth_and_push_failures_are_explicit(modules, reports, publicati
     assert git(root, "worktree", "list", "--porcelain").count("worktree ") == 1
 
 
-def test_h7_intervals_are_exported(modules, reports, monkeypatch):
+def test_pilot_intervals_are_exported_without_h7_claims(modules, reports, monkeypatch):
     study, report = modules
     state = study.read_json(reports.parent / "state.json")
     summary = study.read_json(reports / "summary.json")
-    summary["hypotheses"]["H7"]["intervals"] = {"B_minus_A": [None, 1.0], "B_minus_C": [-2.0, None]}
-    monkeypatch.setattr(report, "analyze_hypotheses", lambda *args, **kwargs: summary["hypotheses"])
+    summary["endpoints"] = {"H1": {"B-A": {"ci": [None, 1.0]}, "B-C": {"ci": [-2.0, None]}}}
+    monkeypatch.setattr(report, "analyze_pilot", lambda *args, **kwargs: summary)
 
     report.export(reports.parent, state, "export-test")
 
     with (reports / "intervals.csv").open() as stream:
-        rows = [row for row in csv.DictReader(stream) if row["hypothesis"] == "H7"]
+        rows = list(csv.DictReader(stream))
     assert {row["field"]: (row["value"], row["available"]) for row in rows} == {
-        "intervals.B_minus_A.0": ("", "False"),
-        "intervals.B_minus_A.1": ("1.0", "True"),
-        "intervals.B_minus_C.0": ("-2.0", "True"),
-        "intervals.B_minus_C.1": ("", "False"),
+        "B-A.ci.0": ("", "False"),
+        "B-A.ci.1": ("1.0", "True"),
+        "B-C.ci.0": ("-2.0", "True"),
+        "B-C.ci.1": ("", "False"),
     }
 
 
@@ -206,3 +207,76 @@ def test_publish_refuses_remote_results_branch_with_source_commits(modules, repo
     git(root, "checkout", "-q", "feat/test")
     with pytest.raises(modules[0].StudyError, match="outside result-only boundary"):
         report.publish(reports, "export-test", root)
+
+
+def test_export_includes_model_column_without_inferring_historical_identity(modules, reports):
+    """Smoke/diagnostic runs carry no assigned identity; model/replicate columns stay blank, never inferred."""
+    for name in ("runs.csv", "series.csv", "retention.csv", "episodes.csv"):
+        with (reports / name).open() as stream:
+            reader = csv.DictReader(stream)
+            assert "model" in reader.fieldnames and "replicate" in reader.fieldnames
+            rows = list(reader)
+        assert all(row["model"] == "" and row["replicate"] == "" for row in rows)
+
+
+def _model_stratified_record(kind, k, cr=None):
+    hidden = {"t1": "passed"}
+    if cr is not None:
+        hidden["cr1"] = cr
+    return {"kind": kind, "k": k, "measure": {"hidden": hidden, "hidden_total": len(hidden),
+            "hidden_passed": sum(value == "passed" for value in hidden.values())},
+            "agent": {"seconds": 1, "usage": {"credits_complete": True, "totalNanoAiu": 1000000000}}}
+
+
+def _model_stratified_raw(arm, model="claude-sonnet-5.5", replicate=1):
+    records = [_model_stratified_record("feature", 1)]
+    if arm != "A":
+        records.append(_model_stratified_record("consolidation" if arm == "B" else "review", 1))
+    records.append(_model_stratified_record("change_request", 1, cr="passed"))
+    return {"dir": "", "meta": {"arm": arm, "features": 1, "run_id": f"{model}-{arm}-{replicate}",
+            "suite": "synthetic", "phase": "pilot-estimation", "change_request": True,
+            "assigned_model": model, "analysis_design": "model-stratified-v1", "replicate": replicate,
+            "intervention": {"coverage_complete": True, "assisted": False, "evidence": "fixture"}},
+            "recs": records}
+
+
+def test_write_pilot_flattens_model_stratified_endpoints_into_csv(modules, tmp_path):
+    _, report = modules
+    pilot = importlib.import_module("pilot_analysis")
+    panel = {"suite": "synthetic", "review": {"accepted": True, "evidence": "synthetic review"},
+             "contracts": [{"id": "t1", "feature": "f1", "role": "feature", "from_cycle": 1,
+                           "through_cycle": 1, "unchanged": True, "oracle_version": "v1"},
+                          {"id": "cr1", "feature": "f1", "role": "cr1", "from_cycle": 2,
+                           "through_cycle": 2, "unchanged": True, "oracle_version": "v1"}]}
+    runs = [_model_stratified_raw(arm) for arm in "ABC"]
+    result = pilot.analyze_pilot(runs, panel=panel, n=50)
+    report.write_pilot(tmp_path, result)
+    with (tmp_path / "hypotheses.csv").open() as stream:
+        rows = list(csv.DictReader(stream))
+    assert any(row["hypothesis"] == "claude-sonnet-5.5" and row["field"].startswith("H1.") for row in rows)
+    assert "## All run values and dispositions" in (tmp_path / "report.md").read_text()
+    assert "claude-sonnet-5.5" in (tmp_path / "report.md").read_text()
+
+
+def test_historical_and_diagnostic_designs_are_explicit_in_rendered_outputs(modules, tmp_path):
+    _, report = modules
+    pilot = importlib.import_module("pilot_analysis")
+    for phase, label in (("pilot-estimation", "Historical"), ("dry", "Unassigned diagnostic")):
+        runs = [_model_stratified_raw(arm) for arm in "ABC"]
+        for run in runs:
+            for key in ("assigned_model", "analysis_design", "replicate"):
+                del run["meta"][key]
+            run["meta"]["phase"] = phase
+        result = pilot.analyze_pilot(runs, n=50)
+        assert "frame" not in result and result["design_description"].startswith(label)
+        assert all(run["assigned_model"] is None for run in result["runs"])
+        directory = tmp_path / phase
+        report.write_pilot(directory, result)
+        for name in ("summary.json", "summary.md", "report.md", "hypotheses.tex"):
+            assert label in (directory / name).read_text()
+        assert ("STUB DIAGNOSTIC" in (directory / "report.md").read_text()) == (phase == "dry")
+        del result["design_description"]
+        result["methods"].pop("design", None)
+        report.write_pilot(directory, result)
+        for name in ("summary.json", "summary.md", "report.md", "hypotheses.tex"):
+            assert label in (directory / name).read_text()

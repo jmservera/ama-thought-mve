@@ -1,6 +1,12 @@
 <!-- markdownlint-disable-file -->
 # MVE Plan: feature-consolidation-harness
 
+> **Historical plan/status, not current approval or launch instructions.**
+> The active [pilot plan](protocol/pilot-estimation.md) and
+> [OSF draft](protocol/osf-preregistration.md) supersede the scope, criteria
+> and readiness claims below. S1 assets are implemented; independent acceptance
+> remains pending. Earlier smoke data are retained and excluded.
+
 Phase 5 output (HVE Core Experiment Designer). Status: **design draft awaiting owner confirmation; smoke testing complete; preparing the full suite**. Details live in context.md, hypotheses.md, vetting.md and experiment-design.md in this folder. The protocol copy remains a draft until approval and freezing are recorded.
 
 ## Execution status (2026-10-25)

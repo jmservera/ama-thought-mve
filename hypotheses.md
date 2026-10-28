@@ -1,6 +1,11 @@
 <!-- markdownlint-disable-file -->
 # MVE Hypotheses: feature-consolidation-harness
 
+> **Historical seven-hypothesis proposal, not active pilot criteria.**
+> The current [estimation protocol](protocol/pilot-estimation.md) retains
+> H1/H2/H6 as labels only, defers formal H4/H7 claims, and assigns no pass/fail
+> verdicts. The thresholds below are preserved history, not registration inputs.
+
 Phase 2 output (HVE Core Experiment Designer). Hypotheses and thresholds are provisional; the owner accepts, revises or rejects them and records approval and the dated frozen protocol version before the pilot. No approval or freeze is recorded yet. Criteria changed after execution starts are recorded as divergence, never silently replaced.
 
 ## Project goal

@@ -1,6 +1,12 @@
 <!-- markdownlint-disable-file -->
 # MVE Context: feature-consolidation-harness
 
+> **Historical proposal, not the current protocol.** Use
+> [the prospective pilot protocol](protocol/pilot-estimation.md) and
+> [OSF submission draft](protocol/osf-preregistration.md).
+> The case motivates the question; it did not measure a decay rate.
+> Everything below preserves the earlier framing for traceability.
+
 Session date: 2026-10-24. Method: HVE Core Experiment Designer (Minimum Viable Experiment), Phase 1 output.
 Status: draft for owner review. The owner keeps authority over budget, model, thresholds and scope.
 
