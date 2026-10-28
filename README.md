@@ -20,7 +20,7 @@ The controller schedules the model-aware allocation, preserves model/replicate
 identity on resume and exports separate primary estimates per model, never a
 pooled primary result. Infrastructure retries share the original step allowances;
 measurement retries do not replay agent work. Independent
-`multi_model_harness_alignment` acceptance is still required before submission;
+`multi_model_harness_alignment` acceptance is still required before collection;
 implemented engineering is not study approval.
 
 ## One-command quick start
@@ -78,6 +78,7 @@ with missingness and all-attempt costs; it issues no hypothesis verdicts.
 Formal H4/H7 claims are deferred, not undefined thresholds to supply.
 HIR/IDR remain unavailable without verified coverage/adjudication. Independent suite review,
 remaining method decisions, runtime/access checks and registration remain gates.
+Those are collection gates, not requirements for ordinary OSF preregistration.
 
 The later owner-authorised follow-up retains partial and zero-step runs in
 reports without treating them as completed trajectories. Planned feature and
@@ -120,10 +121,15 @@ authorisation. The unattended paid backend remains disabled.
 The package refuses overwrites and contains only explicit submission inputs,
 source hashes and readiness checks, not raw logs. It neither contacts OSF nor
 registers or authorises a run. Owner choices are recorded in
-`protocol/pilot-estimation.json`; independently accept the model-aware harness,
-obtain independent reviews, and approve the
-exact snapshot before submitting through OSF. No registration URL is required
-to prepare a draft. Use a new directory when regenerating it.
+`protocol/pilot-estimation.json`. Model-aware harness acceptance
+and independent reviews remain pending **before collection**, not prerequisites
+to submit the plan. Follow [the OSF checklist](protocol/osf-submission-checklist.md):
+confirm owner choices, secondary scope and prior-data disclosure, disclose the
+unreviewed/unverified status, and approve the exact snapshot before submitting
+through OSF. Readiness reports separate `submission_unresolved` from
+`collection_unresolved`; `unresolved` aliases submission blockers. No
+registration URL is required to prepare a draft. Use a new directory when
+regenerating it. Preparing or registering the plan never authorises execution.
 
 The controller's `calibration` (legacy `pilot`) proposes nine excluded
 ten-feature runs without CR1; `pilot-estimation` (legacy `first`) proposes

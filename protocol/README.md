@@ -11,6 +11,12 @@ The controller/analysis implement model-aware scheduling and separate primary
 estimates per model, with immutable assigned-model/replicate identity. Required
 `multi_model_harness_alignment` evidence and independent acceptance remain
 unresolved; engineering and an updated draft do not authorise the expanded study.
+These are precollection safeguards, **not ordinary OSF submission requirements**.
+The owner authorised submitting an honestly unreviewed plan on 28 October 2026,
+subject to final source-bound approval. Follow
+[osf-submission-checklist.md](osf-submission-checklist.md) for the live form and
+safe attachments. Readiness reports separate submission and collection blockers;
+no pending evidence is marked accepted to prepare a registration.
 
 The other context/hypotheses/design/plan/vetting documents below are retained
 **historical proposals**, not active seven-test criteria. The immutable

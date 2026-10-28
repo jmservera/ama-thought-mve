@@ -1,8 +1,24 @@
-# Preregistration evidence and independent-review assignment
+# Submission readiness and precollection review assignment
 
 **Prospective draft; not owner-approved, registered or execution-ready.**
 Use the exact new candidate commit and input fingerprint supplied by the owner,
 not the earlier review packet. Source changes require review of affected evidence.
+
+## Submission versus collection
+
+On 28 October 2026 the owner authorised ordinary OSF preregistration with
+independent scientific review and runtime/access acceptance disclosed as pending.
+These are project precollection safeguards, not OSF submission requirements.
+Independent review has not occurred; no evidence or acceptance is invented.
+
+Submission requires complete owner choices, secondary scope, prior-data
+disclosure and actual approval of the final source candidate. Use
+[osf-submission-checklist.md](osf-submission-checklist.md).
+The readiness report separates `submission_unresolved` from
+`collection_unresolved`; `unresolved` aliases the submission list.
+All review/operator requirements below remain prerequisites before collecting
+calibration/pilot data. Substantive changes must be documented prospectively
+before collecting affected data; the old candidate packet is not an approval.
 
 ## Recorded owner decisions, 28 October 2026
 
@@ -25,7 +41,7 @@ This decision resolves only
 `telemetry_coverage_or_explicit_secondary_unavailability`. No other evidence,
 independent acceptance, final owner approval or registration is inferred.
 
-## Consolidated independent-review assignment
+## Consolidated precollection independent-review assignment
 
 A qualified independent reviewer is available; **no review has yet been
 received**. One review may cover multiple entries only if each conclusion is
@@ -52,7 +68,7 @@ independent acceptance. Return actual findings, not just checked boxes.
 |---|---|
 | `local_runtime_evidence` | Exact executable/runtime configuration, actual model entitlement/effort/routing/usage semantics and final frozen environment, accepted by owner; offline help/version checks are partial only. |
 | `access_probe_including_cr1_text` | Controlled independently reviewed filesystem/network/hidden/reference/prompt/CR1-text boundaries. Do not claim isolation for a temporary evaluator directory or expose held-out material to a study agent. |
-| `owner_approval` | Actual final approval of the exact candidate and accepted evidence after reviews, not inferred from requesting this work. |
+| `owner_approval` | Actual dated approval of the exact preregistration candidate and its pending-check disclosures, not inferred from requesting edits. Collection additionally requires accepted evidence and an owner-authorised freeze. |
 
 The owner's disclosed-only inventory and exact repository chronology are
 recorded in [prior-data-disclosure.md](prior-data-disclosure.md). This resolves

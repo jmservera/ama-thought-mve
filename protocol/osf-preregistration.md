@@ -3,7 +3,9 @@
 **DRAFT - not submitted, not registered, not author-approved.**
 Use the general-purpose **OSF Preregistration** form. Field wording may change:
 transfer these answers into the live form and attach the approved protocol,
-decision ledger, contract panel and checksums. Do not upload private session logs.
+decision ledger, candidate contract panel and checksums. The panel is not
+independently accepted. Follow [the submission checklist](osf-submission-checklist.md);
+do not upload private session logs or the private reviewer bundle.
 
 ## Metadata
 
@@ -50,6 +52,21 @@ actual artifacts before signing the live existing-data answers.
 
 No timestamp, lack of prior exposure, complete calibration or registration is
 asserted from a local draft, manuscript statement or historical Git tag.
+
+## Review status and preregistration policy
+
+This plan has **not received independent scientific acceptance**. Suite/panel,
+oracle/reference metrics and multi-model alignment reviews remain pending.
+Model/runtime entitlement, effort/routing/accounting and actual information
+boundaries remain unverified. Ordinary OSF preregistration records the plan;
+it does not require independent scientific peer review or certify validity.
+
+On 28 October the owner authorised submitting the plan with this disclosure
+after final source-bound owner approval. The project retains all outstanding
+review and operational checks as prerequisites before calibration/pilot
+collection. No checks are marked accepted merely to prepare or submit this
+registration. Any substantive method changes arising from review will be
+documented prospectively in OSF and versioned before collecting affected data.
 
 ## Questions, hypotheses and endpoint hierarchy
 
@@ -176,7 +193,7 @@ CR1, all expected tests passing; discrepancies block collection until
 investigated/versioned/revalidated, not rerun until green.
 
 The scheduler and analysis implement model-aware allocation and separate
-per-model primary estimates. Before submission obtain independent
+per-model primary estimates. Before collection obtain independent
 `multi_model_harness_alignment` evidence covering the
 eighteen-trajectory model-aware schedule, model-specific analysis, revised
 budget and chosen operational rules. Requested model/runtime availability and
@@ -185,18 +202,22 @@ paid collection was performed by this work. The owner selected the prospective
 CLI 1.0.105/Ruff 0.17.3/Lizard 1.24.3/jscpd 5.4.1 amendment on 28 October;
 these candidates do not by themselves establish runtime acceptance.
 
-Attach `pilot-estimation.md`, `pilot-estimation.json`, reviewed
+Attach `pilot-estimation.md`, `pilot-estimation.json`, candidate unreviewed
 `contract-panel.json`, protocol/harness/suite source hashes, fixed prompts,
-analysis version, accepted oracle/reference diagnostics and data chronology.
+analysis version, pending-evidence disclosures and data chronology.
+Existing oracle/reference diagnostics are unaccepted development evidence,
+not independent approval or a prerequisite to submit the plan.
 Source paper: jmservera/ama `196b97644bb9bffa43d41a9921d6a06a93b2699e`.
 Historical proposal/tag provenance is in the protocol; never replace the old tag.
 
-Before submission: confirm recorded owner choices and resolve every evidence entry; confirm
-runtime/caps, secondary scope and prior exposure; approve exact files/source SHA.
+Before submission: confirm recorded owner choices, planned runtime/caps,
+secondary scope and prior exposure; disclose pending review/runtime evidence
+and approve exact files/source SHA. Do not fabricate acceptance of pending checks.
 Owner completes OSF contributor/privacy settings and real approval workflow.
 Only after registration completes record the actual URL and date; a saved draft
 or uploaded archive is not completed registration. Freeze execution inputs before
-fresh collection; no exercise runs or launch authorisation are performed here.
+fresh collection only after all retained review and operational prerequisites
+are genuinely met; no exercise runs or launch authorisation are performed here.
 
 ## Guidance consulted
 
@@ -205,3 +226,6 @@ fresh collection; no exercise runs or launch authorisation are performed here.
 
 Retrieved 27 October 2026. A general-purpose draft is provided, not an assurance
 that OSF, an institution or a journal has approved this design.
+The preregistration/peer-review distinction was checked on 28 October against
+[COS preregistration guidance](https://www.cos.io/initiatives/prereg) and
+[Registered Reports](https://www.cos.io/initiatives/registered-reports).

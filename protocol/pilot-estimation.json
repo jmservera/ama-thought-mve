@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "status": "draft-not-registered",
+  "readiness_policy": "Owner authorised 2026-10-28: separate ordinary OSF submission from collection readiness. Submission requires complete owner choices, secondary scope, prior-data disclosure and actual final source-bound owner approval, not independent review or runtime acceptance. All existing independent review, panel/oracle/reference, model-aware alignment, runtime/access, registration/freeze and hard-billing prerequisites remain required before calibration or pilot collection; pending evidence stays null.",
   "paper": {
     "repository": "jmservera/ama",
     "commit": "196b97644bb9bffa43d41a9921d6a06a93b2699e",

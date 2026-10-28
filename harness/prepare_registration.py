@@ -19,6 +19,7 @@ SUBMISSION_FILES = (
     "protocol/contract-panel.json",
     "protocol/readiness-handoff.md",
     "protocol/prior-data-disclosure.md",
+    "protocol/osf-submission-checklist.md",
     "harness/prompts/feature-step.prompt.md", "harness/prompts/consolidation-step.prompt.md",
     "harness/prompts/review-only-step.prompt.md", "harness/prompts/change-request.prompt.md",
 )
@@ -35,6 +36,9 @@ EVIDENCE = {
     "analysis_and_reference_metrics_acceptance",
     "telemetry_coverage_or_explicit_secondary_unavailability", "prior_data_disclosure",
     "multi_model_harness_alignment",
+}
+SUBMISSION_EVIDENCE = {
+    "telemetry_coverage_or_explicit_secondary_unavailability", "prior_data_disclosure",
 }
 
 
@@ -64,19 +68,28 @@ def readiness(config: dict, panel: dict) -> dict:
               and resources["separate_monetary_budget_usd"] is None
               and [resources[name] for name in ("feature_seconds", "post_seconds", "change_request_seconds")]
               == [1800, 900, 2700])
-    unresolved = [f"owner_decisions.{key}" for key, value in config["owner_decisions"].items() if not resolved(value)]
-    unresolved += [f"required_evidence.{key}" for key, value in config["required_evidence"].items() if not resolved(value)]
+    decisions = [f"owner_decisions.{key}" for key, value in config["owner_decisions"].items() if not resolved(value)]
+    evidence = [f"required_evidence.{key}" for key, value in config["required_evidence"].items() if not resolved(value)]
+    submission_unresolved = decisions + [
+        f"required_evidence.{key}" for key, value in config["required_evidence"].items()
+        if key in SUBMISSION_EVIDENCE and not resolved(value)]
+    collection_unresolved = decisions + evidence
     approval = config["owner_approval"]
     if not (approval["approved"] is True and resolved(approval["date"]) and resolved(approval["evidence"])):
-        unresolved.append("owner_approval")
+        submission_unresolved.append("owner_approval")
+        collection_unresolved.append("owner_approval")
     if not accepted(panel):
-        unresolved.append("contract_panel_independent_acceptance")
+        collection_unresolved.append("contract_panel_independent_acceptance")
     registration = config["registration"]
     registered = (registration["submitted"] is True and isinstance(registration["url"], str)
                   and re.fullmatch(r"https://osf\.io/[A-Za-z0-9/]+", registration["url"]) is not None
                   and resolved(registration["date"]))
-    return {"draft_complete": design, "author_submission_ready": design and not unresolved,
-            "unresolved": unresolved, "registration_recorded": registered,
+    return {"draft_complete": design, "author_submission_ready": design and not submission_unresolved,
+            "unresolved": submission_unresolved, "submission_unresolved": submission_unresolved,
+            "collection_unresolved": collection_unresolved,
+            "independent_review_required_for_submission": False,
+            "independent_review_required_before_collection": True,
+            "registration_recorded": registered,
             "registration_independently_verified": False, "execution_ready": False,
             "execution_blockers": ["Provider-enforced hard billing backend absent; paid execution disabled",
                                    "Model-aware scheduler/analysis and operational-rule alignment need acceptance",

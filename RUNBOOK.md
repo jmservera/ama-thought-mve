@@ -5,7 +5,10 @@ description: "Runbook for the feature-consolidation MVE with D1-D12 settled on 2
 
 The active scientific authority is [protocol/pilot-estimation.md](protocol/pilot-estimation.md).
 Prepare [the OSF draft](protocol/osf-preregistration.md), resolve the decision
-ledger and obtain independent acceptance before registration or fresh collection.
+ledger and approve the exact submission candidate. Independent acceptance is
+a project prerequisite before collection, not before ordinary OSF registration.
+Use [the OSF checklist](protocol/osf-submission-checklist.md) and disclose
+independent reviews and runtime/access checks as pending.
 The owner-amended first pass is an estimation pilot, not confirmatory testing:
 GPT 6.1 Sol, Sonnet 5.5 and Gemini 4 Argon, each with two trajectories per A/B/C
 arm (18 pilot, plus nine excluded calibration). There are 318 pilot and 150
@@ -16,7 +19,7 @@ the earlier $500 limit and intermediate $6,000 proposal are superseded.
 
 The controller implements the model matrix, immutable model/replicate identity,
 300,000-credit admission ceiling and bounded infrastructure retries; analysis
-exports separate primary estimates per model. Before submission, require
+exports separate primary estimates per model. Before collection, require
 independent `multi_model_harness_alignment` evidence covering scheduling,
 model-specific inference, budgets and selected operational rules. Actual model access/runtime,
 independent acceptance and provider-enforced hard billing remain unverified.
@@ -27,6 +30,9 @@ independent acceptance and provider-enforced hard billing remain unverified.
 > retains H1/H2/H6 as estimation labels. Owner policy choices are now recorded;
 > required independent/alignment evidence remains null.
 > A complete draft is not owner approval, completed registration or execution readiness.
+> `submission_unresolved` lists plan/disclosure/owner-approval blockers;
+> `collection_unresolved` retains outstanding scientific/operational checks.
+> `unresolved` aliases submission blockers. No checks have been marked accepted.
 
 The measurement-integrity correction is recorded in [divergence-log.md](divergence-log.md).
 It preserves earlier data and the existing `protocol-frozen` tag. Reconcile its

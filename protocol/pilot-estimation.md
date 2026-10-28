@@ -73,6 +73,21 @@ study deadline is 14 days, not a change to the original agent-step allowances.
 independent acceptance of engineering and operational alignment. Passing
 offline tests is neither scientific acceptance nor submission approval.
 
+## Preregistration versus collection readiness
+
+On 28 October 2026 the owner authorised separating ordinary OSF submission
+from permission to collect data. Independent review is **not required by OSF**
+for this preregistration; it remains a project methodological requirement
+before calibration or pilot collection, not a prerequisite to record the plan.
+Reviews and runtime/access acceptance are pending and will be disclosed as such.
+
+Submission requires a complete consistent plan, recorded owner choices,
+secondary scope, prior-data disclosure and actual final source-bound owner
+approval. See [the OSF checklist](osf-submission-checklist.md).
+`submission_unresolved` (also exposed as `unresolved`) lists only those blockers;
+`collection_unresolved` retains all outstanding methodological/operator evidence
+and panel acceptance. Registration alone never authorises execution.
+
 ## Procedure and information boundaries
 
 Fresh session per feature/post/CR1 step, with repository context only. Visible
@@ -238,10 +253,15 @@ explicit historical event-time uncertainty. Unrelated
 [hve-squad benchmarking](https://github.com/Peter-N91/hve-squad/pull/212)
 is not this study's data or validation evidence.
 
-Before submission, confirm the recorded owner choices, resolve every null evidence field, review
-the panel, approve the final protocol/source/hash snapshot and confirm the OSF
-data-collection disclosure. Then upload the approved files and complete the
-actual OSF approval/submission workflow. Record its real URL/date afterward.
-Before execution, additionally verify runtime/access, budgets/telemetry and a
-separately approved hard billing boundary. None is fabricated by offline tools.
+Before submission, confirm recorded owner choices, secondary scope and prior
+exposure, approve the final protocol/source/hash snapshot and disclose reviews
+and operational checks as pending. Do not fill null evidence fields without
+genuine evidence. Upload only the approved submission inputs and complete the
+actual OSF contributor-approval/submission workflow. Record its real URL/date
+afterward. Independent suite/panel, oracle/reference and multi-model alignment
+acceptance remain required before collection, together with runtime/access,
+budgets/telemetry, approved freeze and a provider-enforced hard billing boundary.
+If review changes substantive methods, document the amendment prospectively in
+OSF and version affected inputs before collecting affected data. None of these
+approvals or controls is fabricated by offline tools.
 Later replication/S2/precision work requires its own prospective plan.

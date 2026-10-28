@@ -53,7 +53,9 @@ def test_draft_complete_is_separate_from_submission_registration_and_execution(r
     report = registration.readiness(config, {"review": {"accepted": False}})
     assert report["draft_complete"] and report["no_registration_required_to_prepare_draft"]
     assert not report["author_submission_ready"] and not report["registration_recorded"]
-    assert not report["execution_ready"] and report["unresolved"]
+    assert report["unresolved"] == report["submission_unresolved"] == ["owner_approval"]
+    assert len(report["collection_unresolved"]) == 9
+    assert not report["execution_ready"]
 
 
 def test_explicit_secondary_exclusion_resolves_only_its_alternative_gate(registration, config):
@@ -64,7 +66,8 @@ def test_explicit_secondary_exclusion_resolves_only_its_alternative_gate(registr
     report = registration.readiness(config, {"review": {"accepted": False}})
     assert set(pending["unresolved"]) - set(report["unresolved"]) == {
         "required_evidence.telemetry_coverage_or_explicit_secondary_unavailability"}
-    assert len(report["unresolved"]) == 10
+    assert len(report["unresolved"]) == 2
+    assert len(report["collection_unresolved"]) == 10
     assert not report["author_submission_ready"] and not report["execution_ready"]
     assert not report["registration_recorded"]
 
@@ -109,16 +112,45 @@ def test_both_stage_session_caps_are_required_by_approved_draft(registration, co
         config["resources"][key] = 300
 
 
-def test_alignment_evidence_blocks_submission_after_other_approvals(registration, config):
+def test_alignment_evidence_blocks_collection_not_approved_submission(registration, config):
     config["required_evidence"] = dict.fromkeys(registration.EVIDENCE, "Synthetic independent evidence")
     config["required_evidence"]["multi_model_harness_alignment"] = None
     config["owner_approval"] = {"approved": True, "date": "2026-10-27", "evidence": "Synthetic approval"}
     report = registration.readiness(config, {"review": {"accepted": True, "evidence": "Synthetic review"}})
-    assert report["draft_complete"] and not report["author_submission_ready"]
-    assert report["unresolved"] == ["required_evidence.multi_model_harness_alignment"]
+    assert report["draft_complete"] and report["author_submission_ready"]
+    assert report["submission_unresolved"] == report["unresolved"] == []
+    assert report["collection_unresolved"] == ["required_evidence.multi_model_harness_alignment"]
+    assert not report["execution_ready"]
     del config["required_evidence"]["multi_model_harness_alignment"]
     with pytest.raises(registration.StudyError, match="ledger fields"):
         registration.readiness(config, {"review": {}})
+
+
+def test_unreviewed_plan_can_be_approved_for_submission_without_collection(registration, config):
+    for key in registration.EVIDENCE - registration.SUBMISSION_EVIDENCE:
+        config["required_evidence"][key] = None
+    config["owner_approval"] = {"approved": True, "date": "2026-10-28", "evidence": "Synthetic submission approval"}
+    report = registration.readiness(config, {"review": {"accepted": False}})
+    assert report["author_submission_ready"] and report["submission_unresolved"] == []
+    assert set(report["collection_unresolved"]) == {
+        *(f"required_evidence.{key}" for key in registration.EVIDENCE - registration.SUBMISSION_EVIDENCE),
+        "contract_panel_independent_acceptance",
+    }
+    assert not report["independent_review_required_for_submission"]
+    assert report["independent_review_required_before_collection"]
+    assert not report["registration_recorded"] and not report["execution_ready"]
+    assert any("hard billing" in blocker for blocker in report["execution_blockers"])
+
+
+@pytest.mark.parametrize("key", ["prior_data_disclosure", "telemetry_coverage_or_explicit_secondary_unavailability"])
+@pytest.mark.parametrize("missing", [None, "TODO owner decision"])
+def test_submission_still_requires_real_disclosures_and_scope(registration, config, key, missing):
+    config["owner_approval"] = {"approved": True, "date": "2026-10-28", "evidence": "Synthetic submission approval"}
+    config["required_evidence"][key] = missing
+    report = registration.readiness(config, {"review": {"accepted": False}})
+    assert not report["author_submission_ready"]
+    assert report["submission_unresolved"] == [f"required_evidence.{key}"]
+    assert f"required_evidence.{key}" in report["collection_unresolved"]
 
 
 def test_package_is_allowlisted_hashed_private_and_refuses_overwrite(registration, draft_root):
