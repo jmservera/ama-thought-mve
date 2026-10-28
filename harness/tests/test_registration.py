@@ -163,6 +163,7 @@ def test_package_is_allowlisted_hashed_private_and_refuses_overwrite(registratio
     assert copied == set(registration.SUBMISSION_FILES) | {"manifest.json", "readiness.json"}
     assert set(manifest["package_sha256"]) == set(registration.SUBMISSION_FILES)
     assert not out.stat().st_mode & 0o077
+    assert all(not path.stat().st_mode & 0o077 for path in out.rglob("*"))
     before = (out / "manifest.json").read_bytes()
     with pytest.raises(registration.StudyError, match="already exists"):
         registration.prepare(out, draft_root)

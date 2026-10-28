@@ -138,7 +138,10 @@ def prepare(out: Path, root: Path = ROOT) -> dict:
     destination.mkdir(parents=True, mode=0o700)
     for path in files:
         target = destination / path.relative_to(root)
-        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        parent = destination
+        for part in path.relative_to(root).parts[:-1]:
+            parent /= part
+            parent.mkdir(exist_ok=True, mode=0o700)
         shutil.copyfile(path, target)
         target.chmod(0o600)
     manifest["package_sha256"] = {relative: hashlib.sha256((destination / relative).read_bytes()).hexdigest()
