@@ -225,13 +225,16 @@ Earlier [smoke evidence](../results/smoke/summary.md) describes `smoke-01`,
 S1/B/F1 plus consolidation and observed 14.54 credits. Its metadata says pilot;
 it is neither ten-feature calibration nor a replicate among the eighteen.
 Stub runs, historical paid smoke and any earlier calibration/registration
-attempts must retain actual dates, labels and data-exposure history. The owner
-must verify the full chronology; the listed smoke does not prove no other
-earlier exposure. No existing results are relabelled or pooled. The owner confirmed the registered
+attempts must retain actual dates, labels and data-exposure history. On 28 October
+the owner confirmed the disclosed-only inventory; no additional model runs or
+calibration/pilot trajectories were reported. The smoke alone does not establish
+completeness or absence of earlier exposure. No existing results are relabelled or pooled. The owner confirmed the registered
 cohort has not run and will start only after registration. Earlier manual work
 was unmeasured; the measured smoke is disclosed as excluded development
 diagnostics. Its exact collection/exposure dates remain unverified; the summary's
-Git commit date is not a substitute. Unrelated
+Git commit date is not a substitute. [The prior-data disclosure](prior-data-disclosure.md)
+records exact repository dates in original offset/UTC, observed outcomes and
+explicit historical event-time uncertainty. Unrelated
 [hve-squad benchmarking](https://github.com/Peter-N91/hve-squad/pull/212)
 is not this study's data or validation evidence.
 

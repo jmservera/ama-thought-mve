@@ -35,8 +35,15 @@ also exist and their outcomes have been used to check tooling. Neither is pooled
 into the eighteen trajectories. The owner confirmed on 27 October that the
 registered study has not run and will start only after registration; earlier
 manual work was unmeasured, and the measured smoke is disclosed as excluded
-development diagnostics. Exact diagnostic collection/first-exposure dates are
-not established by the summary's Git commit time and remain unverified.
+development diagnostics. On 28 October the owner confirmed this disclosed inventory is complete, with no
+additional model runs or calibration/pilot trajectories reported. The first
+smoke artifacts are recorded in Git at `c5184c5`, 25 October 2026
+00:53:50 +02:00 (24 October 22:53:50 UTC). Subsequent README/RUNBOOK
+commits record interpretation and exclusion. These are repository dates, not
+actual collection or first-inspection timestamps; those historical event times
+remain unverified. [The full disclosure](prior-data-disclosure.md) records
+the evidence and uncertainty, including offline reference outcomes used to
+revise tooling. No outcome-blind development process is claimed.
 Unrelated [hve-squad benchmarking](https://github.com/Peter-N91/hve-squad/pull/212)
 is not this MVE's data or validation evidence. Reconcile this disclosure with
 actual artifacts before signing the live existing-data answers.

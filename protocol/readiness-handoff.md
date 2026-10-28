@@ -52,10 +52,13 @@ independent acceptance. Return actual findings, not just checked boxes.
 |---|---|
 | `local_runtime_evidence` | Exact executable/runtime configuration, actual model entitlement/effort/routing/usage semantics and final frozen environment, accepted by owner; offline help/version checks are partial only. |
 | `access_probe_including_cr1_text` | Controlled independently reviewed filesystem/network/hidden/reference/prompt/CR1-text boundaries. Do not claim isolation for a temporary evaluator directory or expose held-out material to a study agent. |
-| `prior_data_disclosure` | Owner/data-custodian chronology of measured smoke, unmeasured manual work, offline diagnostics and first exposure to results/materials; identify uncertainty, never invent dates from Git history. |
 | `owner_approval` | Actual final approval of the exact candidate and accepted evidence after reviews, not inferred from requesting this work. |
 
-The measured historical smoke (14.54324 credits, B/F1 plus consolidation) and
+The owner's disclosed-only inventory and exact repository chronology are
+recorded in [prior-data-disclosure.md](prior-data-disclosure.md). This resolves
+the prior-data disclosure entry with explicit unknown historical event times,
+not a claim that commits establish collection/first inspection. The measured
+historical smoke (14.54324 credits, B/F1 plus consolidation) and
 offline/fake/reference diagnostics stay excluded from study trajectories.
 No new calibration or registered pilot has been performed by this preparation.
 

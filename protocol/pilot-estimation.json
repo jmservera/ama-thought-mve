@@ -78,7 +78,7 @@
     "comprehension_include_or_defer": "Owner selected 2026-10-27: defer comprehension assessment; make no comprehension-effect claim in this pilot.",
     "oracle_repeat_count_and_failure_rules": "Owner selected 2026-10-27: require three unchanged reference executions at every feature stage and CR1, exact outcome agreement and all expected tests passing. Any discrepancy blocks fresh collection until investigated, versioned and revalidated, not rerun until green. Independent suite/panel review remains required.",
     "post_calibration_credit_cap_and_affordability": "Owner selected 2026-10-27: fixed 300-AI-Credit/session SOFT cap for calibration and pilot; final corrected total is 300000 AI Credits including prior spend and calibration, superseding 2500 credits and the intermediate $6000 proposal. Approximately $3000 is an unverified estimate, not a conversion or separate precise ceiling. Require a cost-only full-design affordability check after calibration; if unaffordable halt and amend, never silently shrink sample. Provider-enforced hard billing still required before launch.",
-    "actual_prior_data_seen_and_chronology": "Owner confirmed 2026-10-27: planned registered study has not run and starts only after OSF registration. Earlier manual work was unmeasured; disclose existing measured MVE smoke-01 (Sonnet 5.5, B/F1 plus consolidation, 14.54324 credits) as excluded development diagnostics, alongside offline/fake checks. Exact diagnostic run/exposure dates are not established by summary commit time. Unrelated hve-squad benchmarking (https://github.com/Peter-N91/hve-squad/pull/212) is not pooled or used as MVE evidence."
+    "actual_prior_data_seen_and_chronology": "Owner confirmed 2026-10-27: planned registered study has not run and starts only after OSF registration. Owner confirmed disclosed-only inventory 2026-10-28: earlier unmeasured manual work, measured MVE smoke-01 (Sonnet 5.5, B/F1 plus consolidation, 14.54324 credits), and offline/fake/reference diagnostics; no additional model runs or calibration/pilot trajectories reported. All are excluded. protocol/prior-data-disclosure.md records exact Git recording/interpretation dates with timezones; historical collection/first-inspection times remain unverified, not inferred from commits. Unrelated hve-squad benchmarking (https://github.com/Peter-N91/hve-squad/pull/212) is not pooled or used as MVE evidence."
   },
   "required_evidence": {
     "independent_suite_review": null,
@@ -88,7 +88,7 @@
     "access_probe_including_cr1_text": null,
     "analysis_and_reference_metrics_acceptance": null,
     "telemetry_coverage_or_explicit_secondary_unavailability": "Owner selected explicit HIR/IDR outcome exclusion on 2026-10-28; protocol/readiness-handoff.md records the decision and retained assistance/cost requirements. This resolves the explicit secondary-unavailability alternative only, not primary telemetry coverage or independent acceptance.",
-    "prior_data_disclosure": null,
+    "prior_data_disclosure": "Owner disclosed-only inventory attested 2026-10-28; protocol/prior-data-disclosure.md documents observed smoke outcomes, excluded manual/offline/reference work, exact repository chronology and explicit unknown historical collection/first-inspection times. Commit dates are not event dates; no independent acceptance or final approval inferred.",
     "multi_model_harness_alignment": null
   },
   "owner_approval": {"approved": false, "date": null, "evidence": null},
