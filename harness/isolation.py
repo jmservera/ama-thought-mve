@@ -348,7 +348,8 @@ class SandboxBroker:
     def export(self, state, review=False):
         metadata, blob = self._state(state)
         result, _ = self._launch(
-            {"op": "export", "review": bool(review), "timeout": self.timeout_seconds}, blob,
+            {"op": "export", "review": bool(review), "timeout": self.timeout_seconds,
+             "seed_head": metadata["seed_head"]}, blob,
         )
         files = regular_files(result["files"])
         final = manifest(files)
@@ -360,7 +361,7 @@ class SandboxBroker:
                     changed.add(path)
             for path in result["work_changed_paths"]:
                 changed.add(path_ok(path, git=False))
-        if type(result["commit_count"]) is not int or result["commit_count"] < 1:
+        if type(result["commit_count"]) is not int or result["commit_count"] < 0:
             raise IsolationError("Invalid isolated commit count")
         return {
             "files": result["files"], "head_changed": result["head"] != metadata["seed_head"],

@@ -12,6 +12,42 @@ import os
 import re
 import sys
 import traceback
+from contextlib import contextmanager
+
+VIEW_READERS = {"get_home", "get_case", "list_cases", "case_details", "history",
+                "notes", "stage_counts", "rank_cases", "export_cases_csv"}
+
+
+@contextmanager
+def view_contracts(src, policy, objects):
+    """Observe actual declared view returns without modifying candidate methods."""
+    factories = set(policy.get("methods", [])) & {"view_as", "view_for"}
+    if not factories:
+        yield
+        return
+    previous = sys.getprofile()
+
+    def observe(frame, event, result):
+        if callable(previous):
+            previous(frame, event, result)
+        if event != "return" or result is None or not frame.f_code.co_argcount:
+            return
+        package = sys.modules.get(policy.get("package"))
+        workbench = vars(package).get("Workbench") if package is not None else None
+        owner = type(frame.f_locals.get(frame.f_code.co_varnames[0]))
+        if not isinstance(workbench, type) or workbench not in owner.__mro__:
+            return
+        for name in factories:
+            method = next((vars(base)[name] for base in owner.__mro__ if name in vars(base)), None)
+            if getattr(method, "__code__", None) is frame.f_code and _module_origin(frame.f_globals, src):
+                objects[id(result)] = result
+                break
+
+    sys.setprofile(observe)
+    try:
+        yield
+    finally:
+        sys.setprofile(previous)
 
 
 def api_policy(suite_dir, ids):
@@ -90,7 +126,7 @@ def _mandatory_import(error, frames, src, policy):
     return None
 
 
-def _mandatory_attribute(error, src, policy):
+def _mandatory_attribute(error, src, policy, view_objects):
     if not isinstance(error, AttributeError):
         return None
     package = sys.modules.get(policy.get("package"))
@@ -102,9 +138,16 @@ def _mandatory_attribute(error, src, policy):
     cls = type(error.obj)
     module = sys.modules.get(cls.__module__)
     origin = _module_origin(vars(module), src) if module is not None else None
-    mandatory = policy.get("methods", []) if cls.__name__ == "Workbench" else \
-        policy.get("attributes", {}).get(cls.__name__, [])
-    if origin and package is not None and vars(package).get(cls.__name__) is cls and error.name in mandatory \
+    mandatory = set()
+    if package is not None:
+        contracts = {**policy.get("attributes", {}), "Workbench": policy.get("methods", [])}
+        for export, names in contracts.items():
+            public = vars(package).get(export)
+            if isinstance(public, type) and public in cls.__mro__:
+                mandatory.update(names)
+    if view_objects.get(id(error.obj)) is error.obj:
+        mandatory.update(VIEW_READERS & set(policy.get("methods", [])))
+    if origin and error.name in mandatory \
             and not any(error.name in vars(base) for base in cls.__mro__):
         return {**origin, "missing": error.name}
     return None
@@ -147,7 +190,7 @@ def _syntax_origin(error, frames, src):
     return None
 
 
-def exception_evidence(error, src, policy, raw_outcome="error"):
+def exception_evidence(error, src, policy, raw_outcome="error", view_objects=None):
     """Classify using live exception/frame/module objects, never message matching."""
     while type(error).__module__.startswith("_pytest.") and error.__cause__ is not None:
         error = error.__cause__
@@ -177,7 +220,7 @@ def exception_evidence(error, src, policy, raw_outcome="error"):
     origin = _mandatory_import(error, frames, src, policy)
     reason = "mandatory_import"
     if origin is None and not any(isinstance(item, ImportError) for item in chain):
-        origin = _mandatory_attribute(error, src, policy)
+        origin = _mandatory_attribute(error, src, policy, view_objects or {})
         reason = "mandatory_api"
         if origin is None:
             origin = _syntax_origin(error, frames, src)
@@ -209,11 +252,16 @@ def pytest_plugin(src, policy, output):
     class Provenance:
         def __init__(self):
             self.records = {}
+            self.views = {}
+
+        def pytest_sessionstart(self, session):
+            self.tracker = view_contracts(src, policy, self.views)
+            self.tracker.__enter__()
 
         def pytest_exception_interact(self, node, call, report):
             if getattr(report, "when", "collect") == "collect":
                 key = os.path.splitext(os.path.basename(report.nodeid))[0] + "::<import>"
-                self.records[key] = exception_evidence(call.excinfo.value, src, policy)
+                self.records[key] = exception_evidence(call.excinfo.value, src, policy, view_objects=self.views)
 
         @pytest.hookimpl(wrapper=True)
         def pytest_runtest_makereport(self, item, call):
@@ -221,10 +269,11 @@ def pytest_plugin(src, policy, output):
             if call.excinfo is not None and report.failed:
                 key = os.path.basename(item.nodeid).replace(".py::", "::", 1)
                 raw = "failed" if report.when == "call" else "error"
-                self.records[key] = exception_evidence(call.excinfo.value, src, policy, raw)
+                self.records[key] = exception_evidence(call.excinfo.value, src, policy, raw, self.views)
             return report
 
         def pytest_sessionfinish(self, session, exitstatus):
+            self.tracker.__exit__(None, None, None)
             with open(output, "w", encoding="utf-8") as report:
                 json.dump({"provenance": self.records}, report)
 

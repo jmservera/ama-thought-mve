@@ -138,6 +138,9 @@ def test_fingerprint_ignores_only_generated_sdk_tree_not_its_pin(runtime, tmp_pa
     assert study.fingerprint(tmp_path) == before
     manifest.write_text('{"version":"different"}')
     assert study.fingerprint(tmp_path) != before
+    before = study.fingerprint(tmp_path)
+    (tmp_path / "run-experiment.sh").write_text("#!/bin/sh\nexit 0\n")
+    assert study.fingerprint(tmp_path) != before
 
 
 def test_runtime_gate_rejects_missing_checks_stale_source_and_wrong_frozen_image(runtime, tmp_path):
@@ -169,6 +172,35 @@ def test_runtime_gate_rejects_missing_checks_stale_source_and_wrong_frozen_image
     runtime.atomic_json(receipt_path, receipt)
     runtime.atomic_json(freeze_path, dict(freeze, runtime_image="sha256:" + "1" * 64))
     assert runtime.runtime_errors(cfg, tmp_path)
+
+
+@pytest.mark.parametrize("authenticated,user_authentication", [(False, False), (True, False), (True, True)])
+def test_current_host_user_auth_is_checked_before_controller_or_credit_reservation(
+    runtime, tmp_path, monkeypatch, authenticated, user_authentication,
+):
+    study = importlib.import_module("study")
+    io = importlib.import_module("study_io")
+    config = runtime.ROOT / "harness/study-config.json"
+    monkeypatch.setattr(runtime.shutil, "which", lambda name: "/usr/bin/copilot")
+
+    def checked(command, **kwargs):
+        assert command[0] == "node" and command[2] == "--check-runtime"
+        assert "--prompt" not in command and "--cli-path" in command
+        assert kwargs["timeout"] == 40
+        return json.dumps({"isAuthenticated": authenticated, "userAuthentication": user_authentication})
+
+    monkeypatch.setattr(io, "command", checked)
+    if authenticated and user_authentication:
+        runtime.check_host_auth(tmp_path)
+    else:
+        monkeypatch.setattr(study, "ROOT", tmp_path)
+        monkeypatch.setattr(study, "preflight", lambda *args, **kwargs: [])
+        monkeypatch.setattr(study, "schedule", lambda *args, **kwargs: [])
+        monkeypatch.setattr(study, "Controller", lambda *args, **kwargs: pytest.fail("No reservation before sign-in"))
+        monkeypatch.setattr(study.sys, "argv", ["study", "--config", str(config), "--study-id", "missing-auth"])
+        with pytest.raises(runtime.StudyError, match="user sign-in required"):
+            study.main()
+    assert not (tmp_path / ".study/missing-auth/state.json").exists()
 
 
 def trusted_repo(runtime, root):
@@ -215,6 +247,28 @@ def test_committed_import_preserves_ignored_blob_bytes_without_attribute_filters
     assert set(tracked) - {""} == {item["path"] for item in files}
     assert runtime.git(repo, "status", "--porcelain").stdout == ""
     assert (repo / 'ignored/with,"quotes"').stat().st_mode & 0o777 == 0o755
+
+
+@pytest.mark.parametrize("host_commits,checkpoint_matches,expected", [(1, True, 3), (0, True, 0), (0, False, 0)])
+def test_consolidation_records_step_local_candidate_commits_only_when_retained(
+    runtime, tmp_path, monkeypatch, host_commits, checkpoint_matches, expected,
+):
+    study = importlib.import_module("study")
+    runner = importlib.import_module("runner")
+    run = object.__new__(study.StudyRun)
+    run.repo = trusted_repo(runtime, tmp_path)
+    run.controller = SimpleNamespace(smoke=False, save=lambda: None)
+    run.cell = {"attempts": []}
+    run.steps_path = str(tmp_path / "steps.jsonl")
+    live = SimpleNamespace(
+        last_export={"commit_count": 3},
+        last_checkpoint=runtime.head(run.repo) if checkpoint_matches else "0" * 40,
+    )
+    monkeypatch.setattr(runtime, "live_runtime", lambda current: live)
+    recorded = []
+    monkeypatch.setattr(runner.Run, "record", lambda current, record: recorded.append(dict(record)))
+    run.record({"kind": "consolidation", "step": "f01-consolidation", "commits": host_commits, "agent": {}})
+    assert recorded[0]["commits"] == expected
 
 
 def test_c_review_keeps_uncommitted_review_and_reports_other_edits_without_import(runtime, tmp_path):

@@ -47,13 +47,14 @@ def discover(paths):
     return sorted(files)
 
 
-def _run(fn, timeout, src, policy, evidence):
+def _run(fn, timeout, src, policy, evidence, views):
     def handler(signum, frame):
         raise _Timeout()
     old = signal.signal(signal.SIGALRM, handler)
     signal.alarm(timeout)
     try:
-        outcome = fn()
+        with _helper.view_contracts(src, policy, views):
+            outcome = fn()
         valid = (isinstance(outcome, tuple) and len(outcome) == 2
                  and outcome[0] in ("skipped", "failed", "error", "timeout")
                  and isinstance(outcome[1], str))
@@ -63,7 +64,7 @@ def _run(fn, timeout, src, policy, evidence):
         return "timeout", "timed out"
     except Exception as error:  # noqa: BLE001
         raw = "failed" if isinstance(error, AssertionError) else "error"
-        evidence.update(_helper.exception_evidence(error, src, policy, raw))
+        evidence.update(_helper.exception_evidence(error, src, policy, raw, views))
         return raw, traceback.format_exc()
     finally:
         signal.alarm(0)
@@ -74,16 +75,18 @@ def run(paths, src, timeout=10, policy=None):
     sys.path.insert(0, os.path.abspath(src))
     policy = policy or {}
     results = Results()
+    views = {}
     for i, f in enumerate(discover(paths)):
         mod_name = os.path.splitext(os.path.basename(f))[0]
         try:
             spec = importlib.util.spec_from_file_location(f"_mve_t{i}_{mod_name}", f)
             mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
+            with _helper.view_contracts(src, policy, views):
+                spec.loader.exec_module(mod)
         except Exception as error:  # noqa: BLE001
             key = f"{mod_name}::<import>"
             results[key] = ("error", traceback.format_exc())
-            results.provenance[key] = _helper.exception_evidence(error, src, policy)
+            results.provenance[key] = _helper.exception_evidence(error, src, policy, view_objects=views)
             continue
         for attr in sorted(vars(mod)):
             obj = getattr(mod, attr)
@@ -91,7 +94,7 @@ def run(paths, src, timeout=10, policy=None):
                     and getattr(obj, "__module__", None) == mod.__name__:
                 key = f"{mod_name}::{attr}"
                 evidence = {}
-                results[key] = _run(obj, timeout, src, policy, evidence)
+                results[key] = _run(obj, timeout, src, policy, evidence, views)
                 if evidence:
                     results.provenance[key] = evidence
             elif isinstance(obj, type) and issubclass(obj, unittest.TestCase) and obj is not unittest.TestCase:
@@ -110,7 +113,7 @@ def run(paths, src, timeout=10, policy=None):
                             return "skipped", (r.skipped or r.expectedFailures or [(None, "not executed")])[0][1]
                     key = f"{mod_name}::{attr}::{m}"
                     evidence = {}
-                    results[key] = _run(call, timeout, src, policy, evidence)
+                    results[key] = _run(call, timeout, src, policy, evidence, views)
                     if evidence:
                         results.provenance[key] = evidence
     return results

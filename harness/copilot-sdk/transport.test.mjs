@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { CopilotRequestHandler } from '@github/copilot-sdk';
 import { Evidence, InputRecords, OutputRecords, assertRuntime, permissionHandler,
   runTransport, sessionConfig, validateArguments } from './transport.mjs';
 import { RpcFrames, hostEnvironment, makeRuntime, prepareRuntimeDirectories } from './runtime-guard.mjs';
@@ -98,6 +99,7 @@ test('exact source-qualified tools, permission/session checks, shared limits and
   const config = sessionConfig(request(), 'registered', () => {}, () => {});
   assert.deepEqual(config.availableTools.toArray(), ['custom:isolated_exec']);
   assert.deepEqual(config.excludedTools.toArray(), ['builtin:*', 'mcp:*']);
+  assert.deepEqual(config.disabledMcpServers, ['github-mcp-server']);
   assert.deepEqual(config.sessionLimits, { maxAiCredits: 173.5 });
   assert.equal(config.enableConfigDiscovery, false);
   assert.equal(config.tools.length, 1);
@@ -173,6 +175,25 @@ test('actual missing/mismatched model or effort and routing/discovery changes fa
     ['session.extensions_loaded', { extensions: [{ id: 'host' }] }],
     ['instruction.update', {}], ['tool.execution_start', { toolName: 'bash' }],
   ]) assert.throws(() => new Evidence(request(), 's').observe(event(type, data)));
+});
+
+test('only the exact disabled builtin MCP catalog is inert; active or ambiguous MCP remains denied', () => {
+  const disabled = { name: 'github-mcp-server', status: 'disabled', source: 'builtin' };
+  const evidence = new Evidence(request(), 's');
+  evidence.observe(event('session.mcp_servers_loaded', { servers: [disabled] }));
+  for (const servers of [
+    [null], [disabled, disabled], [{ ...disabled, name: 'other' }],
+    [{ ...disabled, source: 'user' }], [{ ...disabled, source: undefined }],
+    [{ ...disabled, error: 'failed' }], [{ ...disabled, tools: ['host'] }],
+    ...['pending', 'connected', 'failed', 'not_configured', undefined].map(status =>
+      [{ ...disabled, status }]),
+  ]) assert.throws(() => new Evidence(request(), 's').observe(
+    event('session.mcp_servers_loaded', { servers })), /unexpected_discovery/);
+  for (const type of ['session.mcp_server_status_changed', 'session.mcp_server_tools_loaded',
+    'mcp.oauth_required'])
+    assert.throws(() => evidence.observe(event(type, disabled)), /unexpected_runtime_activity/);
+  assert.throws(() => evidence.observe(event('tool.execution_start',
+    { toolName: 'isolated_exec', mcpServerName: 'github-mcp-server' })), /unexpected_tool/);
 });
 
 test('bounded input framing rejects oversized, aggregate floods, malformed UTF-8 and unterminated records', () => {
@@ -290,6 +311,9 @@ test('failed sessions retain close-time usage diagnostics without certifying zer
 test('NDJSON happy path preserves raw events, exact shared budget and correlated tool results', async () => {
   let toolResult;
   const result = await runFake({ async action(config) {
+    config.onEvent(event('session.mcp_servers_loaded', {
+      servers: [{ name: 'github-mcp-server', status: 'disabled', source: 'builtin' }],
+    }));
     toolResult = await config.tools[0].handler({ command: 'pwd', timeoutSeconds: 1 },
       { sessionId: config.sessionId, toolName: 'isolated_exec', toolCallId: 'tool-one' });
   } });
@@ -305,6 +329,87 @@ test('NDJSON happy path preserves raw events, exact shared budget and correlated
     assert.ok(record.event.id);
   }
 });
+
+test('real SDK deferred startup disables MCP before locally rejected inference',
+  { skip: !process.env.MVE_COPILOT_CLI, timeout: 95000 }, async () => {
+    assert.ok(process.env.TMUX, 'actual SDK checks require a new owned tmux session');
+    const directory = await mkdtemp(join(tmpdir(), 'mve-sdk-offline-'));
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const records = [];
+    const state = { local: 0, logical: 0, closed: 0, tools: null };
+    let runtime;
+    let buffer = '';
+    output.on('data', chunk => {
+      buffer += chunk.toString();
+      let newline;
+      while ((newline = buffer.indexOf('\n')) >= 0) {
+        records.push(JSON.parse(buffer.slice(0, newline)));
+        buffer = buffer.slice(newline + 1);
+      }
+    });
+    class OfflineRequests extends CopilotRequestHandler {
+      async sendRequest(request, context) {
+        state.local++;
+        if (context.agentInvocationId) state.logical++;
+        if (state.session) {
+          const metadata = await state.session.rpc.tools.getCurrentMetadata();
+          state.tools = metadata.tools?.map(tool => tool.name);
+        }
+        return new Response('{"error":{"message":"Offline fixture","type":"offline_fixture"}}',
+          { status: 403, headers: { 'content-type': 'application/json' } });
+      }
+      async openWebSocket() {
+        state.local++;
+        throw new Error('offline_fixture');
+      }
+    }
+    try {
+      const running = runTransport({ input, output, runtimeFactory: async (req, deadline) => {
+        runtime = await makeRuntime(req, deadline);
+        // Pinned SDK test instrumentation; register before start, never use a forwarder.
+        runtime.client.requestHandler = new OfflineRequests();
+        runtime.client.setupClientGlobalHandlers();
+        assert.ok(runtime.client.requestAdapter);
+        assert.equal(runtime.client.clientGlobalHandlers.llmInference, runtime.client.requestAdapter);
+        const create = runtime.client.createSession.bind(runtime.client);
+        runtime.client.createSession = async config => {
+          state.session = await create(config);
+          return state.session;
+        };
+        return { client: runtime.client, async close() {
+          await runtime.close();
+          state.closed++;
+        } };
+      } });
+      input.write(JSON.stringify(request({ model: 'gpt-6.1-sol', maxAiCredits: 30,
+        remainingSeconds: 90, cliPath: process.env.MVE_COPILOT_CLI,
+        baseDirectory: directory })) + '\n');
+      const result = await running;
+      assert.ok(state.local > 0 && state.logical > 0);
+      assert.deepEqual(state.tools, ['isolated_exec']);
+      assert.equal(state.closed, 1);
+      const events = records.filter(record => record.type === 'event').map(record => record.event);
+      assert.ok(events.some(item => item.type === 'assistant.turn_start'));
+      assert.ok(events.some(item => item.type === 'model.call_failure'));
+      assert.ok(events.some(item => item.type === 'session.mcp_servers_loaded' &&
+        item.data.servers.length === 1 && item.data.servers[0].status === 'disabled'));
+      assert.ok(!events.some(item => item.type.startsWith('mcp.') ||
+        item.type.startsWith('tool.execution') || (item.type.startsWith('session.mcp_') &&
+        item.type !== 'session.mcp_servers_loaded')));
+      assert.equal(result.exitCode, 1);
+      assert.equal(result.receipt.protocol_error, 'unexpected_runtime_activity');
+      assert.equal(result.receipt.usage.credits_complete, false);
+      assert.equal(result.receipt.usage.totalNanoAiu, null);
+    } finally {
+      try { if (runtime) await runtime.close(); }
+      finally {
+        input.destroy();
+        output.destroy();
+        await rm(directory, { recursive: true, force: true });
+      }
+    }
+  });
 
 test('partial terminal usage keeps reservation unknown, never certifies a zero', async () => {
   const result = await runFake({ usage: { aiCreditsStatus: 'partial' } });

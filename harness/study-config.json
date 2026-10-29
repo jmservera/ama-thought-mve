@@ -18,6 +18,14 @@
       "source_commit": "cb1955957e7950a520b9a75d07bb3486616c5bbf",
       "evidence_sha256": "2d42df9f95198e97944f23aa67bfff9a41097463ebf0ea877c37928e3f561cf6",
       "approval": "owner-approved-startup-carry-forward-2026-10-29"
+    },
+    {
+      "attempt_id": "gpt-6.1-sol-authorized-check-20261029-5585ed1-1",
+      "reserved_credits": 300,
+      "actual_credits": null,
+      "source_commit": "5585ed1cf8fa27b253c42b40325aa54cc3ab25bd",
+      "evidence_sha256": "63804ae9c968423a651b1afe626aa849ce7178c0f06e379a3a5c18a0592ddf25",
+      "approval": "owner-approved-renewed-check-carry-forward-2026-10-29"
     }
   ],
   "session_reserve_credits": 300,

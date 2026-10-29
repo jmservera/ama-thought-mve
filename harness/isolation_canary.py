@@ -179,7 +179,7 @@ print(json.dumps(observations, sort_keys=True))
         assert not any(path != "reports/committed.md"
                        and path.startswith(("reports/", "__pycache__/", ".pytest_cache/", ".venv/"))
                        for path in exported["changed_paths"]), exported
-        assert exported["commit_count"] == 2, exported
+        assert exported["commit_count"] == 1, exported
         result = broker.execute(state, "cat source.py; test -f after-interference", 10)
         assert result["stdout"] == "uncommitted\n" and result["exit_code"] == 0, result
         state = result["state"]
@@ -344,6 +344,11 @@ print("evaluator-private")
         result = broker.execute(state, "test ! -e /tmp/private-result.json; test ! -e hidden-leak", 10)
         assert result["exit_code"] == 0 and sentinel not in result["stdout"], result
         state = result["state"]
+        failed = broker.evaluate(
+            ["/usr/local/bin/python3", "-I", "-c", "raise SystemExit(7)"],
+            mounts={"/work": work}, timeoutSeconds=10, result_path="/tmp/missing-measurement.json",
+        )
+        assert failed["exit_code"] == 7 and failed["result"] is None, failed
         checks["readonly_evaluation_private_result_no_hidden_writeback"] = True
         checks["readonly_evaluation_trusted_kit_mounts"] = True
         checks["trusted_evaluation_600s_profile_accepted"] = True
@@ -390,7 +395,7 @@ print("evaluator-private")
             state, "git -c user.name=Canary -c user.email=c@invalid commit --allow-empty -qm empty", 10,
         )
         exported = broker.export(result["state"])
-        assert exported["head_changed"] and exported["commit_count"] == 2
+        assert exported["head_changed"] and exported["commit_count"] == 1
         assert exported["files"] == [file("same", b"same\n")]
         checks["empty_commit_preserves_head_delivery_observation"] = True
         canonical_repo = directory / "canonical-repo"
@@ -421,7 +426,7 @@ print("evaluator-private")
         assert result["exit_code"] == 0 and "-before" in result["stdout"] and "+after" in result["stdout"], result
         assert "??" not in result["stdout"] and "origin" not in result["stdout"]
         exported = broker.export(result["state"])
-        assert not exported["head_changed"] and exported["commit_count"] == 2
+        assert not exported["head_changed"] and exported["commit_count"] == 0
         checks["trusted_seed_bundle_preserves_prompt_refs_and_history"] = True
         receipt["dumpability_disposition"] = {
             "status": "distinct_supervisor_authority_verified",

@@ -463,13 +463,16 @@ def seed_child(files, bundle=b""):
     return {"seed_head": git("rev-parse", "--verify", "HEAD").decode().strip()}
 
 
-def export_child(review=False):
+def export_child(review=False, seed_head=None):
     # Never honor candidate config, hooks, attributes, replacement refs or archives.
     config = WORK / ".git/config"
     config.write_text("[core]\nrepositoryformatversion = 0\nbare = false\n")
     head = git("rev-parse", "--verify", "HEAD").decode().strip()
     if len(head) != 40 or any(c not in "0123456789abcdef" for c in head):
         raise ProtocolError("Invalid HEAD")
+    seed_head = head if seed_head is None else seed_head
+    if len(seed_head) != 40 or any(c not in "0123456789abcdef" for c in seed_head):
+        raise ProtocolError("Invalid seed HEAD")
     entries = git("ls-tree", "-r", "-z", "--full-tree", "HEAD").split(b"\0")
     files, total = [], 0
     for entry in entries:
@@ -499,7 +502,7 @@ def export_child(review=False):
                 raise ProtocolError("Invalid isolated Git status")
             changed.append(path_ok(item[3:].decode("utf-8"), git=False))
     return {"files": files, "head": head, "work_changed_paths": sorted(set(changed)),
-            "commit_count": int(git("rev-list", "--count", "HEAD"))}
+            "commit_count": int(git("rev-list", "--count", f"{seed_head}..HEAD"))}
 
 
 def supervisor(request, blob):
@@ -534,7 +537,7 @@ def supervisor(request, blob):
     if op == "export":
         result = run_child(
             ["/usr/local/bin/python3", "-I", "/opt/isolation_helper.py", "_export",
-             "review" if request.get("review") else "head"],
+             "review" if request.get("review") else "head", request["seed_head"]],
             timeout, HEADER_LIMIT,
         )
         if result["exit_code"]:
@@ -576,6 +579,8 @@ def supervisor(request, blob):
             rel = path_ok(name.removeprefix("/tmp/"))
             if not name.startswith("/tmp/") or "/" in rel:
                 raise ProtocolError("Evaluator result must be a /tmp regular basename")
+            if result["exit_code"]:
+                return result, b""
             path = Path("/tmp") / rel
             info = path.lstat()
             if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > OUTPUT_LIMIT:
@@ -600,7 +605,7 @@ def main():
             request, bundle = unframe(sys.stdin.buffer)
             value = seed_child(request["files"], bundle)
         elif sys.argv[1] == "_export":
-            value = export_child(len(sys.argv) > 2 and sys.argv[2] == "review")
+            value = export_child(sys.argv[2] == "review", sys.argv[3])
         elif sys.argv[1] == "_restore":
             restore_tree(sys.stdin.buffer.read(STATE_LIMIT + 1), WORK)
             value = {}

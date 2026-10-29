@@ -3,8 +3,10 @@ import csv
 import importlib
 import json
 import os
+import shutil
 import subprocess
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -66,6 +68,37 @@ def test_export_is_deterministic_and_has_no_private_paths(modules, reports):
     assert all(str(reports.parent).encode() not in data for data in before.values())
 
 
+def test_shareable_archive_is_deterministic_and_contains_only_validated_results(modules, reports):
+    study, report = modules
+    path = report.package_results(reports, "export-test")
+    before = path.read_bytes()
+    assert path.parent == reports.parent and path.stat().st_mode & 0o777 == 0o600
+    with zipfile.ZipFile(path) as archive:
+        assert set(archive.namelist()) == {f"export-test/{name}" for name in report.EXPORTS}
+        assert archive.read("export-test/report.md") == (reports / "report.md").read_bytes()
+    assert report.package_results(reports, "export-test").read_bytes() == before
+    with pytest.raises(study.StudyError, match="provenance"):
+        report.package_results(reports, "different-study")
+
+
+@pytest.mark.parametrize("action", ["--status", "--share"])
+def test_saved_progress_and_sharing_need_no_authentication_or_paid_preflight(
+    modules, reports, tmp_path, monkeypatch, capsys, action,
+):
+    study, _report = modules
+    root = tmp_path / "operator"
+    directory = root / ".study/export-test"
+    shutil.copytree(reports.parent, directory)
+    before = (directory / "state.json").read_bytes()
+    monkeypatch.setattr(study, "ROOT", root)
+    monkeypatch.setattr(study, "preflight", lambda *args, **kwargs: pytest.fail("Read-only saved action"))
+    monkeypatch.setattr(study.sys, "argv", ["study", "--study-id", "export-test", action])
+    assert study.main() == 0
+    assert "0/5 steps completed; 5 remaining" in capsys.readouterr().out
+    assert (directory / "state.json").read_bytes() == before
+    assert (directory / "export-test-results.zip").exists() is (action == "--share")
+
+
 @pytest.mark.parametrize("legacy", [False, True])
 def test_exports_distinguish_historical_budget_hold_from_actual_usage(modules, reports, legacy):
     study, report = modules
@@ -77,7 +110,7 @@ def test_exports_distinguish_historical_budget_hold_from_actual_usage(modules, r
     exporter(reports.parent, state, "export-test")
     provenance = study.read_json(reports / "provenance.json")
     assert provenance["prior_nano"] == study.credits("14.54324")
-    assert provenance["historical_reserved_nano"] == study.credits(600)
+    assert provenance["historical_reserved_nano"] == study.credits(900)
     assert provenance["historical_usage_complete"] is False
     holds = provenance["historical_credit_provisions"]
     assert [hold["attempt_id"] for hold in holds] == [
@@ -103,6 +136,8 @@ def test_publication_refuses_non_results_and_secret_payloads(modules, reports, m
         (reports / "summary.md").write_text("synthetic-credential-canary")
     with pytest.raises(study.StudyError):
         report.validated_artifacts(reports)
+    with pytest.raises(study.StudyError):
+        report.package_results(reports, "export-test")
 
 
 def test_tex_escapes_all_special_characters(modules):

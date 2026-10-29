@@ -42,8 +42,16 @@ APPROVED_STARTUP_PROVISION = {
     "evidence_sha256": "2d42df9f95198e97944f23aa67bfff9a41097463ebf0ea877c37928e3f561cf6",
     "approval": "owner-approved-startup-carry-forward-2026-10-29",
 }
+APPROVED_RENEWED_PROVISION = {
+    "attempt_id": "gpt-6.1-sol-authorized-check-20261029-5585ed1-1",
+    "reserved_credits": 300,
+    "actual_credits": None,
+    "source_commit": "5585ed1cf8fa27b253c42b40325aa54cc3ab25bd",
+    "evidence_sha256": "63804ae9c968423a651b1afe626aa849ce7178c0f06e379a3a5c18a0592ddf25",
+    "approval": "owner-approved-renewed-check-carry-forward-2026-10-29",
+}
 MODEL_DESIGN = "model-stratified-v1"
-INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "scripts")
+INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
     "missing_feature_policy", "retry_policy", "evaluator_information_policy",
@@ -71,7 +79,9 @@ def historical_credit_provisions(cfg: dict, *, smoke: bool = False) -> list[dict
     """Keep specifically approved historical holds separate from actual usage."""
     provisions = cfg.get("historical_credit_provisions", [])
     if provisions not in ([], [APPROVED_HISTORICAL_PROVISION],
-                          [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION]):
+                          [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION],
+                          [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION,
+                           APPROVED_RENEWED_PROVISION]):
         raise StudyError("Historical provision must match the exact owner-approved attempt and evidence")
     if smoke:
         return []
@@ -602,7 +612,7 @@ class StudyRun(Run):
             count = (runtime.last_export or {}).get("commit_count")
             if type(count) is not int or count < 0:
                 raise StudyError("Missing isolated candidate commit-count evidence")
-            rec["commits"] = count if head(self.repo) == runtime.last_checkpoint else 0
+            rec["commits"] = count if rec["commits"] > 0 and head(self.repo) == runtime.last_checkpoint else 0
         attempts = [attempt for attempt in self.cell["attempts"] if attempt["step"] == rec["step"]]
         rec["agent"]["usage"] = aggregate_usage(attempts)
         rec["agent"]["seconds"] = (sum(attempt["seconds"] for attempt in attempts)
@@ -770,6 +780,7 @@ class Controller:
             steps.append((f"{run.suite['change_request']['id']}-change", run.change_request, ()))
         if done != [step[0] for step in steps[:len(done)]]:
             raise StudyError("Durable step order differs from frozen schedule")
+        cell["completed_steps"] = len(done)
         cell["status"] = "running"
         self.save()
         for step, function, params in steps:
@@ -780,7 +791,9 @@ class Controller:
             cell["checkpoint"] = {"step": step, "head": head(run.repo)}
             self.save()
             run.current_step = step
+            show_progress(self.state, f"{cell.get('assigned_model', 'offline stub')} / {cell['arm']} / {step}")
             function(*params)
+            cell["completed_steps"] += 1
             cell["checkpoint"] = None
             self.save()
         cell["status"] = "completed"
@@ -828,7 +841,24 @@ class Controller:
         self.save()
         from study_report import export
         export(self.directory, self.state, self.study_id)
+        show_progress(self.state, self.state["status"])
         return success
+
+
+def show_progress(state: dict, current: str = "") -> None:
+    """Count durable completed steps, not attempts or inferred successes."""
+    total = completed = 0
+    for cell in state["cells"]:
+        planned = cell["features"] * (1 if cell["arm"] == "A" else 2) + int(cell["change_request"])
+        done = cell.get("completed_steps", planned if cell["status"] == "completed" else 0)
+        if type(done) is not int or not 0 <= done <= planned:
+            raise StudyError("Invalid saved step progress")
+        total += planned
+        completed += done
+    finished = sum(cell["status"] == "completed" for cell in state["cells"])
+    print(f"Progress: {completed}/{total} steps completed; {total - completed} remaining | "
+          f"{finished}/{len(state['cells'])} trajectories complete"
+          + (f" | {current}" if current else ""), flush=True)
 
 
 def main() -> int:
@@ -842,9 +872,25 @@ def main() -> int:
     parser.add_argument("--phase", choices=["pilot", "first", "calibration", "pilot-estimation"],
                         default="pilot-estimation")
     parser.add_argument("--publish", action="store_true", help="push only derived results and create/update a PR")
+    saved = parser.add_mutually_exclusive_group()
+    saved.add_argument("--status", action="store_true", help="show saved progress without authentication or model calls")
+    saved.add_argument("--share", action="store_true", help="package existing derived results locally; never run models")
     args = parser.parse_args()
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", args.study_id):
         raise StudyError("study-id must be lowercase letters/digits/hyphens, at most 64 characters")
+    directory = ROOT / ".study" / args.study_id
+    if (ROOT / ".study").is_symlink() or directory.is_symlink():
+        raise StudyError("Study state must not be symlinked")
+    if args.status or args.share:
+        if not (directory / "state.json").is_file():
+            raise StudyError(f"No saved experiment: {args.study_id}")
+        state = read_json(directory / "state.json")
+        show_progress(state, state["status"])
+        if args.share:
+            from study_report import package_results
+            with study_lock(directory):
+                print(f"Shareable results: {package_results(directory / 'results', args.study_id)}")
+        return 0
     cfg = read_json(args.config)
     errors = preflight(cfg, smoke=args.smoke)
     preview = {"mode": "stub-smoke" if args.smoke else args.phase,
@@ -858,16 +904,20 @@ def main() -> int:
         return 2 if errors else 0
     if errors:
         raise StudyError("; ".join(errors))
-    directory = ROOT / ".study" / args.study_id
-    if (ROOT / ".study").is_symlink() or directory.is_symlink():
-        raise StudyError("Study state must not be symlinked")
+    if not args.smoke:
+        from isolated_runtime import check_host_auth
+        check_host_auth(ROOT)
+        print("Authentication: signed-in host Copilot user; no credentials enter candidate containers.", flush=True)
     with study_lock(directory):
         controller = Controller(directory, cfg, smoke=args.smoke, phase=args.phase, study_id=args.study_id)
         success = controller.go()
+        from study_report import package_results
+        print(f"Shareable results: {package_results(directory / 'results', args.study_id)}")
         if args.publish:
             from study_report import publish
             publish(directory / "results", args.study_id)
-    print(f"{'Completed diagnostic pipeline' if success else 'Partial diagnostic pipeline retained'}: "
+    label = "offline diagnostic" if args.smoke else "experiment"
+    print(f"{'Completed' if success else 'Partial'} {label}: "
           f".study/{args.study_id}/results/report.md")
     return 0 if success else 1
 

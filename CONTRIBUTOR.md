@@ -7,6 +7,51 @@ owner must record [the prospective clarification](protocol/prospective-correctio
 before affected collection. No calibration/pilot or paid probe is authorized
 by unpacking this bundle.
 
+## Run and share in one command
+
+On the prepared, accepted VM, after the prospective OSF update and owner launch
+authorization:
+
+```bash
+./run-experiment.sh
+```
+
+This runs the frozen **pilot-estimation** schedule, using the **Copilot user
+already signed in on this host**. No username, token or account file needs to be
+passed to the program or Docker. The SDK checks user authentication before any
+credit reservation; sign in to Copilot CLI on this host if that check fails.
+Authentication and licence context stay on the trusted host; candidate
+containers receive neither. Separate verified model access is still required.
+
+The launcher selects `.venv/bin/python` when available and the local metric-tool
+PATH automatically. VM preparation is one-time setup, not silently installed or
+changed during collection. All freeze, runtime, budget and registration gates
+remain enforced; this candidate is **not yet authorized for collection**.
+
+Progress shows **completed / total steps, remaining steps**, trajectory count,
+model, arm and current step. The registered pilot has 318 planned steps;
+excluded calibration has 150. A completed step can be a measured nonpass:
+progress is not a success rate. Retries do not increase the planned denominator.
+Rerunning the same command resumes only where existing durable-recovery and
+accounting rules permit; it never resets credit usage or bypasses a stop.
+
+```bash
+./run-experiment.sh --dry-run          # read-only readiness and schedule
+./run-experiment.sh --status           # saved progress; no sign-in/model call
+./run-experiment.sh --share            # recreate the local results ZIP only
+./run-experiment.sh --smoke --study-id offline-check  # fake agent, zero model credits
+```
+
+Results are generated automatically, including partial-run availability:
+`.study/pilot-estimation/results/report.md` is the readable report and
+`.study/pilot-estimation/pilot-estimation-results.zip` is the shareable package.
+The ZIP contains only validated derived reports, tables, figures and provenance,
+never raw attempts, prompts, study repositories or credentials. Nothing is
+uploaded automatically; `--publish` remains an explicit separate GitHub action.
+For explicitly authorized excluded calibration, use
+`./run-experiment.sh --phase calibration --study-id excluded-calibration`.
+Do not silently chain calibration into the pilot or reuse a study ID across phases.
+
 ## What this package contains
 
 Unlike the original protocol-only OSF attachment, the contributor archive
@@ -102,16 +147,16 @@ The supplied controller config applies a uniform **10% operational buffer**:
 | `session_soft_limit_credits` | 270 | SDK session soft limit; per original session, including any retry, not a global study cap |
 | `session_reserve_credits` | 300 | Nominal reservation ceiling; the initial reservation includes 30 credits of headroom above the soft threshold |
 | `ceiling_credits` | 270000 | Local admission stop, leaving 30000 below the registered 300000 envelope |
-| `prior_credits` | 14.54324 | Confirmed prior usage only; excludes both unknown runtime-check charges |
-| `historical_credit_provisions` | 600 held | Two exact, separately owner-approved 300-credit provisions, not actual spending |
+| `prior_credits` | 14.54324 | Confirmed prior usage only; excludes all three unknown runtime-check charges |
+| `historical_credit_provisions` | 900 held | Three exact, separately owner-approved 300-credit provisions, not actual spending |
 
-Two excluded checks have unknown actual usage and each retains a **300-credit
-reservation**. On 29 October the owner separately approved carrying both as
-historical budget provisions. Known usage plus held budget is **614.54324**,
-leaving **269385.45676 credits** within the 270000 admission threshold before
+Three excluded checks have unknown actual usage and each retains a **300-credit
+reservation**. On 29 October the owner separately approved carrying each as a
+historical budget provision. Known usage plus held budget is **914.54324**,
+leaving **269085.45676 credits** within the 270000 admission threshold before
 new reservations. This permits accounting admission, not live verification or
 collection without their separate approvals.
-Both attempts used empty non-study workspaces, 30-credit soft limits and 90-second
+All three attempts used empty non-study workspaces, 30-credit soft limits and 90-second
 deadlines, and returned no tool calls or complete billed-usage evidence.
 An SDK directory-setup defect was corrected without another model request;
 historical create/send and zero charge are not established by missing events.
@@ -119,11 +164,16 @@ The second check at `cb19559` stopped on unintended built-in MCP startup; Sonnet
 and Gemini were not called. Its durable shutdown reports zero usage, but this
 is not a complete billing receipt. The restrictive startup correction was tested
 separately in a new tmux session without sending a model prompt.
-Preserve both private attempt ledgers unchanged. Actual usage remains null;
+Preserve all three private attempt ledgers unchanged. Actual usage remains null;
 the config binds each provision to its exact source, attempt, ledger digest
-and separate owner approval. Do not book either 300 as actual usage or release
-either hold without legitimate reconciliation. If later evidence exceeds a provision,
+and separate owner approval. Do not book any 300 as actual usage or release
+any hold without legitimate reconciliation. If later evidence exceeds a provision,
 stop and account for the excess. This is not a guaranteed provider billing bound.
+The later authorized check at `5585ed1` also stopped before any candidate tool
+call, with incomplete usage. The owner separately approved retaining its full
+300-credit reservation as the third exact historical provision. This resolves
+its accounting-admission blocker, not runtime acceptance or authority for another
+model call. The original ledger remains unchanged and blocked, with actual usage null.
 Future incomplete usage still stops; it is never automatically converted to a
 historical provision. The source bundle contains no private session/authentication artifacts.
 The preparatory CLI configs also use 270. All three models/arms use the same
@@ -191,8 +241,18 @@ required in the controller environment. The SDK exposes only `isolated_exec`;
 built-in tools, discovery, MCP servers and unrelated permission requests are
 excluded or denied. Never add blanket approval, permission-skipping, extra host
 tools or trusted directories to repair a failed check. The owned CLI explicitly
-receives `--disable-builtin-mcps`; empty mode alone is not sufficient to stop
-default MCP startup. Unexpected activity still fails closed.
+receives `--disable-builtin-mcps`, but CLI 1.0.105 does not apply that interactive
+setting in headless mode. The authoritative restriction is the SDK session's
+`disabledMcpServers: ["github-mcp-server"]`. Empty mode/tool exclusion alone
+does not stop server startup. The SDK may report that exact disabled builtin as
+inert catalog metadata; pending/connected activity, foreign catalog entries and
+all MCP tools still fail closed.
+
+The opt-in transport regression exercises actual deferred startup inside an
+owned tmux session with `MVE_COPILOT_CLI` set to the pinned executable. A registered
+local handler rejects every inference HTTP/WebSocket request without forwarding
+to a provider. It verifies startup and the isolated-only tool catalog, not real
+model access or complete provider billing. Ordinary `npm test` does not run it.
 
 The bounded transport journal retains SDK events received after a failure,
 including shutdown usage diagnostics. Those observations do not clear the

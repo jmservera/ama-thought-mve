@@ -137,6 +137,27 @@ def replace_tree(directory: Path, files: object) -> None:
         path.chmod(mode)
 
 
+def check_host_auth(root: Path = ROOT) -> None:
+    """Verify the signed-in host user before reserving credits."""
+    cli = shutil.which("copilot")
+    if not cli:
+        raise StudyError("Copilot CLI is missing; install the pinned version and sign in on this host")
+    base = root / ".study/host-auth-check"
+    if base.is_symlink():
+        raise StudyError("Host authentication scratch must not be symlinked")
+    from study_io import command
+    try:
+        status = json.loads(command([
+            "node", str(root / "harness/copilot-sdk/transport.mjs"), "--check-runtime",
+            "--cli-path", str(Path(cli).resolve()), "--base-directory", str(base.resolve()),
+        ], cwd=root, timeout=40))
+    except (StudyError, ValueError) as error:
+        raise StudyError("Cannot verify Copilot sign-in; check the pinned CLI/SDK and sign in on this host") from error
+    if (not isinstance(status, dict) or status.get("isAuthenticated") is not True
+            or status.get("userAuthentication") is not True):
+        raise StudyError("Copilot user sign-in required on this host; never copy credentials into Docker")
+
+
 def runtime_receipt(root: Path = ROOT) -> dict:
     """Require source-bound offline evidence, not an arbitrary image setting."""
     from study import fingerprint

@@ -181,12 +181,17 @@ for `gpt-6.1-sol-authorized-check-20261029-1` at source `cb19559`, after unexpec
 built-in MCP startup stopped the check. Its source-bound ledger SHA-256 is
 `2d42df9f95198e97944f23aa67bfff9a41097463ebf0ea877c37928e3f561cf6`.
 Its actual charge also remains unknown despite a zero-valued SDK shutdown summary.
-Configuration admits only the exact old provision or the exact ordered pair;
+The owner separately approved the third check,
+`gpt-6.1-sol-authorized-check-20261029-5585ed1-1`, at source `5585ed1`.
+It also stopped on a GitHub MCP pending notification with no candidate tool call
+or complete usage receipt. Its immutable ledger SHA-256 is
+`63804ae9c968423a651b1afe626aa849ce7178c0f06e379a3a5c18a0592ddf25`.
+Configuration admits only ordered prefixes of these three exact approvals;
 it never converts another failure automatically. Current known spending plus
-600 held is **614.54324**, leaving **269385.45676** inside the 270000 admission
-threshold before new reservations. Both original ledgers remain unchanged.
+900 held is **914.54324**, leaving **269085.45676** inside the 270000 admission
+threshold before new reservations. All three original ledgers remain unchanged.
 
-These are two separately approved prospective financial-policy exceptions for
+These are three separately approved prospective financial-policy exceptions for
 excluded historical checks, not actual charges, guaranteed billing bounds, a claim of
 complete historical accounting, or permission to ignore future missing usage.
 Future unknown usage and overruns still stop, and session limits/security
@@ -200,6 +205,30 @@ owner-authorized source-bound freeze. This financial decision itself authorizes
 no account changes, paid probes or calibration/pilot launch.
 Record this addendum and its exact revised source prospectively in OSF before
 affected collection; preserve the original approved attachment unchanged.
+
+### PR review implementation corrections and operator workflow
+
+Mandatory API attribution now follows public export identity rather than an
+implementation's internal class name. Actual candidate view objects returned by
+the declared `view_as`/`view_for` factories receive the declared reader contract;
+unrelated objects, unsupported methods and external failures remain unattributed.
+Both trusted evaluation runners use the same rule. No contract-panel identity,
+feature requirement or reference implementation changes.
+
+A failed isolated measurement may return its nonzero exit without a result file,
+so the existing bounded second measurement can run on the same retained snapshot.
+A successful measurement must still provide a valid artifact. No extra agent
+retry, time allowance or credit allocation is introduced. Consolidation commit
+counts now exclude the trusted seed history and count only retained step-local
+commits, with zero for unchanged or discarded consolidations.
+
+The one-command launcher preserves all collection gates, checks the current
+host Copilot user's authentication before reserving credits, reports durable
+completed/remaining steps, and creates a validated derived-results-only ZIP.
+Credentials never enter candidate containers. These operator conveniences are
+not registration, scientific acceptance, provider access evidence or launch
+authorization. The changed protected helper requires a separately identified
+image and fresh exact-source offline canaries before acceptance.
 
 ## 29 October runtime implementation: isolated SDK candidate
 

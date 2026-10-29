@@ -58,6 +58,29 @@ It uses a separate `results/<study-id>` branch, never pushes raw logs or changes
 your source branch, and creates/updates a PR against that source branch.
 Files are allowlisted, credential-checked and capped at 512 KiB each / 4 MiB total.
 
+### Run the accepted experiment
+
+After one-time VM preparation, source/runtime acceptance, the prospective OSF
+update and owner launch authorization, run:
+
+```bash
+./run-experiment.sh
+```
+
+It uses the **Copilot user already signed in on the host**; no identity or
+credentials are copied into Docker. The local Python environment is selected
+automatically. Progress shows completed/total steps, remaining steps and the
+current model/arm. The default pilot has 318 planned steps.
+Rerun the same command for permitted durable recovery; `--status` shows saved
+progress without model calls.
+
+A shareable, credential-checked ZIP is generated automatically at
+`.study/pilot-estimation/pilot-estimation-results.zip`, alongside the readable
+`results/report.md`. `./run-experiment.sh --share` recreates that ZIP without
+running models or uploading anything. See the
+[operator instructions](CONTRIBUTOR.md#run-and-share-in-one-command).
+**The convenience launcher does not bypass the currently pending readiness gates.**
+
 **Credit limits are soft; the owner accepts the residual financial risk.**
 The supplied settings use a 10% buffer: **270 AI Credits per original session**
 (shared across any infrastructure retry), below the registered 300, and a
@@ -72,13 +95,13 @@ study hard cap is no longer required; the read-only budget audit is optional.
 See [CONTRIBUTOR.md](CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk)
 for monitoring, reset and overrun instructions.
 
-**Historical budget provisions:** two excluded empty-workspace runtime checks
-failed, first during SDK setup and then on unexpected built-in MCP startup.
-Neither produced tool calls or complete usage evidence. On 29 October the owner
+**Historical budget provisions:** three excluded empty-workspace runtime checks
+failed, first during SDK setup and then twice on unexpected built-in MCP startup.
+None produced tool calls or complete usage evidence. On 29 October the owner
 separately approved retaining each 300-credit reservation as an exact
 source/evidence-bound unknown provision. Known usage remains **14.54324**;
-**600 credits** are held separately, not booked as spending or certified zero.
-Known usage plus held budget is **614.54324**, leaving **269385.45676** within
+**900 credits** are held separately, not booked as spending or certified zero.
+Known usage plus held budget is **914.54324**, leaving **269085.45676** within
 the 270000 local admission threshold. Total actual prior usage remains unknown.
 These provisions are not guaranteed billing bounds. Future
 unknown usage still stops new work; live verification and collection gates remain.

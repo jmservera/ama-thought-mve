@@ -109,6 +109,32 @@ not measured consumption, leaving 269385.45676 inside local admission threshold.
 Future unknown usage and overruns still stop; this grants no model-retry or
 collection permission.
 
+## 29 October renewed check at `5585ed1`
+
+The owner authorized another bounded, sequential check batch at
+`5585ed1cf8fa27b253c42b40325aa54cc3ab25bd`, stopping at the first failure.
+Only `gpt-6.1-sol-authorized-check-20261029-5585ed1-1` ran: 30-credit soft
+limit, 90-second allowance, 300-credit reservation, 4.0309 seconds and zero
+candidate tool calls. The guard stopped on a GitHub MCP pending notification
+during send despite the CLI disable flag. Sonnet/Gemini were not called and
+there was no retry, feature/CR1 material, calibration or pilot collection.
+
+The private ledger SHA-256 is
+`63804ae9c968423a651b1afe626aa849ce7178c0f06e379a3a5c18a0592ddf25`.
+Usage remains unknown. On 29 October the owner separately approved this full
+300-credit reservation as the third exact historical provision, preserving the
+original ledger unchanged. Together with the two earlier approvals, 900 credits
+are held separately from 14.54324 known usage: 914.54324 accounted budget, leaving
+269085.45676 within the local admission threshold. This is not measured spending
+or complete billing, and grants no model-retry or collection permission. Future
+unknown usage and overruns still stop.
+
+Subsequent offline SDK diagnostics used no-prompt initialization and a registered
+local inference handler, rejecting requests without forwarding to a model
+provider. They exposed the headless CLI flag's omission and the SDK's inert
+disabled-server catalog entry. These are excluded implementation diagnostics,
+not model exercise outcomes or complete billing evidence for earlier attempts.
+
 The restrictive startup flag and post-failure event-retention correction were
 validated offline, including a new owned tmux session with no model prompt:
 zero user requests, no MCP/assistant/model/tool activity and owned cleanup.

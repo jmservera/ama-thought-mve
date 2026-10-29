@@ -95,19 +95,27 @@ No unattended main-study mode is authorised.
 
 ### Configuration and real execution gates
 
+The operator entry point is `./run-experiment.sh` on the prepared and accepted VM.
+It selects the local environment, verifies the signed-in host Copilot user before
+credit reservation, shows completed/remaining steps and creates a derived-only
+results ZIP. `--status` and `--share` read saved work without model calls or
+authentication. No credentials enter Docker and no results upload is automatic.
+See [one-command instructions](CONTRIBUTOR.md#run-and-share-in-one-command).
+The existing readiness/freeze/registration gates still apply.
+
 The controller reads `harness/study-config.json`; `--config PATH` selects a
 different JSON object. Its settings are seed, ceiling (positive, never >300,000 AI
 credits; supplied 270,000), prior spending, per-session reservation, separate
 integer CLI soft limit (30 through 300; supplied 270), maximum attempts,
 absolute study allowance and minimum disk space. Historical owner-confirmed
-usage is **14.54324**; two excluded runtime checks still have unknown usage. The
+usage is **14.54324**; three excluded runtime checks still have unknown usage. The
 owner separately approved each full **300-credit** reservation as a historical
 budget provision on 29 October. `prior_credits` records only known usage;
 `historical_credit_provisions` binds each hold to its exact approved
-attempt/source/ledger digest. Admission counts known usage plus **600 held**,
-leaving **269385.45676**
+attempt/source/ledger digest. Admission counts known usage plus **900 held**,
+leaving **269085.45676**
 before new reservations. Actual historical total remains unknown; reports
-explicitly disclose that incompleteness. Both original private ledgers are unchanged.
+explicitly disclose that incompleteness. All three original private ledgers are unchanged.
 Do not infer zero, call the provision actual spending, or apply this exception
 to future failures. Future incomplete usage and overruns still stop admission.
 Live checks and collection still require separate acceptance. See the prior-data disclosure and

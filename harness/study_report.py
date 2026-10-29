@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import zipfile
 from pathlib import Path
 
 from analyze import (
@@ -21,8 +22,8 @@ from analyze import (
     step_usage,
     summarise_run,
 )
-from study_io import ROOT, StudyError, atomic_json, command, read_json
 from pilot_analysis import analyze_pilot
+from study_io import ROOT, StudyError, atomic_json, command, read_json
 
 EXPORTS = (
     "summary.json", "summary.md", "series.csv", "hypotheses.csv", "intervals.csv",
@@ -451,6 +452,31 @@ def validated_artifacts(directory: Path) -> list[Path]:
 def read_provenance(directory: Path) -> dict:
     """Require an object-shaped generated publication provenance."""
     return read_json(directory / "provenance.json")
+
+
+def package_results(directory: Path, study_id: str) -> Path:
+    """Create a deterministic, private ZIP from the existing publication allowlist."""
+    if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", study_id):
+        raise StudyError("Invalid shareable-results study ID")
+    paths = validated_artifacts(directory)
+    if read_provenance(directory).get("study_id") != study_id:
+        raise StudyError("Study ID differs from result provenance")
+    target = directory.parent / f"{study_id}-results.zip"
+    with tempfile.NamedTemporaryFile(dir=directory.parent, prefix="results-", delete=False) as stream:
+        temporary = Path(stream.name)
+        try:
+            with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                for path in paths:
+                    info = zipfile.ZipInfo(f"{study_id}/{path.name}", date_time=(1980, 1, 1, 0, 0, 0))
+                    info.compress_type = zipfile.ZIP_DEFLATED
+                    info.external_attr = 0o600 << 16
+                    archive.writestr(info, path.read_bytes())
+            stream.flush()
+            os.fsync(stream.fileno())
+            os.replace(temporary, target)
+        finally:
+            temporary.unlink(missing_ok=True)
+    return target
 
 
 def publish(directory: Path, study_id: str, root: Path = ROOT) -> str:

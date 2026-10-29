@@ -1180,6 +1180,9 @@ def test_unattributed_and_infrastructure_exceptions_remain_unknown(
 @pytest.mark.parametrize("fault, expected", [
     ("missing_export", "failed"), ("missing_method", "failed"), ("missing_package", "failed"),
     ("missing_field", "failed"), ("module_export", "failed"),
+    ("aliased_method", "failed"), ("aliased_field", "failed"),
+    ("missing_view_as", "failed"), ("missing_view_for", "failed"),
+    ("unrelated_view", "error"), ("view_write", "error"), ("external_view", "error"),
     ("typo_export", "error"), ("typo_method", "error"), ("external_dependency", "error"),
     ("collection_assertion", "error"), ("dynamic_typo", "error"),
 ])
@@ -1192,6 +1195,8 @@ def test_only_declared_missing_candidate_apis_are_nonpasses(
         "features": [{"id": "f1", "api": [
             "Workbench() keeps everything in memory.", "exercise() -> bool.",
             "OnHold importable from workbench.", "open_case() -> Case with attributes id, stage.",
+            "get_case(case_id) -> Case.", "view_as(role) -> read-only view.",
+            "view_for(name) -> read-only view.",
         ]}],
     }), encoding="utf-8")
     package = repo / "src" / "workbench.py"
@@ -1205,14 +1210,27 @@ def test_only_declared_missing_candidate_apis_are_nonpasses(
     elif fault == "dynamic_typo":
         package.write_text("class Workbench:\n    def __getattr__(self, name):\n        raise AttributeError(name)\n",
                            encoding="utf-8")
+    elif fault == "aliased_method":
+        package.write_text("class Engine:\n    pass\nWorkbench = Engine\n", encoding="utf-8")
+    elif fault == "aliased_field":
+        package.write_text("class Record:\n    pass\nCase = Record\n", encoding="utf-8")
+    elif fault in ("missing_view_as", "missing_view_for", "unrelated_view", "view_write", "external_view"):
+        package.write_text(
+            "from types import SimpleNamespace\n"
+            "class View:\n    pass\n"
+            "class Engine:\n"
+            "    def view_as(self, role):\n"
+            f"        return {'SimpleNamespace()' if fault == 'external_view' else 'View()'}\n"
+            "    def view_for(self, name):\n        return self.view_as(name)\n"
+            "Workbench = Engine\n", encoding="utf-8")
     code = "from workbench import Workbench\n\ndef test_feature():\n    assert True\n"
     if fault in ("missing_export", "typo_export"):
         name = "OnHold" if fault == "missing_export" else "TypoHelper"
         code = f"from workbench import {name}\n\ndef test_feature():\n    assert True\n"
-    elif fault in ("missing_method", "typo_method"):
-        name = "exercise" if fault == "missing_method" else "typo_helper"
+    elif fault in ("missing_method", "aliased_method", "typo_method"):
+        name = "exercise" if fault in ("missing_method", "aliased_method") else "typo_helper"
         code = f"from workbench import Workbench\n\ndef test_feature():\n    Workbench().{name}()\n"
-    elif fault == "missing_field":
+    elif fault in ("missing_field", "aliased_field"):
         code = "from workbench import Case\n\ndef test_feature():\n    Case().stage\n"
     elif fault == "module_export":
         code = "import workbench\n\ndef test_feature():\n    workbench.OnHold\n"
@@ -1220,6 +1238,14 @@ def test_only_declared_missing_candidate_apis_are_nonpasses(
         code = "assert False, 'broken collection helper'\n\ndef test_feature():\n    assert True\n"
     elif fault == "dynamic_typo":
         code = "from workbench import Workbench\n\ndef test_feature():\n    Workbench().typo_helper()\n"
+    elif fault in ("missing_view_as", "missing_view_for", "unrelated_view", "view_write", "external_view"):
+        factory = "view_for" if fault == "missing_view_for" else "view_as"
+        reader = "exercise" if fault == "view_write" else "get_case"
+        code = ("from workbench import Workbench, View\n\ndef test_feature():\n"
+                f"    view = Workbench().{factory}('reader')\n")
+        if fault == "unrelated_view":
+            code += "    view = View()\n"
+        code += f"    view.{reader}('case')\n"
     test.write_text(code, encoding="utf-8")
 
     result = measure_module.run_hidden(str(repo), str(suite), ["f1"], runner)
@@ -1228,9 +1254,32 @@ def test_only_declared_missing_candidate_apis_are_nonpasses(
     evidence = result.provenance["test_feature::test_feature"]
     assert evidence["diagnostic"] and evidence["raw_outcome"] in ("failed", "error")
     assert evidence["attribution"] == (
-        "mandatory_api" if fault in ("missing_method", "missing_field", "module_export") else
+        "mandatory_api" if fault in ("missing_method", "missing_field", "module_export",
+                                    "aliased_method", "aliased_field", "missing_view_as", "missing_view_for") else
         "mandatory_import" if expected == "failed" else "unknown"
     )
+
+
+def test_view_contract_tracking_restores_existing_profiler_after_test_exception(measure_module, tmp_path):
+    attribution = importlib.import_module("failure_attribution")
+    events = []
+
+    def previous(frame, event, argument):
+        events.append(event)
+
+    original = sys.getprofile()
+    sys.setprofile(previous)
+    try:
+        with (
+            pytest.raises(ValueError, match="fixture"),
+            attribution.view_contracts(str(tmp_path), {"package": "fixture", "methods": ["view_as"]}, {}),
+        ):
+            assert sys.getprofile() is not previous
+            raise ValueError("fixture")
+        assert sys.getprofile() is previous
+    finally:
+        sys.setprofile(original)
+    assert events
 
 
 def test_missing_f5_export_does_not_hide_retained_f4_passes(tmp_path, measure_module, runner):

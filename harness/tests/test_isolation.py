@@ -205,3 +205,32 @@ def test_supervisor_refuses_threaded_credential_transition(monkeypatch):
     )
     with pytest.raises(helper.ProtocolError, match="single-threaded"):
         helper.run_child(["/bin/true"], 1)
+
+
+@pytest.mark.parametrize("exit_code", [0, 7])
+def test_supervisor_requires_measurement_file_only_on_success(tmp_path, monkeypatch, exit_code):
+    monkeypatch.setattr(helper, "run_child", lambda *args, **kwargs: {
+        "exit_code": exit_code, "stdout": "", "stderr": "fixture",
+    })
+    monkeypatch.setattr(helper, "Path", lambda path: tmp_path if path == "/tmp" else Path(path))
+    request = {"op": "evaluate", "argv": ["/usr/bin/false"], "result_path": "/tmp/measurement.json"}
+    if exit_code:
+        result, state = helper.supervisor(request, b"")
+        assert result["exit_code"] == exit_code and result["result"] is None and state == b""
+    else:
+        with pytest.raises(FileNotFoundError):
+            helper.supervisor(request, b"")
+    with pytest.raises(helper.ProtocolError):
+        helper.supervisor(dict(request, result_path="/etc/passwd"), b"")
+
+
+def test_export_counts_only_commits_after_trusted_seed_with_existing_history(tmp_path, monkeypatch):
+    monkeypatch.setattr(helper, "WORK", tmp_path)
+    helper.seed_child([{"path": "source.py", "mode": 0o644,
+                        "content": base64.b64encode(b"seed\n").decode()}])
+    helper.git("commit", "--allow-empty", "-qm", "earlier feature")
+    seed_head = helper.git("rev-parse", "HEAD").decode().strip()
+    assert helper.export_child(seed_head=seed_head)["commit_count"] == 0
+    for message in ("first consolidation commit", "second consolidation commit"):
+        helper.git("commit", "--allow-empty", "-qm", message)
+    assert helper.export_child(seed_head=seed_head)["commit_count"] == 2

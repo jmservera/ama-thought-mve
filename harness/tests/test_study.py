@@ -63,11 +63,10 @@ def test_unknown_usage_holds_reservation_and_blocks(study, usage):
         study.reserve(ledger, "next", 0)
 
 
-@pytest.mark.parametrize("include_startup", [False, True])
-def test_historical_hold_counts_against_admission_but_future_unknown_still_stops(study, tmp_path, include_startup):
+@pytest.mark.parametrize("provision_count", [1, 2, 3])
+def test_historical_hold_counts_against_admission_but_future_unknown_still_stops(study, tmp_path, provision_count):
     cfg = study.read_json(ROOT / "harness/study-config.json")
-    if not include_startup:
-        cfg["historical_credit_provisions"] = cfg["historical_credit_provisions"][:1]
+    cfg["historical_credit_provisions"] = cfg["historical_credit_provisions"][:provision_count]
     study.validate_config(cfg, smoke=False)
     current = study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="historical-hold")
     ledger = current.state["ledger"]
@@ -75,7 +74,7 @@ def test_historical_hold_counts_against_admission_but_future_unknown_still_stops
     assert ledger["prior_nano"] == study.credits("14.54324")
     assert all(item["actual_nano"] is None and item["status"] == "unknown" for item in provisions)
     room = ledger["ceiling_nano"] - ledger["prior_nano"] - sum(item["reserved_nano"] for item in provisions)
-    assert room == study.credits("269385.45676" if include_startup else "269685.45676")
+    assert room == study.credits({1: "269685.45676", 2: "269385.45676", 3: "269085.45676"}[provision_count])
     study.reserve(ledger, "new", room)
     with pytest.raises(study.StudyError, match="ceiling"):
         study.reserve(ledger, "extra", 1)
@@ -98,7 +97,8 @@ def test_historical_hold_cannot_be_forged_or_reused(study, tmp_path):
             with pytest.raises(study.StudyError, match="exact owner-approved"):
                 study.validate_config(forged, smoke=False)
     for invalid in ([originals[0], originals[0]], [*originals, originals[1]],
-                    originals[1:], originals[::-1]):
+                    originals[1:], originals[::-1], [originals[-1]],
+                    [originals[0], originals[-1]]):
         with pytest.raises(study.StudyError, match="exact owner-approved"):
             study.validate_config(dict(cfg, historical_credit_provisions=invalid), smoke=False)
     current = study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="no-reuse")
@@ -107,7 +107,7 @@ def test_historical_hold_cannot_be_forged_or_reused(study, tmp_path):
             study.reserve(current.state["ledger"], original["attempt_id"], 0)
 
 
-@pytest.mark.parametrize("hold_index", [0, 1])
+@pytest.mark.parametrize("hold_index", [0, 1, 2])
 def test_historical_hold_is_bound_to_resume_state(study, tmp_path, hold_index):
     cfg = study.read_json(ROOT / "harness/study-config.json")
     current = study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="resume-hold")
@@ -125,7 +125,7 @@ def test_historical_hold_requires_known_prior_and_remaining_budget(study):
     with pytest.raises(study.StudyError, match="confirmed known prior"):
         study.validate_config(dict(cfg, prior_credits=0), smoke=False)
     with pytest.raises(study.StudyError, match="historical provisions exceed"):
-        study.validate_config(dict(cfg, ceiling_credits=614.54323), smoke=False)
+        study.validate_config(dict(cfg, ceiling_credits=914.54323), smoke=False)
 
 
 def test_ceiling_cannot_be_raised_or_prior_spend_assumed(study, config):
@@ -360,6 +360,7 @@ def test_measured_non_delivery_is_retained_and_not_retried(study, config, tmp_pa
     monkeypatch.setattr(study.StudyRun, "run_agent", no_work)
     current = controller(study, config, tmp_path)
     assert current.go()
+    assert sum(cell["completed_steps"] for cell in current.state["cells"]) == 5
     records = [json.loads(line) for path in (tmp_path / "runs").glob("*/steps.jsonl")
                for line in path.read_text().splitlines()]
     assert sum(len(cell["attempts"]) for cell in current.state["cells"]) == 5
@@ -384,8 +385,19 @@ def test_recorded_step_survives_crash_before_controller_checkpoint_clear(study, 
     monkeypatch.setattr(study.StudyRun, "record", original)
     resumed = controller(study, config, tmp_path)
     assert resumed.go()
+    assert sum(cell["completed_steps"] for cell in resumed.state["cells"]) == 5
     assert sum(len(cell["attempts"]) for cell in resumed.state["cells"]) == 5
     assert sum(len(path.read_text().splitlines()) for path in (tmp_path / "runs").glob("*/steps.jsonl")) == 5
+
+
+def test_one_line_launcher_previews_from_any_directory_without_model_calls(tmp_path):
+    result = subprocess.run(
+        [str(ROOT / "run-experiment.sh"), "--smoke", "--dry-run"], cwd=tmp_path,
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    preview = json.loads(result.stdout)
+    assert preview["mode"] == "stub-smoke" and preview["errors"] == []
 
 
 def test_docker_has_only_repo_and_session_mounts_and_no_token_argument(study, tmp_path):

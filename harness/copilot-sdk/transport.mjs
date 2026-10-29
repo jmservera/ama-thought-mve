@@ -9,6 +9,7 @@ import { LIMITS, makeRuntime } from './runtime-guard.mjs';
 export const SDK_VERSION = '1.0.28';
 export const CLI_VERSION = '1.0.105';
 export const PROTOCOL_VERSION = 3;
+const DISABLED_BUILTIN_MCP = 'github-mcp-server';
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const keysOnly = (value, names) => object(value) && Object.keys(value).every(key => names.includes(key));
 const text = value => typeof value === 'string' && value.length > 0;
@@ -264,8 +265,15 @@ export class Evidence {
       'session.mcp_servers_loaded': 'servers', 'session.extensions_loaded': 'extensions',
     };
     const catalog = catalogs[event.type];
-    if (catalog && (!Array.isArray(data[catalog]) || data[catalog].length))
-      throw fault('unexpected_discovery');
+    if (catalog) {
+      const entries = data[catalog];
+      const inertBuiltin = catalog === 'servers' && Array.isArray(entries) &&
+        entries.length === 1 && keysOnly(entries[0], ['name', 'status', 'source']) &&
+        entries[0].name === DISABLED_BUILTIN_MCP && entries[0].status === 'disabled' &&
+        entries[0].source === 'builtin';
+      if (!Array.isArray(entries) || (entries.length && !inertBuiltin))
+        throw fault('unexpected_discovery');
+    }
   }
   receipt(errorCode = null) {
     const shutdown = this.shutdown;
@@ -316,6 +324,7 @@ export function sessionConfig(request, sessionId, handler, onEvent) {
     sessionLimits: { maxAiCredits: request.maxAiCredits },
     availableTools: new ToolSet().addCustom('isolated_exec'),
     excludedTools: new ToolSet().addBuiltIn('*').addMcp('*'),
+    disabledMcpServers: [DISABLED_BUILTIN_MCP],
     enableConfigDiscovery: false,
     enableExperimentalMode: false,
     infiniteSessions: { enabled: false },
