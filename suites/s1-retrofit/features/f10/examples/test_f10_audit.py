@@ -1,5 +1,7 @@
 import csv
+import hashlib
 import io
+import json
 
 from workbench import Workbench
 
@@ -19,14 +21,21 @@ def test_f10_writes_are_chained_in_the_audit_trail():
     assert log[2]["by"] == "ana" and log[2]["target"] == cid
     assert log[1]["prev_hash"] == log[0]["hash"]
     assert wb.verify_audit() is True
+    for entry in log:
+        payload = json.dumps(
+            [entry[key] for key in ("seq", "action", "target", "by", "prev_hash")],
+            ensure_ascii=True, separators=(", ", ": "),
+        )
+        assert entry["hash"] == hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def test_f10_tampering_is_detected():
     wb, _ = make()
-    log = wb.audit_log()
-    assert wb.verify_audit(log) is True
-    log[1]["target"] = "C-9999"
-    assert wb.verify_audit(log) is False
+    for field, value in (("target", "C-9999"), ("action", "assign")):
+        log = wb.audit_log()
+        assert wb.verify_audit(log) is True
+        log[1][field] = value
+        assert wb.verify_audit(log) is False
 
 
 def test_f10_export_honours_filters_and_visibility():

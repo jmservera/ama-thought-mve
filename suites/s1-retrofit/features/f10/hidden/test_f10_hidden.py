@@ -1,6 +1,8 @@
 import csv
 import datetime
+import hashlib
 import io
+import json
 
 from workbench import NotFoundError, ValidationError, Workbench
 
@@ -28,7 +30,7 @@ def rows(text):
 
 def test_h10_entry_shape_and_chain():
     wb, cid = make()
-    wb.assign(cid, "ana", by="lead")
+    wb.assign(cid, "ana", by="lead\u00e9")
     log = wb.audit_log()
     assert all(set(e) == KEYS for e in log)
     assert [e["seq"] for e in log] == [1, 2, 3]
@@ -37,6 +39,12 @@ def test_h10_entry_shape_and_chain():
         assert cur["prev_hash"] == prev["hash"]
     assert all(len(e["hash"]) == 64 and int(e["hash"], 16) >= 0 for e in log)
     assert len({e["hash"] for e in log}) == 3
+    for entry in log:
+        payload = json.dumps(
+            [entry[key] for key in ("seq", "action", "target", "by", "prev_hash")],
+            ensure_ascii=True, separators=(", ", ": "),
+        )
+        assert entry["hash"] == hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def test_h10_targets_and_actors():
@@ -122,12 +130,10 @@ def test_h10_removed_or_reordered_entries_are_detected():
 def test_h10_changed_actor_or_hash_is_detected():
     wb, cid = make()
     wb.move(cid, "surveyed", by="ana")
-    log = wb.audit_log()
-    log[2]["by"] = "mallory"
-    assert wb.verify_audit(log) is False
-    log = wb.audit_log()
-    log[2]["hash"] = "0" * 64
-    assert wb.verify_audit(log) is False
+    for field, value in (("action", "assign"), ("by", "mallory"), ("hash", "0" * 64)):
+        log = wb.audit_log()
+        log[2][field] = value
+        assert wb.verify_audit(log) is False
 
 
 def test_h10_audit_log_returns_copies():

@@ -234,3 +234,40 @@ source; scientific acceptance, panel acceptance, runtime/freeze and collection
 permission are not synthesized. Record this revision through the existing
 OSF registration update process before affected collection; do not replace the
 original immutable attachments.
+
+## 29 October F10 audit oracle and canonical encoding
+
+The independent source review demonstrated two nonconforming audit
+implementations that passed every current test: omitting `action` from the hash
+payload and substituting a truncated SHA-512 digest. The reference itself
+already used SHA-256 over all required fields; the gap was oracle coverage.
+
+The owner explicitly selected a prospective public canonical encoding:
+
+```python
+payload = json.dumps(
+    [seq, action, target, by, prev_hash],
+    ensure_ascii=True,
+    separators=(", ", ": "),
+).encode("utf-8")
+digest = hashlib.sha256(payload).hexdigest()
+```
+
+There is no trailing newline. This matches the existing reference's output,
+including escaped non-ASCII actors, but **narrows previously unspecified
+serialization freedom**. It is a newly explicit public requirement, not a
+retroactive claim that an undocumented encoding was always mandatory.
+
+Existing F10 visible and hidden tests now independently check the digest and
+reject changed actions, rather than relying only on the candidate's own
+verifier. The 142 hidden identities and eligibility mapping are retained;
+affected suite/module/oracle hashes are regenerated as an unaccepted candidate.
+Reference sources/snapshots remain unchanged. No calibration/pilot observations
+are relabelled, recollected or pooled by this correction.
+
+Record this clarification and its exact revised source in the existing OSF
+update before affected collection, preserving original attachments. Earlier
+review recommendations do not automatically accept the revised fingerprint;
+affected-source assessment and explicit owner acceptance remain required.
+The excluded setup probe's unknown usage/reservation, live runtime evidence,
+owner freeze and collection gates are unchanged.

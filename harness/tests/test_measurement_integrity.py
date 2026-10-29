@@ -1289,3 +1289,30 @@ def test_measurement_preserves_private_attribution_without_changing_dict_consume
     assert result["hidden"] == {"test_feature::test_feature": "failed"}
     assert result["hidden_passed"] == 0 and result["hidden_total"] == 1
     assert result["hidden_provenance"] == provenance
+
+
+@pytest.mark.parametrize(("original", "replacement", "omits_action"), [
+    ('entry.get("seq"), entry.get("action"), entry.get("target")',
+     'entry.get("seq"), entry.get("target")', True),
+    ('hashlib.sha256(payload.encode("utf-8")).hexdigest()',
+     'hashlib.sha512(payload.encode("utf-8")).hexdigest()[:64]', False),
+], ids=["omitted-action", "non-sha256"])
+def test_f10_oracle_rejects_nonconforming_audit_hashes(
+    tmp_path, validator_module, original, replacement, omits_action
+):
+    suite = KIT_ROOT / "suites" / "s1-retrofit"
+    source = (suite / "reference/cr1/workbench/__init__.py").read_text(encoding="utf-8")
+    assert source.count(original) == 1
+    package = tmp_path / "workbench"
+    package.mkdir()
+    (package / "__init__.py").write_text(source.replace(original, replacement), encoding="utf-8")
+    feature = suite / "features/f10"
+    tests = [str(feature / "examples/test_f10_audit.py"), str(feature / "hidden/test_f10_hidden.py")]
+
+    outcomes = validator_module.run_isolated(tests, str(package))
+
+    assert set(outcomes.values()) <= {"passed", "failed"}
+    assert outcomes["test_f10_audit::test_f10_writes_are_chained_in_the_audit_trail"] == "failed"
+    assert outcomes["test_f10_hidden::test_h10_entry_shape_and_chain"] == "failed"
+    if omits_action:
+        assert outcomes["test_f10_hidden::test_h10_changed_actor_or_hash_is_detected"] == "failed"
