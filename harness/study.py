@@ -243,8 +243,9 @@ def preflight(cfg: dict, *, smoke: bool, root: Path = ROOT) -> list[str]:
                 errors.extend(freeze_errors(cfg, root))
             except (StudyError, OSError, ValueError, subprocess.TimeoutExpired):
                 errors.append("Freeze evidence unreadable or tag verification failed")
-        errors.append("Paid execution disabled: Copilot 1.0.105 has only soft credit caps; "
-                      "a provider-enforced hard billing boundary is required")
+        errors.append("Paid execution disabled: CLI soft credit caps are not a "
+                      "provider-enforced hard billing boundary; an audited user-level "
+                      "AI-credit budget and an isolated live backend are required")
     return errors
 
 
@@ -292,7 +293,12 @@ def docker_command(repo: Path, session: Path, image: str, prompt: str, cap: int,
         "-e", "HOME=/session/home", "-e", "COPILOT_HOME=/session/copilot-home",
         "-e", "COPILOT_AUTO_UPDATE=false", image,
         "copilot", "-C", "/work", "-p", prompt, "--model", model,
-        "--reasoning-effort", "medium", "--allow-all-tools", "--no-ask-user",
+        "--reasoning-effort", "medium", "--no-ask-user",
+        "--allow-tool", "write(/work)",
+        "--allow-tool", "shell(python3)",
+        "--allow-tool", "shell(make)",
+        "--allow-tool", "shell(git status)",
+        "--allow-tool", "shell(git diff)",
         "--no-custom-instructions", "--disable-builtin-mcps", "--no-auto-update",
         "--deny-tool", "shell(git push)", "--deny-tool", "url",
         "--deny-tool", "shell(curl)", "--deny-tool", "shell(wget)",

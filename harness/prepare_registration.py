@@ -20,6 +20,7 @@ SUBMISSION_FILES = (
     "protocol/readiness-handoff.md",
     "protocol/prior-data-disclosure.md",
     "protocol/osf-submission-checklist.md",
+    "protocol/prospective-corrections-2026-10-28.md",
     "harness/prompts/feature-step.prompt.md", "harness/prompts/consolidation-step.prompt.md",
     "harness/prompts/review-only-step.prompt.md", "harness/prompts/change-request.prompt.md",
 )

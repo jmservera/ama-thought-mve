@@ -1113,3 +1113,179 @@ def test_given_test_function_returning_non_outcome_when_stdlib_runs_then_report_
     result = measure_module.run_hidden(str(repo), str(suite), ["f1"], "stdlib")
 
     assert result == {"test_feature::test_it": "passed"}
+
+
+@pytest.mark.parametrize("exception", ["ValueError", "TypeError", "ProductError"])
+@pytest.mark.parametrize("style", ["function", "unittest", "import"])
+def test_candidate_source_exceptions_are_nonpasses_with_raw_private_evidence(
+    hidden_candidate, measure_module, runner, exception, style
+):
+    repo, suite, test = hidden_candidate
+    (repo / "src" / "product.py").write_text(
+        "class ProductError(Exception):\n    pass\n\n"
+        + (f"raise {exception}('private candidate diagnostic')\n" if style == "import" else
+           f"def exercise():\n    raise {exception}('private candidate diagnostic')\n"), encoding="utf-8"
+    )
+    if style != "unittest":
+        code = "from product import exercise\n\ndef test_feature():\n    exercise()\n"
+        identity = "test_feature::test_feature"
+    else:
+        code = ("import unittest\nfrom product import exercise\n\nclass TestFeature(unittest.TestCase):\n"
+                "    def test_feature(self):\n        exercise()\n")
+        identity = "test_feature::TestFeature::test_feature"
+    test.write_text(code, encoding="utf-8")
+
+    result = measure_module.run_hidden(str(repo), str(suite), ["f1"], runner)
+
+    assert result == {identity: "failed"}
+    evidence = result.provenance[identity]
+    assert evidence["raw_outcome"] == ("error" if runner == "stdlib" or style == "import" else "failed")
+    assert evidence["attribution"] == "candidate_exception"
+    assert evidence["candidate"] == {"module": "product", "source": str(repo / "src" / "product.py")}
+    assert "private candidate diagnostic" in evidence["diagnostic"]
+    assert evidence["frames"][-1]["file"] == str(repo / "src" / "product.py")
+
+
+@pytest.mark.parametrize("product, test_body", [
+    ("def exercise():\n    raise OSError('disk')\n", "exercise()"),
+    ("def exercise():\n    raise MemoryError('memory')\n", "exercise()"),
+    ("def exercise():\n    raise TimeoutError('timeout')\n", "exercise()"),
+    ("def exercise():\n    raise RuntimeError('unclassified')\n", "exercise()"),
+    ("def exercise():\n    import missing_external_dependency\n", "exercise()"),
+    ("def exercise():\n    return True\n", "raise ValueError('oracle bug')"),
+    ("def exercise():\n    return True\n", "missing_test_helper()"),
+    ("def exercise():\n    return True\n", "import missing_test_dependency"),
+    ("def exercise():\n    return True\n", "from product import MisspelledHelper"),
+    ("def exercise():\n    return True\n",
+     "compile('def broken(:', __import__('product').__file__, 'exec')"),
+    (("def exercise():\n    try:\n        import missing_external_dependency\n"
+      "    except ImportError as error:\n        raise ValueError('wrapped') from error\n"), "exercise()"),
+])
+def test_unattributed_and_infrastructure_exceptions_remain_unknown(
+    hidden_candidate, measure_module, runner, product, test_body
+):
+    repo, suite, test = hidden_candidate
+    (repo / "src" / "product.py").write_text(product, encoding="utf-8")
+    test.write_text(f"from product import exercise\n\ndef test_feature():\n    {test_body}\n", encoding="utf-8")
+
+    result = measure_module.run_hidden(str(repo), str(suite), ["f1"], runner)
+
+    assert result == {"test_feature::test_feature": "error"}
+    evidence = result.provenance["test_feature::test_feature"]
+    assert evidence["attribution"] == "unknown"
+    assert evidence["raw_outcome"] == ("error" if runner == "stdlib" else "failed")
+    assert evidence["diagnostic"]
+
+
+@pytest.mark.parametrize("fault, expected", [
+    ("missing_export", "failed"), ("missing_method", "failed"), ("missing_package", "failed"),
+    ("missing_field", "failed"), ("module_export", "failed"),
+    ("typo_export", "error"), ("typo_method", "error"), ("external_dependency", "error"),
+    ("collection_assertion", "error"), ("dynamic_typo", "error"),
+])
+def test_only_declared_missing_candidate_apis_are_nonpasses(
+    hidden_candidate, measure_module, runner, fault, expected
+):
+    repo, suite, test = hidden_candidate
+    suite.joinpath("suite.json").write_text(json.dumps({
+        "package": "workbench",
+        "features": [{"id": "f1", "api": [
+            "Workbench() keeps everything in memory.", "exercise() -> bool.",
+            "OnHold importable from workbench.", "open_case() -> Case with attributes id, stage.",
+        ]}],
+    }), encoding="utf-8")
+    package = repo / "src" / "workbench.py"
+    package.write_text("class Workbench:\n    pass\n", encoding="utf-8")
+    if fault == "missing_package":
+        package.unlink()
+    elif fault == "external_dependency":
+        package.write_text("import missing_external_dependency\nclass Workbench:\n    pass\n", encoding="utf-8")
+    elif fault == "missing_field":
+        package.write_text("class Case:\n    pass\n", encoding="utf-8")
+    elif fault == "dynamic_typo":
+        package.write_text("class Workbench:\n    def __getattr__(self, name):\n        raise AttributeError(name)\n",
+                           encoding="utf-8")
+    code = "from workbench import Workbench\n\ndef test_feature():\n    assert True\n"
+    if fault in ("missing_export", "typo_export"):
+        name = "OnHold" if fault == "missing_export" else "TypoHelper"
+        code = f"from workbench import {name}\n\ndef test_feature():\n    assert True\n"
+    elif fault in ("missing_method", "typo_method"):
+        name = "exercise" if fault == "missing_method" else "typo_helper"
+        code = f"from workbench import Workbench\n\ndef test_feature():\n    Workbench().{name}()\n"
+    elif fault == "missing_field":
+        code = "from workbench import Case\n\ndef test_feature():\n    Case().stage\n"
+    elif fault == "module_export":
+        code = "import workbench\n\ndef test_feature():\n    workbench.OnHold\n"
+    elif fault == "collection_assertion":
+        code = "assert False, 'broken collection helper'\n\ndef test_feature():\n    assert True\n"
+    elif fault == "dynamic_typo":
+        code = "from workbench import Workbench\n\ndef test_feature():\n    Workbench().typo_helper()\n"
+    test.write_text(code, encoding="utf-8")
+
+    result = measure_module.run_hidden(str(repo), str(suite), ["f1"], runner)
+
+    assert result == {"test_feature::test_feature": expected}
+    evidence = result.provenance["test_feature::test_feature"]
+    assert evidence["diagnostic"] and evidence["raw_outcome"] in ("failed", "error")
+    assert evidence["attribution"] == (
+        "mandatory_api" if fault in ("missing_method", "missing_field", "module_export") else
+        "mandatory_import" if expected == "failed" else "unknown"
+    )
+
+
+def test_missing_f5_export_does_not_hide_retained_f4_passes(tmp_path, measure_module, runner):
+    import shutil
+
+    suite = KIT_ROOT / "suites" / "s1-retrofit"
+    repo = tmp_path / "candidate"
+    shutil.copytree(suite / "reference" / "f04" / "workbench", repo / "src" / "workbench")
+
+    result = measure_module.run_hidden(str(repo), str(suite), [f"f{k:02d}" for k in range(1, 6)], runner)
+
+    prior = {key: value for key, value in result.items() if not key.startswith("test_f05_hidden::")}
+    later = {key: value for key, value in result.items() if key.startswith("test_f05_hidden::")}
+    assert len(prior) == 51 and set(prior.values()) == {"passed"}
+    assert len(later) == 13 and set(later.values()) == {"failed"}
+    assert all(result.provenance[key]["raw_outcome"] == "error" for key in later)
+    assert all(result.provenance[key]["candidate"]["missing"] == "OnHold" for key in later)
+    assert all("ImportError" in result.provenance[key]["diagnostic"] for key in later)
+
+
+@pytest.mark.parametrize("origin", ["candidate", "test_helper"])
+def test_syntax_error_requires_actual_candidate_loader_provenance(
+    hidden_candidate, measure_module, runner, origin
+):
+    repo, suite, test = hidden_candidate
+    folder = repo / "src" if origin == "candidate" else test.parent
+    (folder / "broken.py").write_text("def broken(:\n", encoding="utf-8")
+    test.write_text("import broken\n\ndef test_feature():\n    assert True\n", encoding="utf-8")
+
+    result = measure_module.run_hidden(str(repo), str(suite), ["f1"], runner)
+
+    assert result == {"test_feature::test_feature": "failed" if origin == "candidate" else "error"}
+    evidence = result.provenance["test_feature::test_feature"]
+    assert evidence["raw_outcome"] == "error" and evidence["diagnostic"]
+    assert evidence["attribution"] == ("candidate_syntax" if origin == "candidate" else "unknown")
+
+
+def test_measurement_preserves_private_attribution_without_changing_dict_consumers(
+    measurement_command, measure_module, monkeypatch
+):
+    provenance = {"test_feature::test_feature": {
+        "raw_outcome": "error", "outcome": "failed", "attribution": "candidate_exception",
+        "diagnostic": "synthetic private trace",
+    }}
+    monkeypatch.setattr(measure_module, "run_hidden", lambda *args: measure_module.HiddenResults(
+        {"test_feature::test_feature": "failed"}, provenance
+    ))
+    monkeypatch.setattr(
+        measure_module.subprocess, "run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0, "a" * 40, ""),
+    )
+
+    measure_module.main()
+
+    result = json.loads(measurement_command.read_text(encoding="utf-8"))
+    assert result["hidden"] == {"test_feature::test_feature": "failed"}
+    assert result["hidden_passed"] == 0 and result["hidden_total"] == 1
+    assert result["hidden_provenance"] == provenance

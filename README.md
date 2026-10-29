@@ -15,8 +15,14 @@ trajectories per arm/model; nine excluded calibration trajectories.
 The total ceiling is **300,000 AI Credits**, including prior spend/calibration,
 with fixed 300-credit/session soft caps. Owner approval for preregistration
 submission is recorded on 28 October 2026: document licence CC BY-NC-ND 4.0
-and embargo through 2026-12-31. Independent acceptance, actual registration
-and execution readiness remain open.
+and embargo through 2026-12-31. The original registration is now
+[owner-confirmed approved](https://osf.io/ywsrv/overview).
+Subsequent approved corrections await
+[prospective OSF recording](protocol/prospective-corrections-2026-10-28.md);
+independent exact-source acceptance and execution readiness remain open.
+
+[CONTRIBUTOR.md](CONTRIBUTOR.md) documents the separate complete source/setup
+bundle, offline checks, read-only user-budget audit and actual launch blockers.
 
 The controller schedules the model-aware allocation, preserves model/replicate
 identity on resume and exports separate primary estimates per model, never a
@@ -52,12 +58,14 @@ It uses a separate `results/<study-id>` branch, never pushes raw logs or changes
 your source branch, and creates/updates a PR against that source branch.
 Files are allowlisted, credential-checked and capped at 512 KiB each / 4 MiB total.
 
-**Paid execution is deliberately unavailable.** Copilot CLI 1.0.103's credit
+**Paid execution is deliberately unavailable.** Copilot CLI 1.0.105's credit
 limit is soft, not a hard spending boundary. The runner enforces a <=300,000-credit
 aggregate *admission* ledger with explicit prior spending and unknown-usage
 stops, but refuses all real sessions until a provider-enforced hard billing
-backend exists. A nominal CLI cap, a freeze file or a container cannot bypass
-this stop. No protocol has been frozen or registered by this work. Owner freeze,
+backend exists. Individual provider user-level budgets can cap included and
+metered credits; the new read-only audit helper does not configure or integrate
+that control with a live runner. A nominal CLI cap, a freeze file or a container
+cannot bypass this stop. No protocol has been frozen or registered by this tool. Owner freeze,
 secondary-scope decisions, independent reviews and other method gates also remain open.
 See [RUNBOOK.md](RUNBOOK.md#unattended-controller) for state, recovery and gates.
 
@@ -137,6 +145,19 @@ The controller's `calibration` (legacy `pilot`) proposes nine excluded
 ten-feature runs without CR1; `pilot-estimation` (legacy `first`) proposes
 eighteen with CR1. Never pool stages or turn
 historical development smoke into registered pilot data.
+
+After committing a corrected delivery candidate, prepare the separate private
+operator source package (not another OSF submission attachment):
+
+```bash
+.venv/bin/python -B harness/prepare_contributor.py --out .study/contributor-CANDIDATE
+.venv/bin/python -B harness/prepare_contributor.py --verify .study/contributor-CANDIDATE.tar.gz
+```
+
+It includes runnable source and a shallow exact-commit Git checkout, excludes
+private study data, refuses overwrites and verifies file hashes/private modes.
+It contains held-out evaluator/reference material: trusted operator only,
+never a model-visible workspace. Paid execution remains disabled.
 
 For standalone analysis of controller runs, supply its explicit journal:
 

@@ -12,8 +12,14 @@ independent reviews and runtime/access checks as pending.
 Owner submission approval is now recorded for 235489c content plus selected
 metadata/approval updates: CC BY-NC-ND 4.0 for submission documents and embargo
 through 2026-12-31. Enter settled contributor/affiliation details directly in
-OSF. No completed registration, independent acceptance or collection permission
+OSF. The owner subsequently confirmed submission and approval of the unchanged
+original 763945b package: https://osf.io/ywsrv/overview.
+The later corrected candidate needs
+[prospective recording](protocol/prospective-corrections-2026-10-28.md) and
+source-bound approval. No independent acceptance or collection permission
 is implied; all execution gates below remain in force.
+See [CONTRIBUTOR.md](CONTRIBUTOR.md) for the complete separate source bundle,
+read-only budget-audit procedure and unverified live-runtime requirements.
 The owner-amended first pass is an estimation pilot, not confirmatory testing:
 GPT 6.1 Sol, Sonnet 5.5 and Gemini 4 Argon, each with two trajectories per A/B/C
 arm (18 pilot, plus nine excluded calibration). There are 318 pilot and 150
@@ -143,7 +149,11 @@ Dry-run prints `inputs_sha256`; the digest includes the launcher/bootstrap
 scripts and executable bits as well as protocol, harness, skeleton and suites.
 
 Even complete freeze evidence cannot enable paid execution: the inspected CLI
-exposes only a soft session cap and final usage. The ledger atomically reserves
+exposes only a soft session cap and final usage. Current provider user-level
+budgets can hard-stop included and metered AI credits, but a study-specific
+effective budget/reset boundary and an isolated live backend remain unverified
+and unimplemented. `harness/billing_check.py` audits configuration read-only,
+never modifies billing or enables dispatch. The ledger atomically reserves
 before launch; reconciled spending plus every outstanding reservation and
 earlier pilot spending must fit the immutable ceiling. Missing/partial usage
 holds its reservation and blocks new work; an overrun is retained and stops

@@ -327,6 +327,8 @@ def test_docker_has_only_repo_and_session_mounts_and_no_token_argument(study, tm
     assert "--no-ask-user" in args and "--no-auto-update" in args and "-p" in args
     assert "COPILOT_GITHUB_TOKEN" in args and not any(arg.startswith("COPILOT_GITHUB_TOKEN=") for arg in args)
     assert "--read-only" in args and "--security-opt=no-new-privileges" in args
+    assert "--allow-all-tools" not in args and "--allow-all-paths" not in args
+    assert "--yolo" not in args and "--allow-all" not in args
     with pytest.raises(study.StudyError, match="immutable"):
         study.docker_command(tmp_path, tmp_path, "mutable:latest", "", 300, "mve-test")
 

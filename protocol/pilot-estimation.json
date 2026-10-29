@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "owner-approved-for-submission-not-registered",
+  "status": "post-registration-correction-candidate-pending-prospective-recording",
   "readiness_policy": "Owner authorised 2026-10-28: separate ordinary OSF submission from collection readiness. Submission requires complete owner choices, secondary scope, prior-data disclosure and actual final source-bound owner approval, not independent review or runtime acceptance. All existing independent review, panel/oracle/reference, model-aware alignment, runtime/access, registration/freeze and hard-billing prerequisites remain required before calibration or pilot collection; pending evidence stays null.",
   "submission_metadata": {
     "template": "OSF Preregistration",
@@ -16,7 +16,7 @@
     "additional_preregistration_approvals": "Owner confirmed none are required",
     "prior_data_reconfirmation": "Owner reconfirmed 2026-10-28 that the disclosed inventory is accurate and complete, with no additional work/data exposure or calibration/registered pilot collected",
     "pending_checks_disclosure": "Owner explicitly approved preregistration with independent reviews and runtime/access checks disclosed as pending; all collection safeguards retained",
-    "osf_configuration_status": "Selected by owner; actual live OSF entry and submission remain to be completed"
+    "osf_configuration_status": "Owner confirmed original registration https://osf.io/ywsrv/ approved following submission on 2026-10-28 with all extracted osf-final-763945b files unchanged. Exact approval timestamp and live OSF configuration are not independently verified. Subsequent corrections require prospective recording before affected collection."
   },
   "paper": {
     "repository": "jmservera/ama",
@@ -89,7 +89,7 @@
     "post_after_failed_feature": "Owner selected 2026-10-27: after a completed unsuccessful feature attempt, retain green-only rollback and run scheduled B/C post-step on the last retained green state without replaying the failed feature request; A has no extra session.",
     "prerequisite_continuation_and_later_recovery": "Owner selected 2026-10-27: continue scheduled later features and CR1 from retained state; allow incidental recovery only within normal prompts, permissions and budgets; no dedicated make-up attempts or replacement trajectories.",
     "evaluator_information_boundary": "Owner selected 2026-10-27: task specifications and approved visible examples only; hidden evaluator scores, identities, messages and reference solutions stay external and are never fed back; withhold CR1 text until its session; verify actual access independently.",
-    "outage_retry_and_missing_measurement_rules": "Owner selected 2026-10-27: at most one documented infrastructure-only retry per step from its pre-attempt snapshot within the original aggregate time/credit allowance; log all attempts and charges, never retry poor outcomes. Retry infrastructure-failed measurement once on the same immutable snapshot; contradictory valid outcomes halt collection for oracle investigation. Exhausted/unrecoverable observations remain missing, never replacements.",
+    "outage_retry_and_missing_measurement_rules": "Owner selected 2026-10-27: at most one documented infrastructure-only retry per step from its pre-attempt snapshot within the original aggregate time/credit allowance; log all attempts and charges, never retry poor outcomes. Retry infrastructure-failed measurement once on the same immutable snapshot; contradictory valid outcomes halt collection for oracle investigation. Exhausted/unrecoverable observations remain missing, never replacements. Owner approved prospective correction on 2026-10-28: positively established candidate-caused mandatory API/import, source-loader syntax or product exception nonpasses are failed outcomes with raw private provenance retained; true infrastructure, oracle and unclassified exceptions remain unknown. Both runners use the same policy. See protocol/prospective-corrections-2026-10-28.md; OSF recording is pending before affected collection.",
     "agent_failure_classification": "Owner selected 2026-10-27: only documented terminal agent-caused inability makes unattempted CR1 unsuccessful; infrastructure, measurement failure or unresolved causes remain missing with bounds. Missing data alone do not prove agent failure.",
     "assisted_run_disposition_and_telemetry": "Owner selected 2026-10-27: logged infrastructure administration only, no code fixes, task hints or design advice. Retain and flag content-assisted trajectories and all costs, without replacement or silent complete-case primary comparisons. Owner selected 2026-10-28: explicitly exclude HIR/IDR outcomes from this pilot; retain assistance/intervention logging, unassisted eligibility and primary cost/accounting requirements.",
     "comprehension_include_or_defer": "Owner selected 2026-10-27: defer comprehension assessment; make no comprehension-effect claim in this pilot.",
@@ -109,9 +109,9 @@
     "multi_model_harness_alignment": null
   },
   "owner_approval": {
-    "approved": true,
+    "approved": false,
     "date": "2026-10-28",
-    "evidence": "Actual owner response approved submission content at commit 235489cc8b63307d35d624b1b7bb02124c1bfec1 (input SHA256 9561cc7859037f0fd7315ec959adc43e6a90b293674741b15f73ce38d3203034) plus only the selected metadata and approval-record updates. Owner chose embargo through 2026-12-31 and clarified the document licence as CC-BY-NC-ND-4.0. Recorded in protocol/osf-submission-checklist.md. This is approval to submit the preregistration, not independent scientific acceptance, completed OSF registration or authorisation to collect data."
+    "evidence": "Historical submission approval covered 235489cc8b63307d35d624b1b7bb02124c1bfec1 plus selected metadata/approval updates, producing registered source 763945bce239529b6a3e802e50dc7cf61c2736cf. That approval and original attachments remain unchanged. Owner explicitly approved implementing all four minimal corrections in a new version/PR on 2026-10-28 and will record the necessary prospective OSF clarification before affected collection. This corrected exact source candidate has not received final source-bound submission/freeze approval; implementation permission is not that approval."
   },
-  "registration": {"submitted": false, "url": null, "date": null}
+  "registration": {"submitted": true, "url": "https://osf.io/ywsrv/", "date": "2026-10-28"}
 }

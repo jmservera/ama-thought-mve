@@ -1,7 +1,13 @@
 # Submission readiness and precollection review assignment
 
-**Owner-approved for submission on 28 October 2026; not registered or
-execution-ready. No independent review has been received.**
+**Original registration owner-confirmed approved on 28 October 2026;
+corrected candidate not execution-ready.**
+Scoped AI technical reviews were subsequently received: the requested Sonnet
+5.5 readiness review supported limited static conclusions, and a focused
+construct review requested the four now-approved corrections. Neither supplies
+blanket scientific/runtime acceptance; no evidence fields are silently signed.
+See [the prospective notice](prospective-corrections-2026-10-28.md) and
+[collaborator handoff](../CONTRIBUTOR.md).
 Use the exact new candidate commit and input fingerprint supplied by the owner,
 not the earlier review packet. Source changes require review of affected evidence.
 
@@ -10,7 +16,8 @@ not the earlier review packet. Source changes require review of affected evidenc
 On 28 October 2026 the owner authorised ordinary OSF preregistration with
 independent scientific review and runtime/access acceptance disclosed as pending.
 These are project precollection safeguards, not OSF submission requirements.
-Independent review has not occurred; no evidence or acceptance is invented.
+The original submission disclosed pending review; subsequent limited AI review
+does not imply acceptance of the corrected snapshot or verified live controls.
 
 Submission requires complete owner choices, secondary scope, prior-data
 disclosure and actual approval of the final source candidate. Use
@@ -49,8 +56,9 @@ independent acceptance, final owner approval or registration is inferred.
 
 ## Consolidated precollection independent-review assignment
 
-A qualified independent reviewer is available; **no review has yet been
-received**. One review may cover multiple entries only if each conclusion is
+The assignment below remains the exact-source acceptance contract; scoped
+AI reviews are partial supporting evidence, not completed entries.
+One review may cover multiple entries only if each conclusion is
 explicit. The reviewer should document their role/independence, actual review
 date, exact candidate commit/fingerprint, materials and commands examined,
 results, limitations, and an accept/request-changes/unable-to-assess decision

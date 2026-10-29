@@ -1,7 +1,11 @@
 # OSF Preregistration submission draft
 
-**OWNER-APPROVED FOR SUBMISSION, 28 October 2026. Not submitted or registered;
-not authorised for data collection.**
+**Original 763945b submission: owner-confirmed registered and approved,
+28 October 2026. This subsequent corrected candidate is not yet prospectively
+recorded or source-bound approved; not authorised for data collection.**
+Preserve the original attachment and record
+[the prospective clarification](prospective-corrections-2026-10-28.md)
+before affected collection.
 Use the general-purpose **OSF Preregistration** form. Field wording may change:
 transfer these answers into the live form and attach the approved protocol,
 decision ledger, candidate contract panel and checksums. The panel is not

@@ -1,7 +1,10 @@
 # Prospective S1 pilot / estimation protocol
 
-**Status: owner-approved for submission on 28 October 2026, not registered;
-study not authorised to run.** This is the
+**Status: original registration owner-confirmed approved on 28 October 2026;
+subsequent corrected candidate awaits prospective OSF recording and exact
+source-bound approval. Study not authorised to run.** See
+[the prospective clarification](prospective-corrections-2026-10-28.md).
+This is the
 active protocol for the owner's three-model amendment to the paper. It supersedes the
 seven-hypothesis proposals preserved in the other historical protocol notes.
 It is not a retrospective amendment to earlier data or `protocol-frozen`.
@@ -127,6 +130,15 @@ fixes, hints or design advice. Flag/retain any content-assisted trajectory and
 costs; never silently replace it or use a reduced complete-case primary frame.
 Only documented terminal agent-caused inability makes an unattempted CR1
 unsuccessful; infrastructure/uncertain absence remains missing with bounds.
+
+The owner-approved subsequent correction distinguishes positively established
+candidate-caused nonpasses from unavailable measurement. Declared missing
+candidate APIs/imports, source-loader-bound syntax failures and established
+product exceptions are failed outcomes with raw private provenance retained.
+Infrastructure/oracle/unclassified causes remain unknown, not automatic
+nonpasses. The exact shared runner policy and its prospective-recording status
+are specified in [the correction notice](prospective-corrections-2026-10-28.md).
+This preserves the fixed denominator and existing genuine-missingness rules.
 
 ## Endpoint hierarchy and estimands
 

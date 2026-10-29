@@ -19,6 +19,7 @@ def registration(monkeypatch):
 def config():
     config = json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
     config["owner_approval"] = {"approved": False, "date": None, "evidence": None}
+    config["registration"] = {"submitted": False, "url": None, "date": None}
     return config
 
 

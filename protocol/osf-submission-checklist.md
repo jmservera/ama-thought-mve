@@ -1,7 +1,13 @@
 # OSF preregistration submission checklist
 
-**OWNER-APPROVED FOR SUBMISSION, 28 October 2026. Not submitted or registered;
-not independently reviewed or authorised for collection.**
+**Original registration: owner-confirmed approved following submission on
+28 October 2026, https://osf.io/ywsrv/overview.**
+The original 763945b attachment is immutable. The checklist below documents its
+submission procedure; do not treat its historical approval as approval of the
+subsequent corrected source. Record
+[the prospective clarification](prospective-corrections-2026-10-28.md)
+and obtain exact candidate acceptance before collection. No collection
+permission or independent runtime acceptance is implied.
 Use the ordinary **OSF Preregistration** template, not Registered Reports.
 Independent scientific review is not an OSF requirement for this submission.
 The project retains it as a prerequisite before collecting calibration/pilot data.

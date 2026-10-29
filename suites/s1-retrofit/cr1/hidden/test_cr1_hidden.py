@@ -118,6 +118,24 @@ def test_hcr1_user_views_are_read_only():
     view = wb.view_for("max")
     assert raises(NotAllowed, lambda: view.assign(a, "ana", by="max"))
     assert raises(NotAllowed, lambda: view.approve_handoff(a, by="max"))
+    before = wb.audit_log()
+    for user in ("ana", "yan", "max", "cora"):
+        scoped = wb.view_for(user)
+        cid = scoped.list_cases()[0].id
+        original = wb.get_case(cid)
+        stage, owner = original.stage, original.owner
+        for case in (scoped.get_case(cid), scoped.list_cases()[0]):
+            for name, value in (("stage", "installed"), ("owner", "intruder")):
+                try:
+                    setattr(case, name, value)
+                except (AttributeError, TypeError, NotAllowed):
+                    pass
+        assert wb.get_case(cid).stage == stage and wb.get_case(cid).owner == owner
+        assert scoped.get_case(cid).stage == stage and scoped.list_cases()[0].owner == owner
+    assert wb.audit_log() == before and wb.verify_audit() is True
+    wb.move(a, "surveyed", by="ana")
+    assert view.get_case(a).stage == "surveyed" and view.list_cases()[0].stage == "surveyed"
+    assert len(wb.audit_log()) == len(before) + 1
 
 
 def test_hcr1_in_region_and_unregistered_handoffs_need_no_approval():
@@ -150,11 +168,16 @@ def test_hcr1_approval_is_per_request():
     wb, a, _ = make()
     wb.assign(a, "ana", by="lead")
     wb.request_handoff(a, "yan", by="ana")
+    wb.approve_handoff(a, by="max")
+    assert wb.handoff_needs_approval(a) is False
     wb.decline_handoff(a, by="yan", reason="busy")
     assert raises(ValidationError, wb.approve_handoff, a, by="max")
     wb.request_handoff(a, "yan", by="ana")
     assert wb.handoff_needs_approval(a) is True
     assert raises(NotAllowed, wb.accept_handoff, a, by="yan")
+    wb.approve_handoff(a, by="max")
+    wb.accept_handoff(a, by="yan")
+    assert wb.get_case(a).owner == "yan" and wb.pending_handoff(a) is None
 
 
 def test_hcr1_new_writes_are_audited():
