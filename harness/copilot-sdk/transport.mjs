@@ -363,6 +363,8 @@ export async function runTransport({ input = process.stdin, output = process.std
   let initialized = false;
   let finished = false;
   let failure;
+  let stage = 'initial_request';
+  let failureStage;
   const toolIds = new Set();
   let rejectFailure;
   let resolveInitial;
@@ -373,6 +375,7 @@ export async function runTransport({ input = process.stdin, output = process.std
   const fail = error => {
     if (finished || failure) return;
     failure = fault(safeCode(error));
+    failureStage = stage;
     rejectFailure(failure);
     if (pending) {
       pending.resolve({ stdout: '', stderr: 'Isolated tool interrupted.', exit_code: 1 });
@@ -417,8 +420,10 @@ export async function runTransport({ input = process.stdin, output = process.std
     const { request } = await Promise.race([initial, failed]);
     if (failure) throw failure;
     evidence = new Evidence(request, randomUUID());
+    stage = 'runtime_setup';
     runtime = await Promise.race([runtimeFactory(request, deadline), failed]);
     const { client } = runtime;
+    stage = 'runtime_startup';
     const status = await Promise.race([assertRuntime(client), failed]);
     if (!status.isAuthenticated || !status.userAuthentication) throw fault('host_user_auth_unavailable');
     const config = sessionConfig(request, evidence.sessionId, async (args, invocation) => {
@@ -466,20 +471,30 @@ export async function runTransport({ input = process.stdin, output = process.std
       } catch (error) { fail(error); }
     });
     if (failure) throw failure;
+    stage = 'session_create';
     const session = await Promise.race([client.createSession(config), failed]);
     if (session.sessionId !== evidence.sessionId) throw fault('created_session_mismatch');
     if (!evidence.started) throw fault('session_identity_unavailable');
+    stage = 'session_send';
     await Promise.race([session.sendAndWait({ prompt: request.prompt },
       Math.max(1, deadline - Date.now())), failed]);
     if (!evidence.idle || pending) throw fault('session_not_idle');
+    stage = 'session_shutdown';
     await Promise.race([session.rpc.shutdown({ type: 'routine' }), failed]);
   } catch (error) {
     fail(error);
   } finally {
     if (runtime) {
+      stage = 'runtime_cleanup';
       try { await runtime.close(); }
-      catch { failure ||= fault('runtime_cleanup_failure'); }
+      catch {
+        if (!failure) {
+          failure = fault('runtime_cleanup_failure');
+          failureStage = stage;
+        }
+      }
     }
+    stage = 'output_flush';
     const flushBounded = async () => {
       let flushTimer;
       try {
@@ -494,12 +509,13 @@ export async function runTransport({ input = process.stdin, output = process.std
     };
     // A terminal receipt is never queued ahead of an undrained event journal.
     await flushBounded();
-    if (Date.now() >= deadline) failure ||= fault('original_deadline_exhausted');
+    if (Date.now() >= deadline && !failure) fail(fault('original_deadline_exhausted'));
     let receipt = evidence ? evidence.receipt(failure?.message) : {
       sdk_version: SDK_VERSION, usage: { totalNanoAiu: null, credits_complete: false,
         aiCreditsStatus: 'unavailable' }, actual_models: [], actual_reasoning_efforts: [],
       protocol_error: failure?.message || 'missing_initial_request',
     };
+    receipt.failure_stage = failure ? failureStage : null;
     let exitCode = receipt.usage.credits_complete ? 0 : 1;
     try {
       writer.write({ type: 'complete', receipt, exit_code: exitCode });
@@ -509,6 +525,7 @@ export async function runTransport({ input = process.stdin, output = process.std
     }
     if (failure && receipt.usage.credits_complete) {
       receipt = evidence.receipt(failure.message);
+      receipt.failure_stage = failureStage;
       exitCode = 1;
     }
     clearTimeout(timer);

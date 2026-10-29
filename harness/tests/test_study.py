@@ -21,7 +21,8 @@ def study(monkeypatch):
 
 @pytest.fixture
 def config():
-    return json.loads((ROOT / "harness/study-config.json").read_text())
+    """Known-prior fixture; the shipped live config deliberately remains blocked."""
+    return dict(json.loads((ROOT / "harness/study-config.json").read_text()), prior_credits=14.54324)
 
 
 def controller(study, config, path):
@@ -390,6 +391,7 @@ def test_dry_run_is_read_only_and_live_refusal_never_calls_agent(study, monkeypa
     assert study.main() == 2
     preview = json.loads(capsys.readouterr().out)
     assert any("isolated live backend" in error for error in preview["errors"])
+    assert "Credit amounts must be explicit nonnegative numbers" in preview["errors"]
     assert preview["budget_policy"]["session_soft_limit_credits"] == 270
     assert preview["budget_policy"]["local_admission_ceiling_credits"] == 270000
     assert preview["budget_policy"]["hard_billing_guarantee"] is False

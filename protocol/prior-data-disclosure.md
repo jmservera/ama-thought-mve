@@ -52,6 +52,29 @@ records command start/end times. It involved no model/provider call and is not
 a registered trajectory. Model-independent tooling/reference exposure is
 disclosed, not presented as an outcome-blind design process.
 
+## 29 October excluded isolated-runtime setup probe
+
+After source `44ec37d9bb470521b2efd396a71ce23deb2f8ebf` passed offline
+validation, an owner-conditionally authorized empty-workspace GPT6.1Sol runtime
+probe was attempted. It was not a feature/CR1 session, calibration trajectory
+or pilot unit. It used a 30-credit soft limit, 90-second allowance and a 300-credit
+reservation; fresh no-model checks reported SDK 1.0.28/CLI 1.0.105/protocol 3 and
+authenticated user transport. No experiment tasks, hidden tests or reference
+solutions were supplied.
+
+The private attempt records 1.8024 seconds, zero observed tool calls and no
+complete usage receipt. Evidence contains an SDK setup failure, not attested
+session-create/model-send stages. A missing base-directory defect was corrected
+offline without a retry. **Unknown charge is not zero charge.** The reservation
+remains held and total current prior usage is unknown; historical 14.54324 is
+only the earlier confirmed amount. `prior_credits=null` blocks new live
+admissions until authoritative attempt-correlated usage/no-charge reconciliation.
+No other model probe, calibration or registered pilot followed this failure.
+
+Private logs/ledger are retained outside the source bundle. No exact wall-clock
+execution/inspection times are inferred from Git or file timestamps. The
+recorded monotonic duration does not establish those times.
+
 ## Scope of this record
 
 This resolves `required_evidence.prior_data_disclosure` as an explicit inventory,

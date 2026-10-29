@@ -4,9 +4,11 @@ import { PassThrough, Writable } from 'node:stream';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { Evidence, InputRecords, OutputRecords, assertRuntime, permissionHandler,
   runTransport, sessionConfig, validateArguments } from './transport.mjs';
-import { RpcFrames, hostEnvironment } from './runtime-guard.mjs';
+import { RpcFrames, hostEnvironment, prepareRuntimeDirectories } from './runtime-guard.mjs';
 
 const request = (extra = {}) => ({ model: 'test-model', reasoningEffort: 'medium', prompt: 'test',
   remainingSeconds: 2, maxAiCredits: 173.5, cliPath: '/trusted/copilot',
@@ -39,6 +41,7 @@ function fakeRuntime(options = {}) {
       async getAuthStatus() { return { isAuthenticated: true, authType: 'user' }; },
       async createSession(config) {
         state.created++;
+        if (options.createError) throw new Error('SDK response may contain sensitive details');
         state.config = config;
         state.order.push('create');
         config.onEvent(start(config.sessionId, req));
@@ -355,13 +358,47 @@ test('invalid tool arguments are safe errors; pending-tool/correlation violation
   output.destroy();
 });
 
-test('strict runtime version/protocol validation precedes every session and cleans failures', async () => {
+test('runtime setup creates missing sterile parents; strict startup failures precede sessions', async () => {
+  const fixture = fileURLToPath(new URL(`./node_modules/.transport-tests-${crypto.randomUUID()}`, import.meta.url));
+  const base = join(fixture, 'missing-parent', 'sdk');
+  try {
+    const first = await prepareRuntimeDirectories(base);
+    const second = await prepareRuntimeDirectories(base);
+    assert.notEqual(first.data, second.data);
+    for (const directory of [base, first.data, first.work, second.data, second.work]) {
+      assert.equal((await stat(directory)).mode & 0o777, 0o700);
+      if (directory !== base) assert.deepEqual(await readdir(directory), []);
+    }
+    const blocked = join(fixture, 'not-a-directory');
+    await writeFile(blocked, 'fixture');
+    await assert.rejects(prepareRuntimeDirectories(join(blocked, 'sdk')), error =>
+      error.transportCode === 'runtime_directory_setup_failed' &&
+      error.message === 'runtime_directory_setup_failed');
+    const input = new PassThrough();
+    const output = new PassThrough();
+    output.resume();
+    const running = runTransport({ input, output,
+      runtimeFactory: () => prepareRuntimeDirectories(join(blocked, 'sdk')) });
+    input.write(JSON.stringify(request()) + '\n');
+    const setupFailure = await running;
+    assert.equal(setupFailure.receipt.protocol_error, 'runtime_directory_setup_failed');
+    assert.equal(setupFailure.receipt.failure_stage, 'runtime_setup');
+    assert.equal(setupFailure.receipt.usage.totalNanoAiu, null);
+    input.destroy();
+    output.destroy();
+  } finally { await rm(fixture, { recursive: true, force: true }); }
   for (const options of [{ version: '1.0.104' }, { protocol: 4 }]) {
     const result = await runFake(options);
     assert.equal(result.state.created, 0);
     assert.equal(result.state.closed, 1);
     assert.equal(result.receipt.protocol_error, 'runtime_pin_mismatch');
+    assert.equal(result.receipt.failure_stage, 'runtime_startup');
   }
+  const createFailure = await runFake({ createError: true });
+  assert.equal(createFailure.receipt.protocol_error, 'sdk_failure');
+  assert.equal(createFailure.receipt.failure_stage, 'session_create');
+  assert.equal(createFailure.state.sent, 0);
+  assert.equal(createFailure.receipt.usage.totalNanoAiu, null);
   const runtime = await fakeRuntime().factory(request(), Date.now() + 1000);
   assert.deepEqual(await assertRuntime(runtime.client), {
     sdkVersion: '1.0.28', cliVersion: '1.0.105', protocolVersion: 3,

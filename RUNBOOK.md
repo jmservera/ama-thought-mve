@@ -99,16 +99,21 @@ The controller reads `harness/study-config.json`; `--config PATH` selects a
 different JSON object. Its settings are seed, ceiling (positive, never >300,000 AI
 credits; supplied 270,000), prior spending, per-session reservation, separate
 integer CLI soft limit (30 through 300; supplied 270), maximum attempts,
-absolute study allowance and minimum disk space. The supplied `prior_credits`
-is the owner-confirmed **14.54324**, not zero. Add all later logged probe/prior
-charges before preparing the exact live config; unknown prior usage is rejected.
+absolute study allowance and minimum disk space. Historical owner-confirmed
+usage is **14.54324**, but the supplied `prior_credits` is now **null** because
+one excluded setup probe has no complete usage evidence. Its 300-credit
+reservation remains held. No further probe or live study is admitted until
+authoritative correlated usage/no-charge reconciliation establishes the total.
+Add every later charge to 14.54324; never infer zero or restore the historical
+number merely to remove the block. See the prior-data disclosure and
+[collaborator hold instructions](CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk).
 Smoke explicitly has zero paid usage and does not consume a live allocation.
 No config field contains a token. The live SDK uses approved interactive user
 authentication on the trusted host; an environment token is not required.
 The optional billing audit has a separate credential requirement. `.env` is
 ignored, never loaded by the controller and never eligible for publication.
 
-The supplied finite study deadline is 14 days. Each original step keeps its
+The supplied finite study deadline is 14 days. Each original study step keeps its
 30/15/45-minute allowance and original 270-credit soft allowance across at most
 two agent attempts. The nominal initial reservation stays 300, allowing 30
 credits of headroom. Later attempts reserve the remaining original allowance

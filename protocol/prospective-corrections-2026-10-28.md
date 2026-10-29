@@ -149,9 +149,13 @@ Use the same **10% buffer** for all models/arms and both stages: **270 AI Credit
 per original session**, shared across any infrastructure retry, and **270,000
 credits local whole-study admission**, below nominal registered 300/session and
 300,000 total. The exact buffer is an implementation assumption implementing the
-owner's direction to set limits below previous values. The controller config
-sets prior usage to the owner-confirmed **14.54324**; calibration, probes,
-retries and all other study charges count. Remaining original allowance below
+owner's direction to set limits below previous values. Historical confirmed
+usage is **14.54324**; calibration, probes, retries and all other study charges
+count. After the excluded SDK setup probe described in
+[prior-data-disclosure.md](prior-data-disclosure.md), current total prior usage
+is unknown: the config now supplies `prior_credits=null` and holds admission
+until authoritative reconciliation. The probe's 300 reservation remains held;
+the setup fix was not model-retried. Remaining original allowance below
 the CLI minimum 30 blocks retry; do not round up or create a fresh allowance.
 An initial reservation of 300 provides 30 credits of headroom; any actual
 reservation overrun is retained and stops further admission.

@@ -77,18 +77,30 @@ export function hostEnvironment(source = process.env) {
   return result;
 }
 
+export async function prepareRuntimeDirectories(baseDirectory) {
+  try {
+    await mkdir(baseDirectory, { recursive: true, mode: 0o700 });
+    const directory = resolve(baseDirectory, `runtime-${randomUUID()}`);
+    await mkdir(directory, { mode: 0o700 });
+    const work = resolve(directory, 'work');
+    const data = resolve(directory, 'data');
+    await mkdir(work, { mode: 0o700 });
+    await mkdir(data, { mode: 0o700 });
+    return { work, data };
+  } catch {
+    throw Object.assign(new Error('runtime_directory_setup_failed'), {
+      transportCode: 'runtime_directory_setup_failed',
+    });
+  }
+}
+
 export async function makeRuntime(request, deadline) {
   const { CopilotClient, RuntimeConnection } = await import('@github/copilot-sdk');
   const manifest = JSON.parse(await readFile(
     new URL('./node_modules/@github/copilot-sdk/package.json', import.meta.url), 'utf8'));
   if (manifest.version !== '1.0.28' || manifest.copilotCliVersion !== '1.0.105')
     throw new Error('sdk_pin_mismatch');
-  const directory = resolve(request.baseDirectory, `runtime-${randomUUID()}`);
-  await mkdir(directory, { mode: 0o700 });
-  const work = resolve(directory, 'work');
-  const data = resolve(directory, 'data');
-  await mkdir(work, { mode: 0o700 });
-  await mkdir(data, { mode: 0o700 });
+  const { work, data } = await prepareRuntimeDirectories(request.baseDirectory);
   const client = new CopilotClient({
     connection: RuntimeConnection.forStdio({
       path: process.execPath,

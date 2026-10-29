@@ -102,10 +102,19 @@ The supplied controller config applies a uniform **10% operational buffer**:
 | `session_soft_limit_credits` | 270 | SDK session soft limit; per original session, including any retry, not a global study cap |
 | `session_reserve_credits` | 300 | Nominal reservation ceiling; the initial reservation includes 30 credits of headroom above the soft threshold |
 | `ceiling_credits` | 270000 | Local admission stop, leaving 30000 below the registered 300000 envelope |
-| `prior_credits` | 14.54324 | Confirmed prior paid usage, never zeroed or silently omitted |
+| `prior_credits` | null | Live admission blocked pending an unreconciled excluded probe; historical known usage is 14.54324 |
 
-Before any later probe/spending, unspent **admission** allowance is
-**269985.45676 credits**; outstanding reservations reduce it further.
+Before the new excluded probe, historical remaining headroom was
+**269985.45676 credits**. It is not currently spendable: the probe has unknown
+usage and retains a **300-credit reservation**, so further admission is blocked.
+The attempt used an empty non-study workspace, a 30-credit soft limit and 90-second
+deadline, and returned no tool calls or complete billed-usage evidence.
+An SDK directory-setup defect was corrected without another model request;
+historical create/send and zero charge are not established by missing events.
+Preserve the private attempt/ledger and obtain authoritative correlated usage
+or no-charge reconciliation. Then explicitly configure the historical 14.54324
+plus every reconciled later charge; never reset to 14.54324 or zero to clear the
+hold. The source bundle contains no private session/authentication artifacts.
 The preparatory CLI configs also use 270. All three models/arms use the same
 setting. These are prospective operational changes, not edits to the immutable
 original OSF attachment; record the linked clarification before collection.
@@ -225,8 +234,9 @@ The owner records the prospective OSF clarification and separately authorizes
 the exact freeze/tag. The existing historical tag is not reusable permission.
 No freeze file/tag or evidence acceptance is synthesized by this package.
 
-Only after actual auth, buffered accounting/telemetry and containment are verified may
-the conditionally authorized logged non-study per-model probes proceed. Charge
+Only after the current unknown-usage hold is resolved and actual auth,
+buffered accounting/telemetry and containment are verified may further
+conditionally authorized logged non-study per-model probes proceed. Charge
 them to the whole-study ledger, never expose study features/CR1 in the probes,
 and record model/effort/routing/usage evidence. A subsequent explicitly
 authorized calibration/pilot launch requires the exact accepted runtime,
