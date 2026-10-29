@@ -1,7 +1,17 @@
 {
   "seed": 2027,
   "ceiling_credits": 270000,
-  "prior_credits": null,
+  "prior_credits": 14.54324,
+  "historical_credit_provisions": [
+    {
+      "attempt_id": "gpt-6.1-sol-nonstudy-1",
+      "reserved_credits": 300,
+      "actual_credits": null,
+      "source_commit": "44ec37d9bb470521b2efd396a71ce23deb2f8ebf",
+      "evidence_sha256": "82ac0a3c7b6f4c54a2fb65d6cc43a5031ee1c197aa10ece8ba4f492ed7568d22",
+      "approval": "owner-approved-carry-forward-2026-10-29"
+    }
+  ],
   "session_reserve_credits": 300,
   "session_soft_limit_credits": 270,
   "max_attempts": 2,

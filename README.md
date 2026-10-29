@@ -72,12 +72,16 @@ study hard cap is no longer required; the read-only budget audit is optional.
 See [CONTRIBUTOR.md](CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk)
 for monitoring, reset and overrun instructions.
 
-**Current financial hold:** one excluded empty-workspace runtime probe failed
+**Historical budget provision:** one excluded empty-workspace runtime probe failed
 during SDK setup with no tool calls and no complete usage evidence. Its
 300-credit reservation is retained; zero charge is not inferred. The known
-historical amount remains 14.54324, but total current prior usage is unknown,
-so `prior_credits` is deliberately `null` and live admission is blocked.
-Reconcile that attempt before any further probe or collection.
+historical amount remains 14.54324, but total current prior usage is unknown.
+On 29 October the owner approved carrying the full 300 credits as a separate,
+source/evidence-bound budget provision rather than requiring an unavailable
+billing receipt before preparation continues. Known usage plus held budget is
+314.54324, leaving **269685.45676** within the 270000 local admission threshold.
+The provision is not actual spending or a guaranteed billing bound. Future
+unknown usage still stops new work; live verification and collection gates remain.
 
 **The isolated live backend is a candidate implementation, not collection
 approval.** It uses repository-local Copilot SDK **1.0.28** with CLI **1.0.105**:

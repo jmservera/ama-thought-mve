@@ -21,8 +21,9 @@ def study(monkeypatch):
 
 @pytest.fixture
 def config():
-    """Known-prior fixture; the shipped live config deliberately remains blocked."""
-    return dict(json.loads((ROOT / "harness/study-config.json").read_text()), prior_credits=14.54324)
+    """Synthetic known-prior fixture without the real historical provision."""
+    return dict(json.loads((ROOT / "harness/study-config.json").read_text()),
+                prior_credits=14.54324, historical_credit_provisions=[])
 
 
 def controller(study, config, path):
@@ -60,6 +61,61 @@ def test_unknown_usage_holds_reservation_and_blocks(study, usage):
     assert ledger["entries"]["attempt"]["reserved_nano"] == study.NANO
     with pytest.raises(study.StudyError, match="Unknown usage"):
         study.reserve(ledger, "next", 0)
+
+
+def test_historical_hold_counts_against_admission_but_future_unknown_still_stops(study, tmp_path):
+    cfg = study.read_json(ROOT / "harness/study-config.json")
+    study.validate_config(cfg, smoke=False)
+    current = study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="historical-hold")
+    ledger = current.state["ledger"]
+    provision = ledger["historical_credit_provisions"][0]
+    assert ledger["prior_nano"] == study.credits("14.54324")
+    assert provision["actual_nano"] is None and provision["status"] == "unknown"
+    room = ledger["ceiling_nano"] - ledger["prior_nano"] - provision["reserved_nano"]
+    assert room == study.credits("269685.45676")
+    study.reserve(ledger, "new", room)
+    with pytest.raises(study.StudyError, match="ceiling"):
+        study.reserve(ledger, "extra", 1)
+    study.reconcile(ledger, "new", None)
+    with pytest.raises(study.StudyError, match="Unknown usage"):
+        study.reserve(ledger, "after-unknown", 0)
+    assert provision["actual_nano"] is None and provision["reserved_nano"] == 300 * study.NANO
+
+
+def test_historical_hold_cannot_be_forged_or_reused(study, tmp_path):
+    cfg = study.read_json(ROOT / "harness/study-config.json")
+    original = cfg["historical_credit_provisions"][0]
+    for field, value in (("reserved_credits", 299), ("actual_credits", 0),
+                         ("attempt_id", "future-failure"), ("source_commit", "0" * 40),
+                         ("evidence_sha256", "0" * 64), ("approval", "")):
+        forged = dict(cfg, historical_credit_provisions=[dict(original, **{field: value})])
+        with pytest.raises(study.StudyError, match="exact owner-approved"):
+            study.validate_config(forged, smoke=False)
+    with pytest.raises(study.StudyError, match="exact owner-approved"):
+        study.validate_config(dict(cfg, historical_credit_provisions=[original, original]), smoke=False)
+    current = study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="no-reuse")
+    with pytest.raises(study.StudyError, match="cannot be reused"):
+        study.reserve(current.state["ledger"], original["attempt_id"], 0)
+
+
+def test_historical_hold_is_bound_to_resume_state(study, tmp_path):
+    cfg = study.read_json(ROOT / "harness/study-config.json")
+    current = study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="resume-hold")
+    current.state["ledger"]["historical_credit_provisions"][0]["reserved_nano"] = 0
+    current.save()
+    with pytest.raises(study.StudyError, match="Stored budget"):
+        study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="resume-hold")
+    with pytest.raises(study.StudyError, match="Resume inputs"):
+        study.Controller(tmp_path, dict(cfg, historical_credit_provisions=[]),
+                         smoke=False, phase="pilot-estimation", study_id="resume-hold")
+
+
+def test_historical_hold_requires_known_prior_and_remaining_budget(study):
+    cfg = study.read_json(ROOT / "harness/study-config.json")
+    with pytest.raises(study.StudyError, match="confirmed known prior"):
+        study.validate_config(dict(cfg, prior_credits=0), smoke=False)
+    with pytest.raises(study.StudyError, match="historical provisions exceed"):
+        study.validate_config(dict(cfg, ceiling_credits=314.54323), smoke=False)
 
 
 def test_ceiling_cannot_be_raised_or_prior_spend_assumed(study, config):
@@ -391,7 +447,9 @@ def test_dry_run_is_read_only_and_live_refusal_never_calls_agent(study, monkeypa
     assert study.main() == 2
     preview = json.loads(capsys.readouterr().out)
     assert any("isolated live backend" in error for error in preview["errors"])
-    assert "Credit amounts must be explicit nonnegative numbers" in preview["errors"]
+    assert "Credit amounts must be explicit nonnegative numbers" not in preview["errors"]
+    assert preview["budget_policy"]["historical_usage_complete"] is False
+    assert preview["budget_policy"]["historical_credit_provisions"][0]["actual_credits"] is None
     assert preview["budget_policy"]["session_soft_limit_credits"] == 270
     assert preview["budget_policy"]["local_admission_ceiling_credits"] == 270000
     assert preview["budget_policy"]["hard_billing_guarantee"] is False

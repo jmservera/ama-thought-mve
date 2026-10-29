@@ -130,6 +130,16 @@ def figure(runs: list[dict], out: Path, *, diagnostic: bool) -> None:
     (out / "trajectories.tex").write_text("\n".join(latex) + "\n", encoding="utf-8")
 
 
+def historical_budget_provenance(ledger: dict) -> dict:
+    """Expose the historical budget hold without claiming a measured charge."""
+    provisions = ledger.get("historical_credit_provisions", [])
+    return {
+        "historical_credit_provisions": provisions,
+        "historical_reserved_nano": sum(item["reserved_nano"] for item in provisions),
+        "historical_usage_complete": not bool(provisions),
+    }
+
+
 def legacy_export(directory: Path, state: dict, study_id: str) -> None:
     """Project scheduled cells, not attempts, into the existing corrected analyzer."""
     out = directory / "results"
@@ -151,7 +161,8 @@ def legacy_export(directory: Path, state: dict, study_id: str) -> None:
                   "registered_or_frozen_by_runner": False,
                   "inference": "stub diagnostic only" if diagnostic else "exploratory only",
                   "ceiling_nano": state["ledger"]["ceiling_nano"],
-                  "prior_nano": state["ledger"]["prior_nano"]}
+                  "prior_nano": state["ledger"]["prior_nano"],
+                  **historical_budget_provenance(state["ledger"])}
     atomic_json(out / "provenance.json", provenance)
     atomic_json(out / "availability.json", {"unavailable": UNAVAILABLE,
                                            "diagnostic_stub": diagnostic,
@@ -399,6 +410,7 @@ def export(directory: Path, state: dict, study_id: str) -> None:
                   "seed": state["identity"]["config"]["seed"], "registered_or_frozen_by_runner": False,
                   "inference": "diagnostic" if state["identity"]["smoke"] else "pilot estimates only",
                   "ceiling_nano": state["ledger"]["ceiling_nano"], "prior_nano": state["ledger"]["prior_nano"],
+                  **historical_budget_provenance(state["ledger"]),
                   "session_soft_limit_credits": state["identity"]["config"].get("session_soft_limit_credits", 300),
                   "billing_limit_kind": "local admission plus per-session soft caps; not guaranteed billed consumption"}
     write_pilot(directory / "results", result, provenance=provenance, dispositions=dispositions, attempts=attempts)

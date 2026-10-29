@@ -108,9 +108,12 @@ The reported company 1,000,000/collaborator hard limit is not independently
 verified or a study-specific stop. A separate study provider hard cap is no
 longer required. See [collaborator billing instructions](../CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk).
 The isolated live backend is now a source candidate, not runtime acceptance.
-An excluded empty-workspace setup probe has unknown usage; its reservation is
-held and live `prior_credits` is null pending authoritative reconciliation.
-Further probes and collection remain blocked; the setup fix was not model-retried.
+An excluded empty-workspace setup probe has unknown usage. On 29 October the
+owner approved its full 300-credit reservation as a separate historical budget
+provision, while retaining known prior usage of 14.54324 and unknown actual
+charge. This removes the unavailable-receipt prerequisite to accounting
+admission, not runtime/collection requirements. Future unknown usage still
+stops. The original ledger remains unchanged; the setup fix was not model-retried.
 Financial acceptance waives no runtime/access or agent permission safeguards.
 Excluding HIR/IDR, passing offline checks
 or having a complete OSF draft grants no permission to collect data.

@@ -26,6 +26,14 @@ from study_io import ROOT, RetryableError, StudyError, atomic_json, command, rea
 
 NANO = 1_000_000_000
 MAX_CREDITS = 300000 * NANO
+APPROVED_HISTORICAL_PROVISION = {
+    "attempt_id": "gpt-6.1-sol-nonstudy-1",
+    "reserved_credits": 300,
+    "actual_credits": None,
+    "source_commit": "44ec37d9bb470521b2efd396a71ce23deb2f8ebf",
+    "evidence_sha256": "82ac0a3c7b6f4c54a2fb65d6cc43a5031ee1c197aa10ece8ba4f492ed7568d22",
+    "approval": "owner-approved-carry-forward-2026-10-29",
+}
 MODEL_DESIGN = "model-stratified-v1"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "scripts")
 GATES = (
@@ -51,17 +59,40 @@ def credits(value: object) -> int:
     return int(amount)
 
 
+def historical_credit_provisions(cfg: dict, *, smoke: bool = False) -> list[dict]:
+    """Keep the one owner-approved historical hold separate from actual usage."""
+    provisions = cfg.get("historical_credit_provisions", [])
+    if provisions not in ([], [APPROVED_HISTORICAL_PROVISION]):
+        raise StudyError("Historical provision must match the exact owner-approved attempt and evidence")
+    if smoke:
+        return []
+    return [{
+        "attempt_id": item["attempt_id"],
+        "reserved_nano": credits(item["reserved_credits"]),
+        "actual_nano": None,
+        "status": "unknown",
+        "source_commit": item["source_commit"],
+        "evidence_sha256": item["evidence_sha256"],
+        "approval": item["approval"],
+    } for item in provisions]
+
+
 def validate_config(cfg: dict, *, smoke: bool) -> None:
     """Reject unaffordable, unknown or unbounded controller settings."""
     expected = {"seed", "ceiling_credits", "prior_credits", "session_reserve_credits", "session_soft_limit_credits",
                 "max_attempts", "study_timeout_seconds", "min_disk_gib", "freeze_manifest"}
-    if set(cfg) != expected:
+    if set(cfg) - {"historical_credit_provisions"} != expected:
         raise StudyError("Configuration has missing or unknown fields; never put credentials in config")
     if not 0 < credits(cfg["ceiling_credits"]) <= MAX_CREDITS:
         raise StudyError("Aggregate ceiling must be positive and at most 300,000 AI credits")
     prior = 0 if smoke else credits(cfg["prior_credits"])
     if prior > credits(cfg["ceiling_credits"]):
         raise StudyError("Prior pilot spending exceeds aggregate ceiling")
+    provisions = historical_credit_provisions(cfg, smoke=smoke)
+    if provisions and prior < credits("14.54324"):
+        raise StudyError("Historical provision requires the confirmed known prior spending")
+    if prior + sum(item["reserved_nano"] for item in provisions) > credits(cfg["ceiling_credits"]):
+        raise StudyError("Prior spending and historical provisions exceed aggregate ceiling")
     if credits(cfg["session_reserve_credits"]) != 300 * NANO:
         raise StudyError("Session reservation must match the nominal 300-credit allowance")
     soft = cfg["session_soft_limit_credits"]
@@ -132,17 +163,20 @@ def schedule(smoke: bool, phase: str, seed: int) -> list[dict]:
 
 
 def reserve(ledger: dict, attempt: str, amount: int) -> None:
-    """Hard admission rule: reconciled spend plus outstanding reservations fits."""
+    """Admit work only when known spending plus all held budget fits."""
     if type(amount) is not int or amount < 0:
         raise StudyError("Reservation must be nonnegative integer nano-credits")
     if attempt in ledger["entries"]:
         raise StudyError("Attempt reservation already exists")
+    provisions = ledger.get("historical_credit_provisions", [])
+    if any(item["attempt_id"] == attempt for item in provisions):
+        raise StudyError("Historical provision attempt cannot be reused")
     entries = ledger["entries"].values()
     if any(entry["status"] == "unknown" for entry in entries):
         raise StudyError("Unknown usage holds its reservation and blocks new work")
     if any(entry["status"] == "complete" and entry["actual_nano"] > entry["reserved_nano"] for entry in entries):
         raise StudyError("Actual credits exceeded a reservation; new work stays blocked")
-    used = ledger["prior_nano"] + sum(
+    used = ledger["prior_nano"] + sum(item["reserved_nano"] for item in provisions) + sum(
         entry["actual_nano"] if entry["status"] == "complete" else entry["reserved_nano"]
         for entry in ledger["entries"].values())
     if used + amount > ledger["ceiling_nano"]:
@@ -251,6 +285,9 @@ def budget_policy(cfg: dict) -> dict:
         "session_reservation_credits": cfg.get("session_reserve_credits"),
         "local_admission_ceiling_credits": cfg.get("ceiling_credits"),
         "registered_ceiling_credits": MAX_CREDITS // NANO,
+        "known_prior_credits": cfg.get("prior_credits"),
+        "historical_credit_provisions": cfg.get("historical_credit_provisions", []),
+        "historical_usage_complete": not bool(cfg.get("historical_credit_provisions")),
         "company_hard_limit_credits_owner_reported": 1000000,
         "company_hard_limit_independently_verified": False,
         "owner_accepted_soft_limit_overshoot_risk": True,
@@ -606,7 +643,9 @@ class Controller:
                           "writer_pid": None, "status": "prepared", "errors": [],
                           "writer_pending": False,
                           "ledger": {"ceiling_nano": credits(cfg["ceiling_credits"]),
-                                     "prior_nano": 0 if smoke else credits(cfg["prior_credits"]), "entries": {}},
+                                     "prior_nano": 0 if smoke else credits(cfg["prior_credits"]),
+                                     "historical_credit_provisions": historical_credit_provisions(cfg, smoke=smoke),
+                                     "entries": {}},
                           "cells": [dict(cell, status="pending", attempts=[], checkpoint=None)
                                     for cell in proposed]}
             self.save()
@@ -616,6 +655,8 @@ class Controller:
             raise StudyError("Stored allocation differs from immutable schedule")
         if (self.state["ledger"]["ceiling_nano"] != credits(cfg["ceiling_credits"])
                 or self.state["ledger"]["prior_nano"] != (0 if smoke else credits(cfg["prior_credits"]))
+                or self.state["ledger"].get("historical_credit_provisions", [])
+                != historical_credit_provisions(cfg, smoke=smoke)
                 or self.state["deadline"] > self.state["started"] + cfg["study_timeout_seconds"]):
             raise StudyError("Stored budget, prior spending or deadline differs from immutable limits")
         pid = self.state.get("writer_pid")

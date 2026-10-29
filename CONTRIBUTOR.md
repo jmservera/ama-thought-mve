@@ -102,19 +102,26 @@ The supplied controller config applies a uniform **10% operational buffer**:
 | `session_soft_limit_credits` | 270 | SDK session soft limit; per original session, including any retry, not a global study cap |
 | `session_reserve_credits` | 300 | Nominal reservation ceiling; the initial reservation includes 30 credits of headroom above the soft threshold |
 | `ceiling_credits` | 270000 | Local admission stop, leaving 30000 below the registered 300000 envelope |
-| `prior_credits` | null | Live admission blocked pending an unreconciled excluded probe; historical known usage is 14.54324 |
+| `prior_credits` | 14.54324 | Confirmed prior usage only; excludes the unknown setup-check charge |
+| `historical_credit_provisions` | 300 held | Exact owner-approved historical probe provision, separate from actual spending |
 
-Before the new excluded probe, historical remaining headroom was
-**269985.45676 credits**. It is not currently spendable: the probe has unknown
-usage and retains a **300-credit reservation**, so further admission is blocked.
+The excluded probe has unknown usage and retains a **300-credit reservation**.
+On 29 October the owner approved carrying that full amount as a separate
+historical budget provision. Known usage plus held budget is **314.54324**,
+leaving **269685.45676 credits** within the 270000 admission threshold before
+new reservations. This permits accounting admission, not live verification or
+collection without their separate approvals.
 The attempt used an empty non-study workspace, a 30-credit soft limit and 90-second
 deadline, and returned no tool calls or complete billed-usage evidence.
 An SDK directory-setup defect was corrected without another model request;
 historical create/send and zero charge are not established by missing events.
-Preserve the private attempt/ledger and obtain authoritative correlated usage
-or no-charge reconciliation. Then explicitly configure the historical 14.54324
-plus every reconciled later charge; never reset to 14.54324 or zero to clear the
-hold. The source bundle contains no private session/authentication artifacts.
+Preserve the private attempt/ledger unchanged. Its actual usage remains null;
+the config binds this one-off provision to the old source, attempt, ledger digest
+and owner approval. Do not book the 300 as actual usage or release the hold
+without legitimate reconciliation. If later evidence exceeds the provision,
+stop and account for the excess. This is not a guaranteed provider billing bound.
+Future incomplete usage still stops; it is never automatically converted to a
+historical provision. The source bundle contains no private session/authentication artifacts.
 The preparatory CLI configs also use 270. All three models/arms use the same
 setting. These are prospective operational changes, not edits to the immutable
 original OSF attachment; record the linked clarification before collection.

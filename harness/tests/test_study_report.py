@@ -66,6 +66,23 @@ def test_export_is_deterministic_and_has_no_private_paths(modules, reports):
     assert all(str(reports.parent).encode() not in data for data in before.values())
 
 
+@pytest.mark.parametrize("legacy", [False, True])
+def test_exports_distinguish_historical_budget_hold_from_actual_usage(modules, reports, legacy):
+    study, report = modules
+    state = study.read_json(reports.parent / "state.json")
+    cfg = study.read_json(ROOT / "harness/study-config.json")
+    state["ledger"]["prior_nano"] = study.credits(cfg["prior_credits"])
+    state["ledger"]["historical_credit_provisions"] = study.historical_credit_provisions(cfg)
+    exporter = report.legacy_export if legacy else report.export
+    exporter(reports.parent, state, "export-test")
+    provenance = study.read_json(reports / "provenance.json")
+    assert provenance["prior_nano"] == study.credits("14.54324")
+    assert provenance["historical_reserved_nano"] == study.credits(300)
+    assert provenance["historical_usage_complete"] is False
+    hold = provenance["historical_credit_provisions"][0]
+    assert hold["actual_nano"] is None and hold["status"] == "unknown"
+
+
 @pytest.mark.parametrize("attack", ["extra", "symlink", "size", "token", "env-secret"])
 def test_publication_refuses_non_results_and_secret_payloads(modules, reports, monkeypatch, tmp_path, attack):
     study, report = modules

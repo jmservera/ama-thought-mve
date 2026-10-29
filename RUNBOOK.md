@@ -100,12 +100,16 @@ different JSON object. Its settings are seed, ceiling (positive, never >300,000 
 credits; supplied 270,000), prior spending, per-session reservation, separate
 integer CLI soft limit (30 through 300; supplied 270), maximum attempts,
 absolute study allowance and minimum disk space. Historical owner-confirmed
-usage is **14.54324**, but the supplied `prior_credits` is now **null** because
-one excluded setup probe has no complete usage evidence. Its 300-credit
-reservation remains held. No further probe or live study is admitted until
-authoritative correlated usage/no-charge reconciliation establishes the total.
-Add every later charge to 14.54324; never infer zero or restore the historical
-number merely to remove the block. See the prior-data disclosure and
+usage is **14.54324**; one excluded setup probe still has unknown usage. The
+owner approved its full **300-credit** reservation as a separate historical
+budget provision on 29 October. `prior_credits` records only known usage;
+`historical_credit_provisions` separately binds the hold to the exact approved
+attempt/source/ledger digest. Admission counts both, leaving **269685.45676**
+before new reservations. Actual historical total remains unknown; reports
+explicitly disclose that incompleteness. The private old ledger is unchanged.
+Do not infer zero, call the provision actual spending, or apply this exception
+to future failures. Future incomplete usage and overruns still stop admission.
+Live checks and collection still require separate acceptance. See the prior-data disclosure and
 [collaborator hold instructions](CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk).
 Smoke explicitly has zero paid usage and does not consume a live allocation.
 No config field contains a token. The live SDK uses approved interactive user

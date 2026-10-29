@@ -153,8 +153,10 @@ owner's direction to set limits below previous values. Historical confirmed
 usage is **14.54324**; calibration, probes, retries and all other study charges
 count. After the excluded SDK setup probe described in
 [prior-data-disclosure.md](prior-data-disclosure.md), current total prior usage
-is unknown: the config now supplies `prior_credits=null` and holds admission
-until authoritative reconciliation. The probe's 300 reservation remains held;
+is unknown: the initial correction supplied `prior_credits=null` and held
+admission until authoritative reconciliation. The later owner-approved historical
+budget provision below supersedes that receipt prerequisite, not unknown usage.
+The probe's 300 reservation remains held;
 the setup fix was not model-retried. Remaining original allowance below
 the CLI minimum 30 blocks retry; do not round up or create a fresh allowance.
 An initial reservation of 300 provides 30 credits of headroom; any actual
@@ -163,11 +165,28 @@ reservation overrun is retained and stops further admission.
 GitHub states that an in-progress response completes even if it exceeds the
 session limit. The session buffer and 30,000 aggregate buffer reduce overshoot
 risk, but **do not guarantee** either nominal registered ceiling or final billed
-consumption. Monitoring/complete accounting is still mandatory; unknown usage
+consumption. Monitoring/complete accounting is still mandatory; new unknown usage
 blocks new work. A company billing-cycle reset never resets the lifetime study
 ledger. Do not silently shrink sample if affordability fails; halt and amend.
 An optional read-only provider audit may add assurance but is no longer a
 mandatory budget prerequisite under this explicit risk acceptance.
+
+### Owner-approved historical budget provision, 29 October
+
+The owner explicitly approved carrying forward the full 300-credit reservation
+for `gpt-6.1-sol-nonstudy-1` at source `44ec37d`, separately from 14.54324 known
+prior usage. Its actual charge remains unknown; the private original ledger is
+unchanged. Configuration admits only that exact source/attempt/evidence-bound
+provision. Known spending plus held budget is 314.54324, leaving 269685.45676
+inside the 270000 local admission threshold before new reservations.
+
+This is a prospective financial-policy exception for one excluded historical
+setup check, not an actual charge, a guaranteed billing bound, a claim of
+complete historical accounting, or permission to ignore future missing usage.
+Future unknown usage and overruns still stop, and session limits/security
+controls remain unchanged. Live verification, exact-source acceptance/freeze
+and collection authorization remain separate. Record this change in the OSF
+update at the end of preparation, before affected calibration/pilot collection.
 
 This financial decision changes no agent permission/trust/sandbox controls,
 evaluator separation, actual model/access checks, independent acceptance or

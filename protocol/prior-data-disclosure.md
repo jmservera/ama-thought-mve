@@ -67,9 +67,20 @@ complete usage receipt. Evidence contains an SDK setup failure, not attested
 session-create/model-send stages. A missing base-directory defect was corrected
 offline without a retry. **Unknown charge is not zero charge.** The reservation
 remains held and total current prior usage is unknown; historical 14.54324 is
-only the earlier confirmed amount. `prior_credits=null` blocks new live
-admissions until authoritative attempt-correlated usage/no-charge reconciliation.
+only the earlier confirmed amount. The initial implementation blocked new live
+admissions pending authoritative attempt-correlated usage/no-charge reconciliation.
 No other model probe, calibration or registered pilot followed this failure.
+
+On 29 October the owner explicitly approved a one-off conservative budget
+provision instead: preserve the old ledger unchanged, carry its full 300-credit
+reservation separately from 14.54324 known usage, and do not infer an actual
+charge. The ledger SHA-256 is
+`82ac0a3c7b6f4c54a2fb65d6cc43a5031ee1c197aa10ece8ba4f492ed7568d22`;
+configuration binds the provision to this digest, original source and attempt.
+Known spending plus held budget is 314.54324, not a measured total consumption.
+Actual historical total remains unknown. Future incomplete usage still stops;
+this is not a general waiver or a guaranteed upper bound on provider charges.
+No live model or collection permission follows from this accounting decision.
 
 Private logs/ledger are retained outside the source bundle. No exact wall-clock
 execution/inspection times are inferred from Git or file timestamps. The
