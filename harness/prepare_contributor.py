@@ -26,7 +26,9 @@ agent workspace. `source/` contains the complete committed source, including
 hidden tests/reference solutions, dependency manifests, and a shallow Git
 checkout at the exact source commit. No private study outputs, tokens, local
 environments or session history are copied. Public historical derived smoke
-results in the source tree remain excluded from the registered study.
+results and previously published development notes remain part of the tracked
+checkout, but are not registered study data. Ignored current-session evidence
+is never copied.
 
 Verify the external archive checksum before extraction. `manifest.json` binds
 every packaged file. From `source/`, start with `CONTRIBUTOR.md` and the dated
@@ -75,7 +77,7 @@ def source_files(root: Path) -> list[Path]:
         path = PurePosixPath(relative)
         if (metadata.split()[0] not in ("100644", "100755")
                 or path.is_absolute() or ".." in path.parts
-                or any(part in (".study", ".copilot-tracking", ".venv", "__pycache__")
+                or any(part in (".study", ".venv", "__pycache__")
                        or part.startswith(".env") for part in path.parts)
                 or path.parts[0].startswith("runs")
                 or path.suffix in (".log", ".jsonl", ".gz", ".zip")):

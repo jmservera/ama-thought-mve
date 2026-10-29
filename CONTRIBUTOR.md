@@ -19,8 +19,10 @@ model-visible candidate workspace.
 `manifest.json` binds all archive file hashes and executable modes, the corrected
 source commit, controller input hash and original registration source. The
 external `.sha256` file binds the archive. Private run data, credentials,
-local environments and OSF receipts are excluded. Existing tracked historical
-smoke summaries remain excluded historical diagnostics, not registered data.
+local environments and OSF receipts are excluded. Previously published tracked
+development notes and historical smoke summaries are included as part of the
+exact source checkout; they remain historical diagnostics, not registered data.
+Ignored current-session evidence is never copied.
 
 ## Offline setup and checks
 

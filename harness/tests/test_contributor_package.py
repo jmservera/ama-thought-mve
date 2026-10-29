@@ -22,8 +22,10 @@ def packager(monkeypatch):
 def source(tmp_path):
     repo = tmp_path / "original"
     repo.mkdir()
-    (repo / ".gitignore").write_text(".study/\n", encoding="utf-8")
+    (repo / ".gitignore").write_text(".study/\n.copilot-tracking/\n", encoding="utf-8")
     (repo / "source.py").write_text("print('offline source')\n", encoding="utf-8")
+    (repo / ".copilot-tracking").mkdir()
+    (repo / ".copilot-tracking/historical.md").write_text("Previously published note\n", encoding="utf-8")
     launcher = repo / "run-study.sh"
     launcher.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     launcher.chmod(0o755)
@@ -32,12 +34,14 @@ def source(tmp_path):
         ["git", "config", "user.name", "Fixture"],
         ["git", "config", "user.email", "fixture@example.invalid"],
         ["git", "add", "."],
+        ["git", "add", "-f", ".copilot-tracking/historical.md"],
         ["git", "commit", "-qm", "source fixture"],
     ):
         subprocess.run(command, cwd=repo, check=True, capture_output=True)
     private = repo / ".study"
     private.mkdir(mode=0o700)
     (private / "private-session.log").write_text("must not travel", encoding="utf-8")
+    (repo / ".copilot-tracking/private-session.md").write_text("must not travel", encoding="utf-8")
     return repo
 
 
@@ -48,6 +52,7 @@ def test_complete_source_is_private_verified_and_relocatable(packager, source, t
     assert manifest["private_run_data_included"] is False
     assert manifest["paid_execution_ready"] is False
     assert "source/source.py" in manifest["files"]
+    assert "source/.copilot-tracking/historical.md" in manifest["files"]
     assert all("private-session" not in name for name in manifest["files"])
     assert archive.stat().st_mode & 0o077 == 0
     assert hashlib.sha256(archive.read_bytes()).hexdigest() == result["sha256"]
