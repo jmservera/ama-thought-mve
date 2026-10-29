@@ -7,6 +7,7 @@ This is diagnostic attribution, not an isolation boundary against hostile code.
 import dis
 import importlib.machinery
 import importlib.util
+import inspect
 import json
 import os
 import re
@@ -30,16 +31,25 @@ def view_contracts(src, policy, objects):
     def observe(frame, event, result):
         if callable(previous):
             previous(frame, event, result)
-        if event != "return" or result is None or not frame.f_code.co_argcount:
+        if event != "return" or result is None:
+            return
+        code = frame.f_code
+        if code.co_argcount:
+            receiver = frame.f_locals.get(code.co_varnames[0])
+        elif code.co_flags & inspect.CO_VARARGS:
+            args = frame.f_locals.get(code.co_varnames[code.co_kwonlyargcount], ())
+            receiver = args[0] if args else None
+        else:
             return
         package = sys.modules.get(policy.get("package"))
         workbench = vars(package).get("Workbench") if package is not None else None
-        owner = type(frame.f_locals.get(frame.f_code.co_varnames[0]))
+        owner = type(receiver)
         if not isinstance(workbench, type) or workbench not in owner.__mro__:
             return
         for name in factories:
             method = next((vars(base)[name] for base in owner.__mro__ if name in vars(base)), None)
-            if getattr(method, "__code__", None) is frame.f_code and _module_origin(frame.f_globals, src):
+            origin = _module_origin(frame.f_globals, src) if getattr(method, "__code__", None) is code else None
+            if origin and os.path.realpath(code.co_filename) == origin["source"]:
                 objects[id(result)] = result
                 break
 

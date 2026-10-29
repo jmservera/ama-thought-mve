@@ -147,7 +147,8 @@ def measured_row(record, regressions=None):
     metrics = measurement.get("metrics")
     metrics = metrics if isinstance(metrics, dict) else {}
     return {"k": feature_index(record.get("k")), "kind": record.get("kind"),
-            "pass_rate": 100.0 * sum(outcome == "passed" for outcome in hidden.values()) / len(hidden) if hidden else None,
+            "pass_rate": (100.0 * sum(outcome == "passed" for outcome in hidden.values()) / len(hidden)
+                          if hidden and all(outcome in ("passed", "failed") for outcome in hidden.values()) else None),
             "open_regressions": regressions, "nloc_src": _num(metrics.get("nloc_src")),
             "md_words": _num(metrics.get("md_words")), **{name: _num(metrics.get(name)) for name in METRICS}}
 

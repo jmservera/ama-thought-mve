@@ -293,7 +293,7 @@ def test_c_review_keeps_uncommitted_review_and_reports_other_edits_without_impor
 
 def test_live_controller_uses_registered_budgets_and_external_metrics(runtime, tmp_path):
     study = importlib.import_module("study")
-    config = dict(study.read_json(study.ROOT / "harness/study-config.json"), prior_credits=14.54324)
+    config = study.read_json(study.ROOT / "harness/study-config.json")
     current = study.Controller(tmp_path, config, smoke=False, phase="first", study_id="offline-plan")
     selected = study.read_json(current.runtime_config)
     assert selected["budgets_seconds"] == {"feature": 1800, "post": 900, "change_request": 2700}
@@ -322,7 +322,7 @@ def test_live_attempt_reserves_before_transport_and_preserves_charge_on_failure(
     runtime, tmp_path, monkeypatch, outcome,
 ):
     study = importlib.import_module("study")
-    config = dict(study.read_json(study.ROOT / "harness/study-config.json"), prior_credits=14.54324)
+    config = study.read_json(study.ROOT / "harness/study-config.json")
     current = study.Controller(tmp_path / "private", config,
                                smoke=False, phase="first", study_id="offline-transport-fixture")
     cell = current.state["cells"][0]

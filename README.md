@@ -85,7 +85,7 @@ running models or uploading anything. See the
 The supplied settings use a 10% buffer: **270 AI Credits per original session**
 (shared across any infrastructure retry), below the registered 300, and a
 **270,000-credit local study admission stop**, below the unchanged registered
-300,000-credit envelope. Prior **14.54324 credits**, calibration, probes and
+300,000-credit envelope. Known prior **17.59833 credits**, calibration, probes and
 every attempt count. [CLI session limits](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/set-session-limit)
 allow an in-flight response to finish **over** the limit; the buffer reduces risk
 but guarantees neither per-session nor total billed consumption. The company
@@ -99,9 +99,11 @@ for monitoring, reset and overrun instructions.
 failed, first during SDK setup and then twice on unexpected built-in MCP startup.
 None produced tool calls or complete usage evidence. On 29 October the owner
 separately approved retaining each 300-credit reservation as an exact
-source/evidence-bound unknown provision. Known usage remains **14.54324**;
+source/evidence-bound unknown provision. Known usage is now **17.59833**,
+including **3.05509** from three subsequent successful excluded backend checks
+at `eff4d09` (see [prior-data disclosure](protocol/prior-data-disclosure.md));
 **900 credits** are held separately, not booked as spending or certified zero.
-Known usage plus held budget is **914.54324**, leaving **269085.45676** within
+Known usage plus held budget is **917.59833**, leaving **269082.40167** within
 the 270000 local admission threshold. Total actual prior usage remains unknown.
 These provisions are not guaranteed billing bounds. Future
 unknown usage still stops new work; live verification and collection gates remain.

@@ -108,7 +108,7 @@ def validate_config(cfg: dict, *, smoke: bool) -> None:
     if prior > credits(cfg["ceiling_credits"]):
         raise StudyError("Prior pilot spending exceeds aggregate ceiling")
     provisions = historical_credit_provisions(cfg, smoke=smoke)
-    if provisions and prior < credits("14.54324"):
+    if provisions and prior < credits("17.59833"):
         raise StudyError("Historical provision requires the confirmed known prior spending")
     if prior + sum(item["reserved_nano"] for item in provisions) > credits(cfg["ceiling_credits"]):
         raise StudyError("Prior spending and historical provisions exceed aggregate ceiling")

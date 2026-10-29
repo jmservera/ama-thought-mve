@@ -142,6 +142,39 @@ This startup-only check is not a successful paid model roundtrip or a substitute
 for later source-bound acceptance. Original ledgers and registered assets are
 preserved; private startup/session records are excluded from source bundles.
 
+## 29 October successful excluded checks at `eff4d09`
+
+After explicit owner authorization, one session each ran sequentially at
+`eff4d092618da5e6ba294b9dba429f98cbc3ccc0`, with source fingerprint
+`c626645ebe1f4b1a5cc58f9276de613f5dec6e74f5183053eb27fb164c593f66`.
+Each used an empty non-study workspace, medium reasoning, a 30-credit soft
+setting, a 300-credit reservation and a 90-second deadline, with no retry.
+All succeeded with the assigned model, one isolated UID/probe-marker command,
+complete correlated billing and owned cleanup. No feature or CR1 material,
+calibration, pilot or exercise trajectory was presented or collected.
+
+| Model | Complete observed credits |
+| --- | ---: |
+| `gpt-6.1-sol` | 0.83810 |
+| `claude-sonnet-5.5` | 1.19015 |
+| `gemini-4-argon` | 1.02684 |
+| Total | 3.05509 |
+
+The immutable private ledger SHA-256 is
+`ed91207df2c50319c3af891709112636d47910a372285e4cfbf890ce312a110a`.
+These three new reservations are fully settled, with zero new held budget.
+Known prior usage is now **17.59833**; the three earlier unknown charges still
+retain **900** held, yielding **917.59833** accounted budget and
+**269082.40167** local admission room before any future reservation.
+Actual historical total remains unknown. All four raw ledgers are preserved.
+
+This evidence is limited to the exact `eff4d09` empty-workspace runtime paths,
+not the full exercise, later source or future model availability. Subsequent
+scientific corrections and offline validation must name their own source;
+they do not rebind these paid receipts or grant human acceptance, a freeze,
+additional paid calls or collection permission. Record this updated inventory
+prospectively in the existing OSF registration before affected collection.
+
 ## Scope of this record
 
 This resolves `required_evidence.prior_data_disclosure` as an explicit inventory,

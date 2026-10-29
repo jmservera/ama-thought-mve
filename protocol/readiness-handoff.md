@@ -111,16 +111,21 @@ The isolated live backend is now a source candidate, not runtime acceptance.
 Three excluded empty-workspace checks have unknown actual usage: the original
 setup failure and two later checks stopped by unexpected built-in MCP startup.
 On 29 October the owner separately approved each full 300-credit reservation
-as an exact historical budget provision. Known prior stays 14.54324; 900 is held
-separately, leaving 269085.45676 inside local admission. No hold is actual
+as an exact historical budget provision. Known prior is now 17.59833 after
+three subsequent successful excluded backend checks added 3.05509; 900 is held
+separately, leaving 269082.40167 inside local admission. No hold is actual
 spending or certified zero. This removes the unavailable-receipt prerequisite
 to accounting admission, not runtime/collection requirements. Future unknown
 usage still stops. All three original ledgers remain unchanged.
 The corrected per-session startup restriction was tested through actual deferred
 startup in a new owned tmux session with inference rejected by a local handler,
 never forwarded to a provider. Only the isolated tool was offered; active MCP
-remains denied. This does not establish a successful paid model roundtrip or
-new-source freeze.
+remains denied. That offline check alone establishes neither a successful paid
+roundtrip nor a new-source freeze. Subsequent GPT/Sonnet/Gemini checks did
+succeed at `eff4d09`, with complete usage and one isolated tool call each.
+They establish only those empty-workspace paths on that source; no paid
+verification on later corrected source or collection acceptance is inferred.
+See [prior-data disclosure](prior-data-disclosure.md) for immutable provenance.
 Financial acceptance waives no runtime/access or agent permission safeguards.
 Excluding HIR/IDR, passing offline checks
 or having a complete OSF draft grants no permission to collect data.

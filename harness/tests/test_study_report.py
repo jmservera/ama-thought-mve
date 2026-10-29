@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import xml.etree.ElementTree as ET
 import zipfile
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -109,13 +110,71 @@ def test_exports_distinguish_historical_budget_hold_from_actual_usage(modules, r
     exporter = report.legacy_export if legacy else report.export
     exporter(reports.parent, state, "export-test")
     provenance = study.read_json(reports / "provenance.json")
-    assert provenance["prior_nano"] == study.credits("14.54324")
+    assert provenance["prior_nano"] == study.credits("17.59833")
     assert provenance["historical_reserved_nano"] == study.credits(900)
     assert provenance["historical_usage_complete"] is False
     holds = provenance["historical_credit_provisions"]
     assert [hold["attempt_id"] for hold in holds] == [
         item["attempt_id"] for item in cfg["historical_credit_provisions"]]
     assert all(hold["actual_nano"] is None and hold["status"] == "unknown" for hold in holds)
+
+
+@pytest.mark.parametrize("outcome", ["error", "skipped", "timeout"])
+@pytest.mark.parametrize("unknown_k", [9, 10])
+def test_unknown_coverage_exports_blank_csv_and_real_figure_gaps(modules, tmp_path, outcome, unknown_k):
+    _, report = modules
+    first, second, cr = "test_f01::test_x", "test_f02::test_y", "test_cr1::test_cr"
+    panel = {"suite": "synthetic", "review": {"accepted": True, "evidence": "synthetic review"},
+             "contracts": [{"id": name, "feature": feature, "role": role, "from_cycle": start,
+                            "through_cycle": end, "unchanged": True, "oracle_version": "v1"}
+                           for name, feature, role, start, end in (
+                               (first, "f01", "feature", 1, 10),
+                               (second, "f02", "feature", 1, 10),
+                               (cr, "cr1", "cr1", 11, 11))]}
+    records = []
+    for k in range(1, 11):
+        for kind in ("feature", "consolidation"):
+            hidden = {first: "passed", second: outcome if k == unknown_k else
+                      "passed" if k == 10 else "failed"}
+            records.append({"kind": kind, "k": k, "measure": {
+                "hidden": hidden, "hidden_total": 2,
+                "hidden_passed": sum(value == "passed" for value in hidden.values()),
+                "metrics": {"mean_ccn": k}}})
+    records.append({"kind": "change_request", "k": 10, "measure": {
+        "hidden": dict.fromkeys((first, second, cr), "passed"), "hidden_total": 3, "hidden_passed": 3}})
+    raw = {"dir": "", "meta": {"arm": "B", "features": 10, "run_id": "synthetic",
+                               "suite": "synthetic", "phase": "pilot-estimation", "change_request": True},
+           "recs": records}
+
+    result = report.analyze_pilot([raw], panel=panel, n=20)
+    report.write_pilot(tmp_path, result)
+
+    with (tmp_path / "series.csv").open(newline="", encoding="utf-8") as stream:
+        rows = list(csv.DictReader(stream))
+    expected = [None if k == unknown_k else 100 if k == 10 else 50 for k in range(1, 11)]
+    assert [None if row["pass_rate"] == "" else float(row["pass_rate"]) for row in rows] == expected
+    assert [float(row["mean_ccn"]) for row in rows] == list(range(1, 11))
+    summary = json.loads((tmp_path / "summary.json").read_text())["runs"][0]
+    assert len(summary["series"]) == 10 and summary["sequence_complete"]
+    assert summary["end"]["pass_rate"] == expected[-1]
+    assert summary["cr_success"] is (None if unknown_k == 10 else True)
+
+    svg = ET.parse(tmp_path / "trajectories.svg").getroot()
+    circles = svg.findall("{http://www.w3.org/2000/svg}circle")
+    coverage_points = {(node.attrib["cx"], node.attrib["cy"]) for node in circles
+                       if float(node.attrib["cx"]) < 500}
+    expected_points = [(f"{60 + 350 * (k - 1) / 9:.2f}", f"{65 + 210 * (1 - value / 100):.2f}")
+                       if value is not None else None for k, value in enumerate(expected, 1)]
+    assert coverage_points == {point for point in expected_points if point is not None}
+    assert len(circles) == len(coverage_points) + 10
+    coverage_segments = {node.attrib["d"] for node in svg.findall("{http://www.w3.org/2000/svg}path")
+                         if node.attrib.get("stroke") == "#2471a3"
+                         and float(node.attrib["d"].split(",")[0][1:]) < 500}
+    assert coverage_segments == {f"M{left[0]},{left[1]} L{right[0]},{right[1]}"
+                                 for left, right in pairwise(expected_points)
+                                 if left is not None and right is not None}
+    latex = (tmp_path / "trajectories.tex").read_text()
+    assert latex.count(r"\tiny B") == len(circles)
 
 
 @pytest.mark.parametrize("attack", ["extra", "symlink", "size", "token", "env-secret"])

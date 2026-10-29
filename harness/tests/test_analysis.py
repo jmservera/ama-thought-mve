@@ -97,6 +97,25 @@ def make_delivery_records(arm, features=3):
     return records
 
 
+@pytest.mark.parametrize("outcome", ["error", "skipped", "timeout"])
+def test_unknown_coverage_preserves_raw_outcomes_and_neighboring_observations(outcome):
+    records = []
+    for index, second in enumerate(("failed", outcome, "passed"), 1):
+        hidden = {"test_f01.py::test_feature": "passed", "test_f02.py::test_feature": second}
+        for kind in ("feature", "consolidation"):
+            records.append(make_record(kind, index, hidden=hidden, metrics={"mean_ccn": index}))
+    summary = analysis.summarise_run(make_run(records, arm="B", features=3), "credits")
+
+    assert [row["pass_rate"] for row in summary["series"]] == [50, None, 100]
+    assert [row["mean_ccn"] for row in summary["series"]] == [1, 2, 3]
+    assert summary["sequence_complete"] and len(summary["delivery_attempts"]) == 6
+    for record, attempt in zip(records, summary["delivery_attempts"], strict=True):
+        assert analysis.measured_hidden(record) == attempt["hidden"] == record["measure"]["hidden"]
+        assert record["measure"]["hidden_total"] == 2
+    assert records[3]["measure"]["hidden"]["test_f02.py::test_feature"] == outcome
+    assert records[3]["measure"]["hidden_passed"] == 1
+
+
 @pytest.mark.parametrize(("hypothesis", "estimate"), [("H1", "diff_points"), ("H5", "cost_ratio_B_over_A")])
 def test_given_scheduled_ten_features_interrupted_after_one_when_evaluated_then_not_evaluable(hypothesis, estimate):
     summaries = []

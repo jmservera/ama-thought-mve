@@ -206,14 +206,36 @@ no account changes, paid probes or calibration/pilot launch.
 Record this addendum and its exact revised source prospectively in OSF before
 affected collection; preserve the original approved attachment unchanged.
 
+### Subsequent complete excluded-check accounting
+
+Three later authorized empty-workspace checks at
+`eff4d092618da5e6ba294b9dba429f98cbc3ccc0` succeeded with complete billing:
+GPT 0.83810, Sonnet 1.19015 and Gemini 1.02684, totaling **3.05509 credits**.
+The unchanged private ledger SHA-256 is
+`ed91207df2c50319c3af891709112636d47910a372285e4cfbf890ce312a110a`.
+Known usage is now **17.59833**, with the original **900 held** unchanged:
+**917.59833** accounted and **269082.40167** local admission room.
+No new unknown provision is needed or approved. Earlier dated amounts above
+remain historical, not the current config baseline. See the
+[prior-data disclosure](prior-data-disclosure.md) for scope and exclusions.
+Paid evidence remains limited to `eff4d09`; later source corrections require
+their own offline evidence and human acceptance, not silently rebound receipts.
+
 ### PR review implementation corrections and operator workflow
 
 Mandatory API attribution now follows public export identity rather than an
 implementation's internal class name. Actual candidate view objects returned by
 the declared `view_as`/`view_for` factories receive the declared reader contract;
 unrelated objects, unsupported methods and external failures remain unattributed.
+This includes transparent variadic factory decorators and delegation, without
+attributing arbitrary intermediate returned objects.
 Both trusted evaluation runners use the same rule. No contract-panel identity,
 feature requirement or reference implementation changes.
+
+Trajectory coverage is unavailable when any recorded test outcome is
+`error`, `skipped` or `timeout`, not a reduced pass percentage. CSV cells are
+empty and plots retain gaps; raw observations and fixed denominators remain.
+This corrects secondary presentation, not the primary H1/H2/CR1 estimands.
 
 A failed isolated measurement may return its nonzero exit without a result file,
 so the existing bounded second measurement can run on the same retained snapshot.

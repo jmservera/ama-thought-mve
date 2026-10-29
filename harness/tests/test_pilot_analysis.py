@@ -244,6 +244,26 @@ def test_missing_feature_plan_and_oracle_errors_are_unknown_not_failure(pilot, p
     assert pilot.summarise_pilot(run, panel)["end"]["pass_rate"] is None
 
 
+@pytest.mark.parametrize("outcome", ["error", "skipped", "timeout"])
+def test_unknown_p10_coverage_stays_unavailable_in_series_and_primary_endpoints(pilot, panel, outcome):
+    run = cohort()[4]
+    run["recs"][-4] = rec("consolidation", 9, x="failed")
+    run["recs"][-2] = rec("consolidation", 10, y=outcome)
+
+    summary = pilot.summarise_pilot(run, panel)
+
+    assert summary["sequence_complete"] and len(summary["series"]) == 10
+    assert summary["series"][-2]["pass_rate"] == 50
+    assert summary["series"][-1]["pass_rate"] is None
+    assert summary["end"]["pass_rate"] is None
+    assert summary["last_observed"]["pass_rate"] is None
+    assert summary["cr_success"] is None
+    assert summary["retention"]["rows"][-1]["open_losses"] is None
+    assert summary["regression_auc"] is None
+    assert run["recs"][-2]["measure"]["hidden"]["test_f02::test_y"] == outcome
+    assert run["recs"][-2]["measure"]["hidden_total"] == 2
+
+
 @pytest.mark.parametrize("runner", ["pytest", "stdlib"])
 @pytest.mark.parametrize("fault", ["missing_export", "product_exception", "infrastructure"])
 def test_actual_measurements_distinguish_h1_h2_and_cr_nonpasses_from_unknown(

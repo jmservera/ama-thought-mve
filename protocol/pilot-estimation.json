@@ -60,7 +60,7 @@
     "pilot_session_credit_cap": 300,
     "operational_session_soft_limit_credits": 270,
     "operational_admission_ceiling_credits": 270000,
-    "soft_limit_risk_policy": "Owner accepts residual in-flight-response overshoot. Uniform 10% buffer selected as implementation assumption on 2026-10-29, pending prospective recording. Original registered 300/session and 300000 total remain nominal maxima, not guaranteed provider-enforced stops. Prior 14.54324, calibration, probes and every attempt count; retries share remaining original time/soft allowance and are not topped up below CLI minimum30.",
+    "soft_limit_risk_policy": "Owner accepts residual in-flight-response overshoot. Uniform 10% buffer selected as implementation assumption on 2026-10-29, pending prospective recording. Original registered 300/session and 300000 total remain nominal maxima, not guaranteed provider-enforced stops. Known prior 17.59833 (historical smoke14.54324 plus excluded backend checks3.05509), calibration, probes and every attempt count; historical900held remains separate from actual spending. Retries share remaining original time/soft allowance and are not topped up below CLI minimum30.",
     "company_hard_limit_credits_owner_reported": 1000000,
     "company_hard_limit_independently_verified": false,
     "study_specific_provider_hard_cap_required": false,

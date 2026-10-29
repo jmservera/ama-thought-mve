@@ -135,7 +135,7 @@ candidate container. Passing these checks is not collection approval.
 
 The owner accepted residual soft-limit overshoot risk on **29 October 2026**.
 The registered whole-study envelope remains **300,000 AI Credits**, including
-prior **14.54324 credits**, calibration, probes and every attempt. The company
+known prior **17.59833 credits**, calibration, probes and every attempt. The company
 hard limit is **1,000,000 credits per collaborator**, **owner-reported, not
 independently verified**. It is an outer company allowance, not a hard stop at
 the study budget. No separate study-specific provider hard cap is required.
@@ -147,13 +147,16 @@ The supplied controller config applies a uniform **10% operational buffer**:
 | `session_soft_limit_credits` | 270 | SDK session soft limit; per original session, including any retry, not a global study cap |
 | `session_reserve_credits` | 300 | Nominal reservation ceiling; the initial reservation includes 30 credits of headroom above the soft threshold |
 | `ceiling_credits` | 270000 | Local admission stop, leaving 30000 below the registered 300000 envelope |
-| `prior_credits` | 14.54324 | Confirmed prior usage only; excludes all three unknown runtime-check charges |
+| `prior_credits` | 17.59833 | Confirmed historical smoke plus three successful excluded backend checks; excludes the three unknown charges |
 | `historical_credit_provisions` | 900 held | Three exact, separately owner-approved 300-credit provisions, not actual spending |
 
 Three excluded checks have unknown actual usage and each retains a **300-credit
 reservation**. On 29 October the owner separately approved carrying each as a
-historical budget provision. Known usage plus held budget is **914.54324**,
-leaving **269085.45676 credits** within the 270000 admission threshold before
+historical budget provision. Three later excluded backend checks at `eff4d09`
+returned complete usage totaling **3.05509**, bringing known prior usage from
+14.54324 to **17.59833**; their successful reservations are settled, not held.
+Known usage plus historical held budget is **917.59833**,
+leaving **269082.40167 credits** within the 270000 admission threshold before
 new reservations. This permits accounting admission, not live verification or
 collection without their separate approvals.
 All three attempts used empty non-study workspaces, 30-credit soft limits and 90-second

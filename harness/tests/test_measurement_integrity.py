@@ -1260,6 +1260,97 @@ def test_only_declared_missing_candidate_apis_are_nonpasses(
     )
 
 
+@pytest.mark.parametrize("style", ["ordinary", "positional", "named", "variadic", "delegated"])
+@pytest.mark.parametrize("case", [
+    "reader_as", "reader_for", "unrelated_view", "intermediate_view", "undeclared_factory",
+    "undeclared_reader", "write", "external_view", "unrelated_receiver",
+    "external_module", "external_code",
+])
+def test_declared_factory_returns_preserve_identity_through_transparent_wrappers(
+    hidden_candidate, measure_module, runner, style, case
+):
+    repo, suite, test = hidden_candidate
+    methods = ["exercise() -> bool."]
+    if case != "undeclared_factory":
+        methods += ["view_as(role) -> view.", "view_for(name) -> view."]
+    if case != "undeclared_reader":
+        methods.append("get_case(case_id) -> Case.")
+    suite.joinpath("suite.json").write_text(json.dumps({
+        "package": "workbench",
+        "features": [{"id": "f1", "api": ["Workbench() keeps everything in memory.", *methods]}],
+    }), encoding="utf-8")
+    wrappers = {
+        "ordinary": "    def wrapped(self, role):\n        return original(self, role)\n",
+        "positional": "    def wrapped(self, role):\n        return original(self, role)\n",
+        "named": "    def wrapped(self, *args, **kwargs):\n        return original(self, *args, **kwargs)\n",
+        "variadic": "    def wrapped(*args, **kwargs):\n        return original(*args, **kwargs)\n",
+        "delegated": (
+            "    def invoke(args, kwargs):\n        return original(*args, **kwargs)\n"
+            "    def wrapped(*args, **kwargs):\n        return invoke(args, kwargs)\n"
+        ),
+    }
+    decorator = "def decorate(original):\n" + wrappers[style] + "    return wrapped\n"
+    if case == "external_module":
+        helper = test.with_name("factory_helper.py")
+        helper.write_text(decorator, encoding="utf-8")
+        decorator = (
+            "import importlib.util\n"
+            f"spec = importlib.util.spec_from_file_location('factory_helper', {str(helper)!r})\n"
+            "helper = importlib.util.module_from_spec(spec)\n"
+            "spec.loader.exec_module(helper)\n"
+            "decorate = helper.decorate\n"
+        )
+    elif case == "external_code":
+        decorator = f"exec(compile({decorator!r}, {str(test.with_name('factory_helper.py'))!r}, 'exec'))\n"
+    decorate = style != "ordinary" or case in ("external_module", "external_code")
+    source = (
+        "from types import SimpleNamespace\n"
+        + decorator
+        + "class View:\n"
+        "    def __eq__(self, other):\n        return True\n"
+        "intermediates = []\n"
+        "def make_view():\n"
+        "    view = View()\n    intermediates.append(view)\n    return view\n"
+        "class Engine:\n"
+        + ("    @decorate\n" if decorate else "")
+        + "    def view_as(self, role):\n"
+        "        make_view()\n"
+        f"        return {'SimpleNamespace()' if case == 'external_view' else 'View()'}\n"
+        + ("    @decorate\n" if decorate else "")
+        + "    def view_for(self, name):\n        return self.view_as(name)\n"
+        "class Unrelated:\n    view_as = Engine.view_as\n"
+        "Workbench = Engine\n"
+    )
+    (repo / "src" / "workbench.py").write_text(source, encoding="utf-8")
+    factory = "view_for" if case == "reader_for" else "view_as"
+    receiver = "Unrelated" if case == "unrelated_receiver" else "Workbench"
+    argument = "'reader'" if factory == "view_for" else "role='reader'"
+    code = (
+        "from workbench import Workbench, View, Unrelated, intermediates\n\n"
+        f"def test_feature():\n    view = {receiver}().{factory}({argument})\n"
+    )
+    if case == "unrelated_view":
+        code += "    view = View()\n"
+    elif case == "intermediate_view":
+        code += "    view = intermediates[0]\n"
+    code += f"    view.{'exercise' if case == 'write' else 'get_case'}('case')\n"
+    test.write_text(code, encoding="utf-8")
+
+    result = measure_module.run_hidden(str(repo), str(suite), ["f1"], runner)
+
+    expected = "failed" if case in ("reader_as", "reader_for") else "error"
+    assert result == {"test_feature::test_feature": expected}
+    evidence = result.provenance["test_feature::test_feature"]
+    assert evidence["exception_type"] == "builtins.AttributeError"
+    assert evidence["attribution"] == ("mandatory_api" if expected == "failed" else "unknown")
+    if expected == "failed":
+        assert evidence["candidate"] == {
+            "module": "workbench", "source": str(repo / "src" / "workbench.py"), "missing": "get_case",
+        }
+    else:
+        assert "candidate" not in evidence
+
+
 def test_view_contract_tracking_restores_existing_profiler_after_test_exception(measure_module, tmp_path):
     attribution = importlib.import_module("failure_attribution")
     events = []

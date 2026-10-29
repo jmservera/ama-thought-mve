@@ -108,12 +108,14 @@ different JSON object. Its settings are seed, ceiling (positive, never >300,000 
 credits; supplied 270,000), prior spending, per-session reservation, separate
 integer CLI soft limit (30 through 300; supplied 270), maximum attempts,
 absolute study allowance and minimum disk space. Historical owner-confirmed
-usage is **14.54324**; three excluded runtime checks still have unknown usage. The
+smoke usage is **14.54324**; three later successful excluded backend checks add
+**3.05509**, making known prior usage **17.59833**. Three earlier excluded
+runtime checks still have unknown usage. The
 owner separately approved each full **300-credit** reservation as a historical
 budget provision on 29 October. `prior_credits` records only known usage;
 `historical_credit_provisions` binds each hold to its exact approved
 attempt/source/ledger digest. Admission counts known usage plus **900 held**,
-leaving **269085.45676**
+leaving **269082.40167**
 before new reservations. Actual historical total remains unknown; reports
 explicitly disclose that incompleteness. All three original private ledgers are unchanged.
 Do not infer zero, call the provision actual spending, or apply this exception
