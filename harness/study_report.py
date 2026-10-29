@@ -37,7 +37,8 @@ UNAVAILABLE = {
     "decay_amendment": "F/P diagnostics implemented; independent panel/oracle acceptance still required.",
     "mixed_effects": "Not claimed for this estimation pilot.",
     "currency": "No verified AI-credit-to-currency conversion.",
-    "hard_billing": "Copilot CLI credit cap is soft; paid execution remains disabled.",
+    "hard_billing": "CLI credit limits are soft; owner accepts residual overshoot risk with operational buffers. "
+                    "No study-specific provider hard cap or guaranteed billed ceiling is claimed.",
 }
 
 
@@ -397,7 +398,9 @@ def export(directory: Path, state: dict, study_id: str) -> None:
                   "inputs_sha256": state["identity"]["inputs_sha256"],
                   "seed": state["identity"]["config"]["seed"], "registered_or_frozen_by_runner": False,
                   "inference": "diagnostic" if state["identity"]["smoke"] else "pilot estimates only",
-                  "ceiling_nano": state["ledger"]["ceiling_nano"], "prior_nano": state["ledger"]["prior_nano"]}
+                  "ceiling_nano": state["ledger"]["ceiling_nano"], "prior_nano": state["ledger"]["prior_nano"],
+                  "session_soft_limit_credits": state["identity"]["config"].get("session_soft_limit_credits", 300),
+                  "billing_limit_kind": "local admission plus per-session soft caps; not guaranteed billed consumption"}
     write_pilot(directory / "results", result, provenance=provenance, dispositions=dispositions, attempts=attempts)
 
 

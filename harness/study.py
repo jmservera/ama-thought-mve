@@ -1,4 +1,4 @@
-"""Offline-safe, resumable study controller. Current Copilot billing is soft-capped."""
+"""Resumable controller with buffered soft-credit settings and explicit launch gates."""
 from __future__ import annotations
 
 import argparse
@@ -57,7 +57,7 @@ def credits(value: object) -> int:
 
 def validate_config(cfg: dict, *, smoke: bool) -> None:
     """Reject unaffordable, unknown or unbounded controller settings."""
-    expected = {"seed", "ceiling_credits", "prior_credits", "session_reserve_credits",
+    expected = {"seed", "ceiling_credits", "prior_credits", "session_reserve_credits", "session_soft_limit_credits",
                 "max_attempts", "study_timeout_seconds", "min_disk_gib", "freeze_manifest"}
     if set(cfg) != expected:
         raise StudyError("Configuration has missing or unknown fields; never put credentials in config")
@@ -67,7 +67,10 @@ def validate_config(cfg: dict, *, smoke: bool) -> None:
     if prior > credits(cfg["ceiling_credits"]):
         raise StudyError("Prior pilot spending exceeds aggregate ceiling")
     if credits(cfg["session_reserve_credits"]) != 300 * NANO:
-        raise StudyError("Session reservation must match the approved 300-credit soft allowance")
+        raise StudyError("Session reservation must match the nominal 300-credit allowance")
+    soft = cfg["session_soft_limit_credits"]
+    if type(soft) is not int or not 30 <= soft <= 300:
+        raise StudyError("Session soft limit must be an integer from 30 through the nominal reservation")
     if credits(cfg["session_reserve_credits"]) > credits(cfg["ceiling_credits"]):
         raise StudyError("Session reservation must fit the aggregate ceiling")
     for name, upper in (("max_attempts", 2), ("study_timeout_seconds", 30 * 86400),
@@ -243,10 +246,27 @@ def preflight(cfg: dict, *, smoke: bool, root: Path = ROOT) -> list[str]:
                 errors.extend(freeze_errors(cfg, root))
             except (StudyError, OSError, ValueError, subprocess.TimeoutExpired):
                 errors.append("Freeze evidence unreadable or tag verification failed")
-        errors.append("Paid execution disabled: CLI soft credit caps are not a "
-                      "provider-enforced hard billing boundary; an audited user-level "
-                      "AI-credit budget and an isolated live backend are required")
+        errors.append("Paid execution disabled: an isolated live backend is not implemented; "
+                      "runtime/access and source-bound collection acceptance remain required")
     return errors
+
+
+def budget_policy(cfg: dict) -> dict:
+    """Expose operational buffers without claiming a provider billing guarantee."""
+    return {
+        "session_soft_limit_credits": cfg.get("session_soft_limit_credits"),
+        "session_reservation_credits": cfg.get("session_reserve_credits"),
+        "local_admission_ceiling_credits": cfg.get("ceiling_credits"),
+        "registered_ceiling_credits": MAX_CREDITS // NANO,
+        "company_hard_limit_credits_owner_reported": 1000000,
+        "company_hard_limit_independently_verified": False,
+        "owner_accepted_soft_limit_overshoot_risk": True,
+        "study_specific_provider_hard_cap_required": False,
+        "hard_billing_guarantee": False,
+        "warning": "CLI session limits are soft: an in-flight response can finish over the limit. "
+                   "The local study admission stop includes prior/all-attempt usage and reservations, "
+                   "but neither it nor the buffer guarantees final billed consumption.",
+    }
 
 
 @contextmanager
@@ -272,13 +292,13 @@ def group_alive(pid: int) -> bool:
 
 def docker_command(repo: Path, session: Path, image: str, prompt: str, cap: int,
                    name: str, model: str = "claude-sonnet-5.5") -> list[str]:
-    """Prepare a restricted fresh session; this is not a hard-billing backend."""
+    """Prepare a restricted fresh session; this is not an implemented live backend."""
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", image):
         raise StudyError("Agent image must use an immutable sha256 digest")
     if not re.fullmatch(r"mve-[a-z0-9-]+", name):
         raise StudyError("Invalid owned container name")
-    if type(cap) is not int or cap <= 0:
-        raise StudyError("Session cap must be a positive integer")
+    if type(cap) is not int or not 30 <= cap <= 300:
+        raise StudyError("Session soft cap must be an integer from 30 through 300 credits")
     if model not in read_json(ROOT / "protocol/pilot-estimation.json")["study"]["model_roster"]:
         raise StudyError("Unapproved assigned model")
     return [
@@ -393,12 +413,14 @@ class StudyRun(Run):
         return process.returncode, timed_out, time.time() - start
 
     def run_agent(self, prompt: str, step_dir: str, budget: int) -> dict:
-        """Only the built-in stub can execute until real hard billing is supported."""
+        """Only the built-in stub can execute until an isolated live backend exists."""
         controller = self.controller
         if not controller.smoke:
-            raise StudyError("No hard-bounded paid backend implemented")
+            raise StudyError("No isolated live paid backend implemented")
         remaining_seconds, remaining_credits = self.remaining_allowance(budget)
-        attempt = controller.new_attempt(self.cell, self.current_step, remaining_credits)
+        reserve_buffer = (credits(controller.cfg["session_reserve_credits"])
+                          - credits(controller.cfg["session_soft_limit_credits"]))
+        attempt = controller.new_attempt(self.cell, self.current_step, remaining_credits + reserve_buffer)
         attempt.update(seconds_limit=remaining_seconds, credit_limit_nano=remaining_credits)
         directory = Path(self.dir) / "attempts" / attempt["id"]
         directory.mkdir(parents=True, mode=0o700)
@@ -438,9 +460,12 @@ class StudyRun(Run):
             seconds += duration
             spent += usage
         remaining_seconds = budget - seconds
-        remaining_credits = credits(self.controller.cfg["session_reserve_credits"]) - spent
+        remaining_credits = credits(self.controller.cfg["session_soft_limit_credits"]) - spent
         if remaining_seconds <= 0 or remaining_credits <= 0:
             raise StudyError("Original step time or credit allowance exhausted")
+        if not self.controller.smoke and remaining_credits < 30 * NANO:
+            raise StudyError("Remaining original soft allowance is below the CLI minimum of 30 credits; "
+                             "do not top up or reset the limit")
         return remaining_seconds, remaining_credits
 
     def is_green(self) -> bool:
@@ -758,7 +783,7 @@ def main() -> int:
                "schedule": (schedule(args.smoke, args.phase, cfg["seed"])
                             if type(cfg.get("seed")) is int else []),
                "token_present": bool(os.environ.get("COPILOT_GITHUB_TOKEN")),
-               "hard_billing_supported": False, "errors": errors}
+               "hard_billing_supported": False, "budget_policy": budget_policy(cfg), "errors": errors}
     if args.dry_run or args.check_vm:
         print(json.dumps(preview, indent=2))
         return 2 if errors else 0

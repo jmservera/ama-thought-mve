@@ -12,7 +12,7 @@
   "agent_values": {
     "model": "PIN-A-MODEL-ID",
     "effort": "medium",
-    "max_credits": "300"
+    "max_credits": "270"
   },
   "agent_command": [
     "copilot",

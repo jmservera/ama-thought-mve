@@ -36,6 +36,9 @@ def test_exact_export_schemas_unavailable_values_and_figure(modules, reports):
     summary = study.read_json(reports / "summary.json")
     assert summary["cost_unit"] == "credits" and len(summary["runs"]) == 3
     assert summary["provenance"]["diagnostic_stub"] is True
+    assert summary["provenance"]["session_soft_limit_credits"] == 270
+    assert summary["provenance"]["ceiling_nano"] == 270000 * study.NANO
+    assert "not guaranteed" in summary["provenance"]["billing_limit_kind"]
     assert summary["endpoints"]["H1"]["B-A"]["difference"] is None
     assert "verdict" not in json.dumps(summary) and "hypotheses" not in summary
     availability = study.read_json(reports / "availability.json")

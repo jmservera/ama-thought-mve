@@ -204,12 +204,21 @@ policy deviations and unplanned analyses are versioned and labelled exploratory.
 150 excluded calibration sessions/60 hours; combined 468 sessions/193.5 hours
 excluding non-agent overhead. Counts are planned sessions; allowed infrastructure retries can add
 calls but share the original step's aggregate time and credit allowance.
-Fixed 300-AI-Credit/session soft cap for both
+Nominal registered 300-AI-Credit/session soft cap for both
 stages; **300,000 AI Credits total**, including prior spend and calibration.
+The owner's 29 October prospective policy accepts soft-limit overshoot risk:
+supplied operational settings use a 10% buffer, **270/session** and **270,000
+local admission**, without changing allocation or the nominal registered envelope.
+An in-flight response can exceed the CLI threshold; neither buffer guarantees
+actual billed consumption. The company hard limit of 1,000,000/collaborator is
+owner-reported, not independently verified or a study-specific stop. A separate
+provider study hard cap is no longer a project prerequisite. Record this
+addendum prospectively before affected collection; the original OSF attachment
+is unchanged.
 The owner's approximately $3,000 equivalent is unverified, not a conversion or
 separate precise monetary limit. A cost-only full-design affordability check
 after calibration must pass; otherwise halt and amend rather than reduce sample
-silently. A provider-enforced hard billing boundary is still absent.
+silently. Actual usage completeness and the isolated live backend remain required.
 Require three exact agreeing reference executions at every feature stage and
 CR1, all expected tests passing; discrepancies block collection until
 investigated/versioned/revalidated, not rerun until green.

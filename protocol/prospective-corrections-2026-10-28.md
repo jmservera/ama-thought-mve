@@ -93,6 +93,8 @@ checks and source-bound review are required before collection.
 The operator uses an organization-sponsored Copilot Enterprise licence. The
 owner reports model access and a one-million-credit per-collaborator company
 limit; neither demonstrates the registered study-specific 300,000-credit stop.
+The 29 October addendum below supersedes the earlier requirement for that
+separate provider-enforced study stop; it does not waive information isolation.
 The owner reconfirmed **14.54324 AI Credits** as all prior paid study usage.
 The supplied controller config keeps prior credits explicit rather than
 silently assuming zero; the contributor must use that amount plus any later
@@ -110,7 +112,7 @@ The owner approved designing a default-deny egress gateway/proxy. That is not a
 completed deployment or access-probe acceptance. Outbound-only NAT and an
 allowlisted GitHub hostname do not prevent retrieval of the public evaluator
 source. File separation and URL permission rules alone do not prove containment.
-The live backend remains disabled until verified billing, runtime and actual
+The live backend remains disabled until accepted billing/accounting controls, runtime and actual
 evaluator/network isolation are integrated without bypassing agent safeguards.
 This preparation neither provisions Azure resources nor launches paid probes.
 
@@ -130,5 +132,42 @@ actual implementation/validation evidence, and resolve the remaining
 precollection entries and owner-authorized freeze. Do not mark the candidate
 as registered/accepted merely because the original registration is approved.
 The three models, A/B/C arms, 18 estimation trajectories, nine excluded
-calibration trajectories, 468 planned sessions, timing, credit ceiling and
-estimation-only analysis remain unchanged.
+calibration trajectories, 468 planned sessions, timing, nominal registered
+credit envelope and estimation-only analysis remain unchanged. Operational
+credit thresholds are lowered prospectively as follows.
+
+## 29 October addendum: buffered soft limits and accepted financial risk
+
+The owner explicitly accepts the residual financial risk of Copilot CLI soft
+limits under the much higher company hard limit. This supersedes the earlier
+project requirement for a dedicated provider-enforced 300,000-credit study stop.
+The reported **1,000,000-credit hard limit per collaborator** remains an owner
+assertion: actual account settings, scope/reset and remaining company allowance
+have not been independently verified. It is not a study-specific guarantee.
+
+Use the same **10% buffer** for all models/arms and both stages: **270 AI Credits
+per original session**, shared across any infrastructure retry, and **270,000
+credits local whole-study admission**, below nominal registered 300/session and
+300,000 total. The exact buffer is an implementation assumption implementing the
+owner's direction to set limits below previous values. The controller config
+sets prior usage to the owner-confirmed **14.54324**; calibration, probes,
+retries and all other study charges count. Remaining original allowance below
+the CLI minimum 30 blocks retry; do not round up or create a fresh allowance.
+An initial reservation of 300 provides 30 credits of headroom; any actual
+reservation overrun is retained and stops further admission.
+
+GitHub states that an in-progress response completes even if it exceeds the
+session limit. The session buffer and 30,000 aggregate buffer reduce overshoot
+risk, but **do not guarantee** either nominal registered ceiling or final billed
+consumption. Monitoring/complete accounting is still mandatory; unknown usage
+blocks new work. A company billing-cycle reset never resets the lifetime study
+ledger. Do not silently shrink sample if affordability fails; halt and amend.
+An optional read-only provider audit may add assurance but is no longer a
+mandatory budget prerequisite under this explicit risk acceptance.
+
+This financial decision changes no agent permission/trust/sandbox controls,
+evaluator separation, actual model/access checks, independent acceptance or
+owner-authorized source-bound freeze. It authorizes no account changes, paid
+probes or calibration/pilot launch. The isolated live backend is still absent.
+Record this addendum and its exact revised source prospectively in OSF before
+affected collection; preserve the original approved attachment unchanged.

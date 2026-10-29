@@ -1,8 +1,9 @@
 {
   "seed": 2027,
-  "ceiling_credits": 300000,
-  "prior_credits": null,
+  "ceiling_credits": 270000,
+  "prior_credits": 14.54324,
   "session_reserve_credits": 300,
+  "session_soft_limit_credits": 270,
   "max_attempts": 2,
   "study_timeout_seconds": 1209600,
   "min_disk_gib": 10,

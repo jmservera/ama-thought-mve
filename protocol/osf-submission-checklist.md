@@ -97,7 +97,10 @@ real registration URL/date only once completion is confirmed; do not invent them
 
 Complete the retained independent reviews, oracle/reference acceptance,
 model-aware alignment, runtime/access checks, assistance/usage coverage,
-known prior spending, owner-authorised freeze and provider-enforced hard billing.
+known prior spending and owner-authorised freeze. The 29 October owner-accepted
+soft-limit policy uses 270/session and 270,000 local admission buffers, not a
+guaranteed provider stop. Record it prospectively; a separate study hard cap
+is no longer required. See [CONTRIBUTOR.md](../CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk).
 The current paid backend remains disabled even with complete registration.
 If review requires substantive changes, document them prospectively in OSF and
 version the affected source/panel/analysis before collecting affected data.

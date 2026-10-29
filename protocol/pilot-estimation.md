@@ -62,15 +62,27 @@ model entitlement or actual effort behavior. Verify exact availability, compatib
 reasoning settings and one frozen runtime before collection. AI credits are primary;
 tokens, elapsed seconds and currency are separate. The combined prospective
 calibration/pilot ceiling is **300,000 AI Credits**, including prior spending.
-300 credits/session is a fixed **soft** cap for calibration and estimation,
-not guaranteed billing control. The owner's approximately $3,000 equivalent is
+The original registered nominal allowance is 300/session, not guaranteed billing
+control. On 29 October the owner accepted residual soft-limit overshoot risk.
+The supplied operational settings use a uniform **10% buffer: 270 credits per
+original session** (including any infrastructure retry) and **270,000 local
+study admission**, leaving 30,000 below the unchanged registered envelope.
+An in-flight response can finish over the CLI limit; neither buffer guarantees
+actual billed consumption. The company hard limit of 1,000,000/collaborator is
+owner-reported, not independently verified or a study-specific stop. A separate
+provider study hard cap is no longer required. Prior 14.54324, calibration,
+probes and all attempts count; billing-cycle resets do not reset study spending.
+Record [the prospective addendum](prospective-corrections-2026-10-28.md) before
+affected collection. Financial-risk acceptance waives no runtime/access,
+agent safeguard, independent review or freeze gate.
+The owner's approximately $3,000 equivalent is
 unverified; it is not a conversion or separate precise monetary ceiling.
 After calibration, require a cost-only affordability check of the full unchanged
 design; halt and amend if unaffordable rather than silently shrink the sample.
 No paid backend is enabled by this protocol or by a completed registration.
 
 The controller implements the model matrix, immutable assigned-model/replicate
-identity, 300,000-credit admission ceiling and bounded infrastructure retries;
+identity, 270,000-credit local admission stop and bounded infrastructure retries;
 analysis exports primary estimates separately per model. The default finite
 study deadline is 14 days, not a change to the original agent-step allowances.
 `required_evidence.multi_model_harness_alignment` remains unresolved pending
@@ -278,7 +290,8 @@ genuine evidence. Upload only the approved submission inputs and complete the
 actual OSF contributor-approval/submission workflow. Record its real URL/date
 afterward. Independent suite/panel, oracle/reference and multi-model alignment
 acceptance remain required before collection, together with runtime/access,
-budgets/telemetry, approved freeze and a provider-enforced hard billing boundary.
+budgets/telemetry, approved freeze and the accepted buffered soft-limit policy
+above. A separate study-specific provider hard cap is no longer required.
 If review changes substantive methods, document the amendment prospectively in
 OSF and version affected inputs before collecting affected data. None of these
 approvals or controls is fabricated by offline tools.

@@ -101,6 +101,13 @@ owner-controlled channel; do not upload raw logs automatically.
 ## Before collection
 
 Prospective registration and approved execution inputs are separate steps.
-Provider-enforced hard billing remains unestablished; CLI credit limits are
-soft. Paid execution stays disabled. Excluding HIR/IDR, passing offline checks
+The owner accepted residual soft-limit overshoot risk on 29 October. Supplied
+270/session and 270,000 local admission settings provide 10% buffers below the
+registered nominal 300 and 300,000; they do not guarantee actual consumption.
+The reported company 1,000,000/collaborator hard limit is not independently
+verified or a study-specific stop. A separate study provider hard cap is no
+longer required. See [collaborator billing instructions](../CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk).
+Paid execution stays disabled because the isolated live backend is absent.
+Financial acceptance waives no runtime/access or agent permission safeguards.
+Excluding HIR/IDR, passing offline checks
 or having a complete OSF draft grants no permission to collect data.

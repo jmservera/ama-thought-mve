@@ -64,53 +64,81 @@ collection rather than claiming the source bundle is a frozen VM image.
 Version/help checks make no model call. No global installation, account
 configuration or package build is performed by the check-only bootstrap script.
 
-## Billing: what an administrator must establish
+## Billing: soft limits and the accepted risk
 
-The registered whole-study ceiling is 300,000 AI Credits, including prior
-14.54324 credits, calibration, every attempt and any logged non-study model
-probe. Remaining allowance before any new probe is **299985.45676 credits**.
-The company one-million-credit per-collaborator allowance is not that ceiling.
-CLI `--max-ai-credits` is soft and cannot supply the provider hard stop.
+The owner accepted residual soft-limit overshoot risk on **29 October 2026**.
+The registered whole-study envelope remains **300,000 AI Credits**, including
+prior **14.54324 credits**, calibration, probes and every attempt. The company
+hard limit is **1,000,000 credits per collaborator**, **owner-reported, not
+independently verified**. It is an outer company allowance, not a hard stop at
+the study budget. No separate study-specific provider hard cap is required.
 
-Use the organization's supported billing administration process to configure
-an **individual user-level AI-credit budget**, not only an org/enterprise
-metered-spending budget. Current provider documentation expresses its API budget
-in whole USD at 100 AI Credits/USD and covers included and metered credits.
-For a fresh zero-consumption user budget, 2999 USD = 299900 credits is a
-conservative cap below the initial remaining study ceiling; 3000 USD is too
-high after prior use. This dated operational mapping is not a retrospective
-currency rewrite of the registered ledger.
+The supplied controller config applies a uniform **10% operational buffer**:
 
-Have the administrator determine the **actual billing cycle/reset**, effective
-budget precedence, creation-time accounting and expiration. Stop before reset,
-expiration or any budget/account change. Account for all later prior spend and
-reconfigure/re-audit if necessary; never reset local state to recover headroom.
-Other concurrent Copilot usage consumes the same operator budget and can only
-reduce available study resources; do not silently shrink the sample.
+| Control | Supplied setting | What it means |
+| --- | --- | --- |
+| `session_soft_limit_credits` | 270 | Intended CLI `--max-ai-credits 270`; per original session, including any retry, not a global study cap |
+| `session_reserve_credits` | 300 | Nominal reservation ceiling; the initial reservation includes 30 credits of headroom above the soft threshold |
+| `ceiling_credits` | 270000 | Local admission stop, leaving 30000 below the registered 300000 envelope |
+| `prior_credits` | 14.54324 | Confirmed prior paid usage, never zeroed or silently omitted |
 
-`harness/billing_check.py` makes read-only GitHub identity/budget requests and
-writes a private audit, not an enabling token. It needs the operator's supported
-Copilot credential supplied privately as `COPILOT_GITHUB_TOKEN` and separate
-appropriately authorized `gh` billing access. Prefer approved interactive
-operator authentication; do not paste tokens in commands, source, artifacts or
-chat, and do not request broader permissions to bypass an access denial.
-If the approved login cannot supply the documented identity/audit route,
-record that as an unresolved dependency rather than extracting credentials.
+Before any later probe/spending, unspent **admission** allowance is
+**269985.45676 credits**; outstanding reservations reduce it further.
+The preparatory CLI configs also use 270. All three models/arms use the same
+setting. These are prospective operational changes, not edits to the immutable
+original OSF attachment; record the linked clarification before collection.
+
+**Important:** GitHub documents the CLI limit as
+[soft](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/set-session-limit):
+an in-flight response completes even if it exceeds the threshold. Neither a
+30-credit session buffer nor the 30000-credit study buffer guarantees the
+registered envelope cannot be exceeded. The owner considers this reasonable
+financial risk under the much larger reported company hard limit. No claim is
+made that the controller enforces actual billed consumption or the company cap.
+
+Monitor complete final usage after each attempt and reconcile all charges
+before admitting more work. Missing/partial usage holds the reservation and
+blocks new work; any reservation overrun is retained and stops admission.
+Retry only documented infrastructure failures within the **remaining original**
+time and 270-credit allowance; never reset the cap. The CLI minimum is 30:
+if less remains, stop rather than round up or create a fresh allowance.
+Do not silently reduce the planned sample if calibration shows it unaffordable.
+Stop and record a prospective amendment instead.
+
+Record any known company billing-cycle/reset, scope or account changes.
+A reset does **not** replenish the lifetime study allowance; never clear prior
+spend or reset local state to recover headroom. Concurrent non-study Copilot
+usage can consume the same company allowance. Resolve ambiguous accounting
+before resuming; a soft limit is not permission to ignore missing charges.
+
+### Optional administrator budget audit
+
+An administrator may add a stricter provider user-level budget as extra
+protection, but this is **not a prerequisite under the accepted risk policy**.
+`harness/billing_check.py` remains a strict, read-only audit of that optional
+claim; it is not an enabling token or an audit of soft-limit compliance.
+It needs the operator's supported credential supplied privately as
+`COPILOT_GITHUB_TOKEN` and separate appropriately authorized `gh` billing access.
+Prefer approved interactive authentication; never extract credentials or paste
+tokens in commands, source, artifacts or chat. No broader access is requested
+to bypass a denial. Missing optional billing-admin API access alone is not a
+launch blocker; actual operator authentication/model access still must be proven.
 
 ```bash
 mkdir -m 700 .study/budget-audit
 python3 harness/billing_check.py \
   --organization ORGANIZATION --operator OPERATOR --budget-id BUDGET-ID \
-  --remaining-credits 299985.45676 \
+  --remaining-credits 269985.45676 \
   --execution-deadline ACTUAL-UTC-DEADLINE \
   --billing-cycle-end ACTUAL-UTC-RESET \
   --out .study/budget-audit/receipt.json
 ```
 
-Replace uppercase placeholders with verified values. Timestamps need explicit
-timezones. This command never modifies a budget, launches a model or authorizes
-execution. An unavailable/ambiguous API response fails closed. Its supplied
-reset date still needs independent verification.
+Replace placeholders and remaining allowance with verified current values;
+timestamps need explicit timezones. This command never changes budgets, launches
+a model or authorizes execution. An unavailable/ambiguous response fails that
+optional audit, not the owner-accepted soft policy. Its supplied reset date
+still needs independent verification before claiming a provider hard boundary.
 
 ## Runtime and information boundary: still blocking
 
@@ -161,7 +189,7 @@ The owner records the prospective OSF clarification and separately authorizes
 the exact freeze/tag. The existing historical tag is not reusable permission.
 No freeze file/tag or evidence acceptance is synthesized by this package.
 
-Only after actual auth, provider enforcement and containment are verified may
+Only after actual auth, buffered accounting/telemetry and containment are verified may
 the conditionally authorized logged non-study per-model probes proceed. Charge
 them to the whole-study ledger, never expose study features/CR1 in the probes,
 and record model/effort/routing/usage evidence. A subsequent explicitly

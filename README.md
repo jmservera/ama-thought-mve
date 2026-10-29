@@ -58,15 +58,24 @@ It uses a separate `results/<study-id>` branch, never pushes raw logs or changes
 your source branch, and creates/updates a PR against that source branch.
 Files are allowlisted, credential-checked and capped at 512 KiB each / 4 MiB total.
 
-**Paid execution is deliberately unavailable.** Copilot CLI 1.0.105's credit
-limit is soft, not a hard spending boundary. The runner enforces a <=300,000-credit
-aggregate *admission* ledger with explicit prior spending and unknown-usage
-stops, but refuses all real sessions until a provider-enforced hard billing
-backend exists. Individual provider user-level budgets can cap included and
-metered credits; the new read-only audit helper does not configure or integrate
-that control with a live runner. A nominal CLI cap, a freeze file or a container
-cannot bypass this stop. No protocol has been frozen or registered by this tool. Owner freeze,
-secondary-scope decisions, independent reviews and other method gates also remain open.
+**Credit limits are soft; the owner accepts the residual financial risk.**
+The supplied settings use a 10% buffer: **270 AI Credits per original session**
+(shared across any infrastructure retry), below the registered 300, and a
+**270,000-credit local study admission stop**, below the unchanged registered
+300,000-credit envelope. Prior **14.54324 credits**, calibration, probes and
+every attempt count. [CLI session limits](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/set-session-limit)
+allow an in-flight response to finish **over** the limit; the buffer reduces risk
+but guarantees neither per-session nor total billed consumption. The company
+hard limit is **1,000,000 credits per collaborator**, as reported by the owner,
+not independently verified or a study-specific stop. A separate provider-enforced
+study hard cap is no longer required; the read-only budget audit is optional.
+See [CONTRIBUTOR.md](CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk)
+for monitoring, reset and overrun instructions.
+
+**Paid execution remains unavailable because the isolated live backend is not
+implemented.** Financial-risk acceptance does not waive runtime/access checks,
+agent safeguards, independent acceptance, source-bound owner freeze or the
+prospective OSF clarification. No protocol has been frozen or registered by this tool.
 See [RUNBOOK.md](RUNBOOK.md#unattended-controller) for state, recovery and gates.
 
 ## Integrity correction status

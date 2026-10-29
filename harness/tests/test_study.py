@@ -62,6 +62,7 @@ def test_unknown_usage_holds_reservation_and_blocks(study, usage):
 
 
 def test_ceiling_cannot_be_raised_or_prior_spend_assumed(study, config):
+    config["prior_credits"] = None
     with pytest.raises(study.StudyError, match="explicit"):
         study.validate_config(config, smoke=False)
     config["prior_credits"] = 0
@@ -87,7 +88,7 @@ def test_interrupted_repository_setup_preserves_zero_step_metadata(study, config
     summary = study.read_json(tmp_path / "results/summary.json")
     assert len(summary["runs"]) == 3 and all(run["end"] is None for run in summary["runs"])
 
-def test_complete_nominal_freeze_cannot_bypass_soft_billing_stop(study, config, monkeypatch):
+def test_complete_nominal_freeze_cannot_bypass_missing_isolated_backend(study, config, monkeypatch):
     config["prior_credits"] = 0
     monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "synthetic-token-never-output")
     monkeypatch.setattr(study.shutil, "which", lambda tool: f"/tools/{tool}")
@@ -101,7 +102,8 @@ def test_complete_nominal_freeze_cannot_bypass_soft_billing_stop(study, config, 
     monkeypatch.setattr(study, "command", version_output)
     errors = study.preflight(config, smoke=False)
     assert len(errors) == 1
-    assert "provider-enforced hard billing" in errors[0]
+    assert "isolated live backend" in errors[0]
+    assert "provider-enforced hard billing" not in errors[0]
     assert "synthetic-token" not in str(errors)
 
 
@@ -126,7 +128,7 @@ def test_cli_version_requires_exact_release_and_retains_paid_stop(
     monkeypatch.setattr(study, "command", lambda args, **kwargs: versions.get(args[0], ""))
     errors = study.preflight(config, smoke=False)
     assert ("copilot must be pinned to 1.0.105" not in errors) is accepted
-    assert any("provider-enforced hard billing" in error for error in errors)
+    assert any("isolated live backend" in error for error in errors)
 
 
 def test_missing_freeze_and_legacy_tag_are_not_authorisation(study, config, tmp_path):
@@ -382,7 +384,12 @@ def test_dry_run_is_read_only_and_live_refusal_never_calls_agent(study, monkeypa
     assert len(preview["schedule"]) == 3 and not preview["hard_billing_supported"]
     monkeypatch.setattr(sys, "argv", ["study", "--dry-run"])
     assert study.main() == 2
-    assert "soft credit caps" in capsys.readouterr().out
+    preview = json.loads(capsys.readouterr().out)
+    assert any("isolated live backend" in error for error in preview["errors"])
+    assert preview["budget_policy"]["session_soft_limit_credits"] == 270
+    assert preview["budget_policy"]["local_admission_ceiling_credits"] == 270000
+    assert preview["budget_policy"]["hard_billing_guarantee"] is False
+    assert preview["budget_policy"]["study_specific_provider_hard_cap_required"] is False
 
 
 def test_recorded_overrun_blocks_admission_even_with_aggregate_room(study):
@@ -524,17 +531,59 @@ def test_agent_retry_uses_remaining_original_time_and_credits(study, config, tmp
     run.setup()
     previous = current.new_attempt(run.cell, run.current_step)
     previous.update(seconds=40, usage={"totalNanoAiu": 200 * study.NANO, "credits_complete": True})
-    seen = []
+    seen, reservations = [], []
+    new_attempt = current.new_attempt
+
+    def recorded_attempt(cell, step, allowance):
+        reservations.append(allowance)
+        return new_attempt(cell, step, allowance)
 
     def bounded(args, cwd, env, out, err, timeout):
         seen.append(timeout)
         return 0, False, 0.1
 
     monkeypatch.setattr(run, "bounded_process", bounded)
+    monkeypatch.setattr(current, "new_attempt", recorded_attempt)
     run.run_agent("synthetic", str(tmp_path / "session"), 120)
     assert seen == [80]
-    assert run.cell["attempts"][-1]["credit_limit_nano"] == 100 * study.NANO
+    assert reservations == [100 * study.NANO]
+    assert run.cell["attempts"][-1]["credit_limit_nano"] == 70 * study.NANO
     assert len(run.cell["attempts"]) == 2
+
+
+@pytest.mark.parametrize("cap", [None, True, 29, 301, 270.5])
+def test_soft_cap_rejects_unknown_subminimum_or_overlarge_settings(study, config, cap):
+    config["session_soft_limit_credits"] = cap
+    with pytest.raises(study.StudyError, match="soft limit"):
+        study.validate_config(config, smoke=False)
+
+
+@pytest.mark.parametrize(("spent", "remaining"), [(240, 30), (241, None), (270, None)])
+def test_live_retry_never_tops_up_remaining_soft_cap(study, config, tmp_path, spent, remaining):
+    current = study.Controller(tmp_path, config, smoke=False, phase="first", study_id="planned")
+    run = study_run(study, current)
+    previous = current.new_attempt(run.cell, run.current_step)
+    previous.update(seconds=1, usage={"totalNanoAiu": spent * study.NANO, "credits_complete": True})
+    if remaining is None:
+        with pytest.raises(study.StudyError, match="minimum|exhausted"):
+            run.remaining_allowance(120)
+    else:
+        assert run.remaining_allowance(120) == (119, remaining * study.NANO)
+    assert len(run.cell["attempts"]) == 1
+
+
+def test_buffered_aggregate_admission_counts_prior_and_preserves_overshoot(study, config):
+    ledger = {"ceiling_nano": study.credits(config["ceiling_credits"]),
+              "prior_nano": study.credits(config["prior_credits"]), "entries": {}}
+    room = ledger["ceiling_nano"] - ledger["prior_nano"]
+    study.reserve(ledger, "last-allowed", room)
+    with pytest.raises(study.StudyError, match="admission ceiling"):
+        study.reserve(ledger, "buffer-not-spendable", 1)
+    with pytest.raises(study.StudyError, match="exceeded reservation"):
+        study.reconcile(ledger, "last-allowed",
+                        {"totalNanoAiu": room + 1, "credits_complete": True})
+    assert ledger["entries"]["last-allowed"]["actual_nano"] == room + 1
+    assert ledger["ceiling_nano"] == 270000 * study.NANO < study.MAX_CREDITS
 
 
 def test_unknown_duration_never_becomes_a_free_retry(study, config, tmp_path, monkeypatch):

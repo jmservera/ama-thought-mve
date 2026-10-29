@@ -19,21 +19,27 @@ The later corrected candidate needs
 source-bound approval. No independent acceptance or collection permission
 is implied; all execution gates below remain in force.
 See [CONTRIBUTOR.md](CONTRIBUTOR.md) for the complete separate source bundle,
-read-only budget-audit procedure and unverified live-runtime requirements.
+accepted soft-limit policy, optional budget audit and unverified live-runtime requirements.
 The owner-amended first pass is an estimation pilot, not confirmatory testing:
 GPT 6.1 Sol, Sonnet 5.5 and Gemini 4 Argon, each with two trajectories per A/B/C
 arm (18 pilot, plus nine excluded calibration). There are 318 pilot and 150
 calibration sessions, at most 193.5 combined agent-hours. The current total
-ceiling is **300,000 AI Credits**, prior spend/calibration included, with
-300-credit/session soft caps. The approximately $3,000 equivalent is unverified;
+registered envelope is **300,000 AI Credits**, prior spend/calibration included.
+The owner accepted soft-limit overshoot risk on 29 October: supplied operational
+settings are **270 credits/session** and a **270,000-credit local admission stop**,
+10% below the nominal 300/session and 300,000 study envelope. In-flight responses
+can exceed CLI soft limits; neither buffer guarantees final billed consumption.
+The company hard limit of 1,000,000 credits/collaborator is owner-reported,
+not independently verified or a study-specific stop. A separate provider study
+hard cap is no longer required. The approximately $3,000 equivalent is unverified;
 the earlier $500 limit and intermediate $6,000 proposal are superseded.
 
 The controller implements the model matrix, immutable model/replicate identity,
-300,000-credit admission ceiling and bounded infrastructure retries; analysis
+270,000-credit local admission stop and bounded infrastructure retries; analysis
 exports separate primary estimates per model. Before collection, require
 independent `multi_model_harness_alignment` evidence covering scheduling,
 model-specific inference, budgets and selected operational rules. Actual model access/runtime,
-independent acceptance and provider-enforced hard billing remain unverified.
+independent acceptance and the isolated live backend remain unresolved.
 
 > [!IMPORTANT]
 > D1-D12 from 25 October remain historical decisions where compatible with the
@@ -57,7 +63,7 @@ Tool facts were checked on 24 October 2026 against GitHub Copilot CLI 1.0.95 hel
 The 26 October controller adds a single command, not permission to run the
 study. The older manual procedures below are historical operator instructions,
 **not a way around its safety gates**. No paid session is launched by this
-revision; there is no implemented provider-enforced hard billing backend.
+revision; there is no implemented isolated live backend.
 
 ```bash
 ./run-study.sh --smoke
@@ -90,17 +96,22 @@ No unattended main-study mode is authorised.
 
 The controller reads `harness/study-config.json`; `--config PATH` selects a
 different JSON object. Its settings are seed, ceiling (positive, never >300,000 AI
-credits), prior pilot spending, per-session reservation, maximum attempts,
+credits; supplied 270,000), prior spending, per-session reservation, separate
+integer CLI soft limit (30 through 300; supplied 270), maximum attempts,
 absolute study allowance and minimum disk space. The supplied `prior_credits`
-is **null**, not a claim of zero earlier spending. Live preflight rejects it.
+is the owner-confirmed **14.54324**, not zero. Add all later logged probe/prior
+charges before preparing the exact live config; unknown prior usage is rejected.
 Smoke explicitly has zero paid usage and does not consume a live allocation.
 No config field contains a token; set `COPILOT_GITHUB_TOKEN` only in the
 environment. Presence is checked without printing its value. `.env` is ignored,
 never loaded by the controller and never eligible for publication.
 
 The supplied finite study deadline is 14 days. Each original step keeps its
-30/15/45-minute allowance and fixed 300-credit soft reservation across at most
-two agent attempts. Unknown or exhausted prior time/usage blocks a retry.
+30/15/45-minute allowance and original 270-credit soft allowance across at most
+two agent attempts. The nominal initial reservation stays 300, allowing 30
+credits of headroom. Later attempts reserve the remaining original allowance
+plus that headroom, not a fresh 300. Unknown/exhausted time or usage blocks a
+retry; below the CLI's 30-credit minimum, stop rather than top up.
 Measurement infrastructure may be retried once on the same retained snapshot,
 without replaying agent work; exhausted evaluation retries remain exhausted on
 resume. A snapshot inconsistency halts collection rather than rerunning until green.
@@ -148,18 +159,18 @@ an impossible self-referential commit hash.
 Dry-run prints `inputs_sha256`; the digest includes the launcher/bootstrap
 scripts and executable bits as well as protocol, harness, skeleton and suites.
 
-Even complete freeze evidence cannot enable paid execution: the inspected CLI
-exposes only a soft session cap and final usage. Current provider user-level
-budgets can hard-stop included and metered AI credits, but a study-specific
-effective budget/reset boundary and an isolated live backend remain unverified
-and unimplemented. `harness/billing_check.py` audits configuration read-only,
-never modifies billing or enables dispatch. The ledger atomically reserves
+Even complete freeze evidence cannot enable paid execution: an isolated live
+backend remains unimplemented. The inspected CLI exposes a soft session cap and
+final usage; the owner accepts residual financial risk, not missing isolation.
+`harness/billing_check.py` optionally audits a stronger provider budget read-only;
+it never modifies billing or enables dispatch. The ledger atomically reserves
 before launch; reconciled spending plus every outstanding reservation and
 earlier pilot spending must fit the immutable ceiling. Missing/partial usage
 holds its reservation and blocks new work; an overrun is retained and stops
 admission. This is a **hard launch-admission check**, not hard actual billing.
-No timeout or guessed overshoot buffer can guarantee the latter. Integrating
-an actually hard-bounded provider/billing service is prerequisite future work.
+No timeout or overshoot buffer guarantees the latter. Monitor/reconcile actual
+usage, preserve prior spend across billing-cycle resets, and never describe the
+reported company hard limit as verified study enforcement.
 The Docker command builder is preparation only, not a wired paid backend.
 
 ### State and recovery

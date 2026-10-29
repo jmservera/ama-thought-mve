@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "status": "post-registration-correction-candidate-pending-prospective-recording",
-  "readiness_policy": "Owner authorised 2026-10-28: separate ordinary OSF submission from collection readiness. Submission requires complete owner choices, secondary scope, prior-data disclosure and actual final source-bound owner approval, not independent review or runtime acceptance. All existing independent review, panel/oracle/reference, model-aware alignment, runtime/access, registration/freeze and hard-billing prerequisites remain required before calibration or pilot collection; pending evidence stays null.",
+  "readiness_policy": "Owner authorised 2026-10-28: separate ordinary OSF submission from collection readiness. Submission requires complete owner choices, secondary scope, prior-data disclosure and actual final source-bound owner approval, not independent review or runtime acceptance. Independent review, panel/oracle/reference, model-aware alignment, runtime/access, usage/accounting and registration/freeze prerequisites remain required before calibration or pilot collection; pending evidence stays null. Owner accepted residual soft-limit overshoot risk 2026-10-29 under the much larger reported company hard limit, superseding the earlier requirement for a separate study-specific provider hard cap. Operational buffers do not guarantee billed consumption or waive agent safeguards; prospective OSF recording remains pending.",
   "submission_metadata": {
     "template": "OSF Preregistration",
     "document_license": {
@@ -58,6 +58,12 @@
     "credit_ceiling": 300000,
     "calibration_session_credit_cap": 300,
     "pilot_session_credit_cap": 300,
+    "operational_session_soft_limit_credits": 270,
+    "operational_admission_ceiling_credits": 270000,
+    "soft_limit_risk_policy": "Owner accepts residual in-flight-response overshoot. Uniform 10% buffer selected as implementation assumption on 2026-10-29, pending prospective recording. Original registered 300/session and 300000 total remain nominal maxima, not guaranteed provider-enforced stops. Prior 14.54324, calibration, probes and every attempt count; retries share remaining original time/soft allowance and are not topped up below CLI minimum30.",
+    "company_hard_limit_credits_owner_reported": 1000000,
+    "company_hard_limit_independently_verified": false,
+    "study_specific_provider_hard_cap_required": false,
     "separate_monetary_budget_usd": null,
     "approximate_monetary_equivalent_usd": 3000,
     "credit_currency_conversion": null
@@ -94,7 +100,7 @@
     "assisted_run_disposition_and_telemetry": "Owner selected 2026-10-27: logged infrastructure administration only, no code fixes, task hints or design advice. Retain and flag content-assisted trajectories and all costs, without replacement or silent complete-case primary comparisons. Owner selected 2026-10-28: explicitly exclude HIR/IDR outcomes from this pilot; retain assistance/intervention logging, unassisted eligibility and primary cost/accounting requirements.",
     "comprehension_include_or_defer": "Owner selected 2026-10-27: defer comprehension assessment; make no comprehension-effect claim in this pilot.",
     "oracle_repeat_count_and_failure_rules": "Owner selected 2026-10-27: require three unchanged reference executions at every feature stage and CR1, exact outcome agreement and all expected tests passing. Any discrepancy blocks fresh collection until investigated, versioned and revalidated, not rerun until green. Independent suite/panel review remains required.",
-    "post_calibration_credit_cap_and_affordability": "Owner selected 2026-10-27: fixed 300-AI-Credit/session SOFT cap for calibration and pilot; final corrected total is 300000 AI Credits including prior spend and calibration, superseding 2500 credits and the intermediate $6000 proposal. Approximately $3000 is an unverified estimate, not a conversion or separate precise ceiling. Require a cost-only full-design affordability check after calibration; if unaffordable halt and amend, never silently shrink sample. Provider-enforced hard billing still required before launch.",
+    "post_calibration_credit_cap_and_affordability": "Owner selected 2026-10-27: nominal 300-AI-Credit/session SOFT cap for calibration and pilot; corrected registered total is 300000 AI Credits including prior spend and calibration, superseding 2500 credits and the intermediate $6000 proposal. Approximately $3000 is an unverified estimate, not a conversion or separate precise ceiling. Owner superseded the separate study-specific provider hard-stop requirement 2026-10-29, explicitly accepting residual soft-limit overshoot under the reported 1000000-credit company hard limit. Implement uniform 10% buffers: 270/session and 270000 local admission, preserving original registered nominal maxima and all-attempt accounting; buffer size is an implementation assumption pending prospective recording. No guarantee of actual billed consumption or independent verification of company settings. Require a cost-only full-design affordability check after calibration; if unaffordable halt and amend, never silently shrink sample. Financial acceptance does not waive runtime/access, permission, independent review or source-bound freeze gates.",
     "actual_prior_data_seen_and_chronology": "Owner confirmed 2026-10-27: planned registered study has not run and starts only after OSF registration. Owner confirmed disclosed-only inventory 2026-10-28: earlier unmeasured manual work, measured MVE smoke-01 (Sonnet 5.5, B/F1 plus consolidation, 14.54324 credits), and offline/fake/reference diagnostics; no additional model runs or calibration/pilot trajectories reported. All are excluded. protocol/prior-data-disclosure.md records exact Git recording/interpretation dates with timezones; historical collection/first-inspection times remain unverified, not inferred from commits. Unrelated hve-squad benchmarking (https://github.com/Peter-N91/hve-squad/pull/212) is not pooled or used as MVE evidence."
   },
   "required_evidence": {

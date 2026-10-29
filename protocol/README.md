@@ -5,7 +5,12 @@ Start with [pilot-estimation.md](pilot-estimation.md) and
 [pilot-estimation.json](pilot-estimation.json) is the machine-readable design
 and owner-decision ledger. Choices now specify three models, two trajectories
 per arm/model (18 pilot plus nine excluded calibration), and 300,000 total
-AI Credits. The original registration is owner-confirmed approved following
+AI Credits as the nominal registered envelope. The 29 October owner-accepted
+soft-limit policy uses 270/session and 270,000 local admission (10% buffers);
+in-flight responses can exceed soft limits, so billed consumption is not
+guaranteed. The much larger company hard limit is owner-reported, not verified
+study enforcement. See [collaborator instructions](../CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk).
+The original registration is owner-confirmed approved following
 submission on 28 October 2026: https://osf.io/ywsrv/overview.
 The subsequent corrected candidate needs
 [prospective OSF recording](prospective-corrections-2026-10-28.md) and

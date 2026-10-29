@@ -43,8 +43,12 @@ Offline checks (Python 3.11+, git, make):
     ./run-study.sh --smoke --study-id contributor-check
 
 The archive path in the first command is illustrative; use its actual location.
-Smoke spends zero model credits. Paid execution remains disabled: no budget
-receipt, package, licence assertion or freeze file alone enables a live backend.
+Smoke spends zero model credits. The owner accepts soft-credit-limit overshoot
+risk: settings are buffered to 270/session and 270000 local admission, not
+guaranteed billed limits. The reported company 1M/collaborator hard cap is not
+independently verified. See CONTRIBUTOR.md before any authorized paid work.
+Paid execution remains disabled: the isolated live backend is not implemented;
+no budget receipt, package, licence assertion or freeze file alone enables it.
 Never expose this operator checkout, its archive or `.git` to a study model.
 """
 

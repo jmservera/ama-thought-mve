@@ -92,7 +92,7 @@ def readiness(config: dict, panel: dict) -> dict:
             "independent_review_required_before_collection": True,
             "registration_recorded": registered,
             "registration_independently_verified": False, "execution_ready": False,
-            "execution_blockers": ["Provider-enforced hard billing backend absent; paid execution disabled",
+            "execution_blockers": ["Isolated live backend absent; paid execution disabled",
                                    "Model-aware scheduler/analysis and operational-rule alignment need acceptance",
                                    "Actual approved freeze/runtime/access/budget evidence must be verified"],
             "no_registration_required_to_prepare_draft": True,

@@ -142,7 +142,7 @@ def test_unreviewed_plan_can_be_approved_for_submission_without_collection(regis
     assert not report["independent_review_required_for_submission"]
     assert report["independent_review_required_before_collection"]
     assert not report["registration_recorded"] and not report["execution_ready"]
-    assert any("hard billing" in blocker for blocker in report["execution_blockers"])
+    assert any("Isolated live backend" in blocker for blocker in report["execution_blockers"])
 
 
 @pytest.mark.parametrize("key", ["prior_data_disclosure", "telemetry_coverage_or_explicit_secondary_unavailability"])
