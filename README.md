@@ -72,15 +72,15 @@ study hard cap is no longer required; the read-only budget audit is optional.
 See [CONTRIBUTOR.md](CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk)
 for monitoring, reset and overrun instructions.
 
-**Historical budget provision:** one excluded empty-workspace runtime probe failed
-during SDK setup with no tool calls and no complete usage evidence. Its
-300-credit reservation is retained; zero charge is not inferred. The known
-historical amount remains 14.54324, but total current prior usage is unknown.
-On 29 October the owner approved carrying the full 300 credits as a separate,
-source/evidence-bound budget provision rather than requiring an unavailable
-billing receipt before preparation continues. Known usage plus held budget is
-314.54324, leaving **269685.45676** within the 270000 local admission threshold.
-The provision is not actual spending or a guaranteed billing bound. Future
+**Historical budget provisions:** two excluded empty-workspace runtime checks
+failed, first during SDK setup and then on unexpected built-in MCP startup.
+Neither produced tool calls or complete usage evidence. On 29 October the owner
+separately approved retaining each 300-credit reservation as an exact
+source/evidence-bound unknown provision. Known usage remains **14.54324**;
+**600 credits** are held separately, not booked as spending or certified zero.
+Known usage plus held budget is **614.54324**, leaving **269385.45676** within
+the 270000 local admission threshold. Total actual prior usage remains unknown.
+These provisions are not guaranteed billing bounds. Future
 unknown usage still stops new work; live verification and collection gates remain.
 
 **The isolated live backend is a candidate implementation, not collection

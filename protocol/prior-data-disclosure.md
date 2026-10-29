@@ -69,7 +69,8 @@ offline without a retry. **Unknown charge is not zero charge.** The reservation
 remains held and total current prior usage is unknown; historical 14.54324 is
 only the earlier confirmed amount. The initial implementation blocked new live
 admissions pending authoritative attempt-correlated usage/no-charge reconciliation.
-No other model probe, calibration or registered pilot followed this failure.
+At that initial hold, no other model probe, calibration or registered pilot had
+followed this failure.
 
 On 29 October the owner explicitly approved a one-off conservative budget
 provision instead: preserve the old ledger unchanged, carry its full 300-credit
@@ -85,6 +86,35 @@ No live model or collection permission follows from this accounting decision.
 Private logs/ledger are retained outside the source bundle. No exact wall-clock
 execution/inspection times are inferred from Git or file timestamps. The
 recorded monotonic duration does not establish those times.
+
+## 29 October excluded startup check and second approved provision
+
+After the first accounting exception, the owner authorized at most one bounded
+empty-workspace check per model, sequentially without retry. Exactly one
+GPT6.1Sol attempt, `gpt-6.1-sol-authorized-check-20261029-1`, ran at source
+`cb1955957e7950a520b9a75d07bb3486616c5bbf`: 30-credit soft limit, 90-second
+allowance and 300-credit reservation. It stopped after 3.7134 seconds on
+unexpected `github-mcp-server` startup, before any candidate tool call.
+Sonnet and Gemini were not called. No feature/CR1 material, calibration or pilot
+observations were collected.
+
+The owned durable SDK shutdown reports zero nano-AIU, premium requests and API
+duration with empty model metrics. This is diagnostic, not a certified complete
+billing receipt; actual usage remains unknown. The owner separately approved
+carrying this full 300-credit reservation as another exact historical provision,
+not actual spending or a zero-charge claim. The immutable second ledger SHA-256 is
+`2d42df9f95198e97944f23aa67bfff9a41097463ebf0ea877c37928e3f561cf6`.
+Known usage remains 14.54324 with 600 held separately: 614.54324 accounted budget,
+not measured consumption, leaving 269385.45676 inside local admission threshold.
+Future unknown usage and overruns still stop; this grants no model-retry or
+collection permission.
+
+The restrictive startup flag and post-failure event-retention correction were
+validated offline, including a new owned tmux session with no model prompt:
+zero user requests, no MCP/assistant/model/tool activity and owned cleanup.
+This startup-only check is not a successful paid model roundtrip or a substitute
+for later source-bound acceptance. Original ledgers and registered assets are
+preserved; private startup/session records are excluded from source bundles.
 
 ## Scope of this record
 

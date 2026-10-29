@@ -176,12 +176,18 @@ mandatory budget prerequisite under this explicit risk acceptance.
 The owner explicitly approved carrying forward the full 300-credit reservation
 for `gpt-6.1-sol-nonstudy-1` at source `44ec37d`, separately from 14.54324 known
 prior usage. Its actual charge remains unknown; the private original ledger is
-unchanged. Configuration admits only that exact source/attempt/evidence-bound
-provision. Known spending plus held budget is 314.54324, leaving 269685.45676
-inside the 270000 local admission threshold before new reservations.
+unchanged. The owner later separately approved the same conservative treatment
+for `gpt-6.1-sol-authorized-check-20261029-1` at source `cb19559`, after unexpected
+built-in MCP startup stopped the check. Its source-bound ledger SHA-256 is
+`2d42df9f95198e97944f23aa67bfff9a41097463ebf0ea877c37928e3f561cf6`.
+Its actual charge also remains unknown despite a zero-valued SDK shutdown summary.
+Configuration admits only the exact old provision or the exact ordered pair;
+it never converts another failure automatically. Current known spending plus
+600 held is **614.54324**, leaving **269385.45676** inside the 270000 admission
+threshold before new reservations. Both original ledgers remain unchanged.
 
-This is a prospective financial-policy exception for one excluded historical
-setup check, not an actual charge, a guaranteed billing bound, a claim of
+These are two separately approved prospective financial-policy exceptions for
+excluded historical checks, not actual charges, guaranteed billing bounds, a claim of
 complete historical accounting, or permission to ignore future missing usage.
 Future unknown usage and overruns still stop, and session limits/security
 controls remain unchanged. Live verification, exact-source acceptance/freeze

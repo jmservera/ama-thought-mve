@@ -464,10 +464,9 @@ export async function runTransport({ input = process.stdin, output = process.std
       return { textResultForLlm: JSON.stringify(result),
         resultType: result.exit_code === 0 ? 'success' : 'failure' };
     }, event => {
-      if (failure) return;
       try {
         writer.write({ type: 'event', sessionId: evidence.sessionId, event });
-        evidence.observe(event);
+        if (!failure) evidence.observe(event);
       } catch (error) { fail(error); }
     });
     if (failure) throw failure;

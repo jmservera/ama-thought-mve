@@ -100,13 +100,14 @@ different JSON object. Its settings are seed, ceiling (positive, never >300,000 
 credits; supplied 270,000), prior spending, per-session reservation, separate
 integer CLI soft limit (30 through 300; supplied 270), maximum attempts,
 absolute study allowance and minimum disk space. Historical owner-confirmed
-usage is **14.54324**; one excluded setup probe still has unknown usage. The
-owner approved its full **300-credit** reservation as a separate historical
+usage is **14.54324**; two excluded runtime checks still have unknown usage. The
+owner separately approved each full **300-credit** reservation as a historical
 budget provision on 29 October. `prior_credits` records only known usage;
-`historical_credit_provisions` separately binds the hold to the exact approved
-attempt/source/ledger digest. Admission counts both, leaving **269685.45676**
+`historical_credit_provisions` binds each hold to its exact approved
+attempt/source/ledger digest. Admission counts known usage plus **600 held**,
+leaving **269385.45676**
 before new reservations. Actual historical total remains unknown; reports
-explicitly disclose that incompleteness. The private old ledger is unchanged.
+explicitly disclose that incompleteness. Both original private ledgers are unchanged.
 Do not infer zero, call the provision actual spending, or apply this exception
 to future failures. Future incomplete usage and overruns still stop admission.
 Live checks and collection still require separate acceptance. See the prior-data disclosure and

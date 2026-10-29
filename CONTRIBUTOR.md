@@ -102,23 +102,27 @@ The supplied controller config applies a uniform **10% operational buffer**:
 | `session_soft_limit_credits` | 270 | SDK session soft limit; per original session, including any retry, not a global study cap |
 | `session_reserve_credits` | 300 | Nominal reservation ceiling; the initial reservation includes 30 credits of headroom above the soft threshold |
 | `ceiling_credits` | 270000 | Local admission stop, leaving 30000 below the registered 300000 envelope |
-| `prior_credits` | 14.54324 | Confirmed prior usage only; excludes the unknown setup-check charge |
-| `historical_credit_provisions` | 300 held | Exact owner-approved historical probe provision, separate from actual spending |
+| `prior_credits` | 14.54324 | Confirmed prior usage only; excludes both unknown runtime-check charges |
+| `historical_credit_provisions` | 600 held | Two exact, separately owner-approved 300-credit provisions, not actual spending |
 
-The excluded probe has unknown usage and retains a **300-credit reservation**.
-On 29 October the owner approved carrying that full amount as a separate
-historical budget provision. Known usage plus held budget is **314.54324**,
-leaving **269685.45676 credits** within the 270000 admission threshold before
+Two excluded checks have unknown actual usage and each retains a **300-credit
+reservation**. On 29 October the owner separately approved carrying both as
+historical budget provisions. Known usage plus held budget is **614.54324**,
+leaving **269385.45676 credits** within the 270000 admission threshold before
 new reservations. This permits accounting admission, not live verification or
 collection without their separate approvals.
-The attempt used an empty non-study workspace, a 30-credit soft limit and 90-second
-deadline, and returned no tool calls or complete billed-usage evidence.
+Both attempts used empty non-study workspaces, 30-credit soft limits and 90-second
+deadlines, and returned no tool calls or complete billed-usage evidence.
 An SDK directory-setup defect was corrected without another model request;
 historical create/send and zero charge are not established by missing events.
-Preserve the private attempt/ledger unchanged. Its actual usage remains null;
-the config binds this one-off provision to the old source, attempt, ledger digest
-and owner approval. Do not book the 300 as actual usage or release the hold
-without legitimate reconciliation. If later evidence exceeds the provision,
+The second check at `cb19559` stopped on unintended built-in MCP startup; Sonnet
+and Gemini were not called. Its durable shutdown reports zero usage, but this
+is not a complete billing receipt. The restrictive startup correction was tested
+separately in a new tmux session without sending a model prompt.
+Preserve both private attempt ledgers unchanged. Actual usage remains null;
+the config binds each provision to its exact source, attempt, ledger digest
+and separate owner approval. Do not book either 300 as actual usage or release
+either hold without legitimate reconciliation. If later evidence exceeds a provision,
 stop and account for the excess. This is not a guaranteed provider billing bound.
 Future incomplete usage still stops; it is never automatically converted to a
 historical provision. The source bundle contains no private session/authentication artifacts.
@@ -186,7 +190,14 @@ CLI 1.0.105 executable using approved interactive authentication. No token is
 required in the controller environment. The SDK exposes only `isolated_exec`;
 built-in tools, discovery, MCP servers and unrelated permission requests are
 excluded or denied. Never add blanket approval, permission-skipping, extra host
-tools or trusted directories to repair a failed check.
+tools or trusted directories to repair a failed check. The owned CLI explicitly
+receives `--disable-builtin-mcps`; empty mode alone is not sufficient to stop
+default MCP startup. Unexpected activity still fails closed.
+
+The bounded transport journal retains SDK events received after a failure,
+including shutdown usage diagnostics. Those observations do not clear the
+failure or certify a zero bill: incomplete failed-session accounting remains
+unknown and its reservation stays held until separately reconciled.
 
 Each tool call uses a fresh, no-network container with read-only root, bounded
 tmpfs/CPU/memory/processes/output and a nonroot candidate identity. A separate

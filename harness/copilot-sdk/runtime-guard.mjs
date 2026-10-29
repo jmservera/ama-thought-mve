@@ -104,7 +104,8 @@ export async function makeRuntime(request, deadline) {
   const client = new CopilotClient({
     connection: RuntimeConnection.forStdio({
       path: process.execPath,
-      args: [fileURLToPath(import.meta.url), '--guard', request.cliPath, String(deadline)],
+      args: [fileURLToPath(import.meta.url), '--guard', request.cliPath, String(deadline),
+        '--disable-builtin-mcps'],
     }),
     mode: 'empty',
     baseDirectory: data,

@@ -4,11 +4,12 @@ import { PassThrough, Writable } from 'node:stream';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { Evidence, InputRecords, OutputRecords, assertRuntime, permissionHandler,
   runTransport, sessionConfig, validateArguments } from './transport.mjs';
-import { RpcFrames, hostEnvironment, prepareRuntimeDirectories } from './runtime-guard.mjs';
+import { RpcFrames, hostEnvironment, makeRuntime, prepareRuntimeDirectories } from './runtime-guard.mjs';
 
 const request = (extra = {}) => ({ model: 'test-model', reasoningEffort: 'medium', prompt: 'test',
   remainingSeconds: 2, maxAiCredits: 173.5, cliPath: '/trusted/copilot',
@@ -58,7 +59,10 @@ function fakeRuntime(options = {}) {
         };
       },
     };
-    return { client, async close() { state.closed++; } };
+    return { client, async close() {
+      state.closed++;
+      if (options.closeEvents) options.closeEvents(state.config);
+    } };
   };
   return { factory, state };
 }
@@ -240,6 +244,47 @@ test('RPC frames are bounded before SDK parsing and owned proxy reaps its child'
   const [code] = await once(noisy, 'close');
   assert.equal(code, 1);
   assert.equal(noise, 'runtime_guard_failure\n');
+});
+
+test('guarded SDK startup forwards built-in MCP disabling to its actual CLI child', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'mve-sdk-argv-'));
+  let runtime;
+  try {
+    const cliPath = join(directory, 'fake-cli');
+    const argvPath = join(directory, 'argv');
+    await writeFile(cliPath,
+      `#!/bin/sh\nprintf '%s\\n' "$@" > '${argvPath}'\nexit 1\n`, { mode: 0o700 });
+    runtime = await makeRuntime(request({ cliPath, baseDirectory: directory }), Date.now() + 3000);
+    await assert.rejects(runtime.client.start());
+    const argv = (await readFile(argvPath, 'utf8')).trim().split('\n');
+    assert.ok(argv.includes('--disable-builtin-mcps'), 'CLI must explicitly disable built-in MCP');
+  } finally {
+    try { if (runtime) await runtime.close(); }
+    catch (error) { assert.equal(error.message, 'runtime_guard_failure'); }
+    finally { await rm(directory, { recursive: true, force: true }); }
+  }
+});
+
+test('failed sessions retain close-time usage diagnostics without certifying zero or clearing failure', async () => {
+  const result = await runFake({
+    async action(config) {
+      config.onEvent(event('session.mcp_server_status_changed',
+        { serverName: 'github-mcp-server', status: 'pending' }));
+    },
+    closeEvents(config) {
+      config.onEvent(event('session.shutdown', { shutdownType: 'routine',
+        totalNanoAiu: 0, totalPremiumRequests: 0, totalApiDurationMs: 0, modelMetrics: {} }));
+    },
+  });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.state.closed, 1);
+  assert.equal(result.receipt.protocol_error, 'unexpected_runtime_activity');
+  assert.equal(result.receipt.usage.credits_complete, false);
+  assert.equal(result.receipt.usage.totalNanoAiu, null);
+  const diagnostic = result.records.find(record =>
+    record.type === 'event' && record.event.type === 'session.shutdown');
+  assert.equal(diagnostic.event.data.totalNanoAiu, 0);
+  assert.equal(result.records.at(-1).type, 'complete');
 });
 
 test('NDJSON happy path preserves raw events, exact shared budget and correlated tool results', async () => {

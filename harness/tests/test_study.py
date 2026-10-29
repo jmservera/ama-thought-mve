@@ -63,45 +63,55 @@ def test_unknown_usage_holds_reservation_and_blocks(study, usage):
         study.reserve(ledger, "next", 0)
 
 
-def test_historical_hold_counts_against_admission_but_future_unknown_still_stops(study, tmp_path):
+@pytest.mark.parametrize("include_startup", [False, True])
+def test_historical_hold_counts_against_admission_but_future_unknown_still_stops(study, tmp_path, include_startup):
     cfg = study.read_json(ROOT / "harness/study-config.json")
+    if not include_startup:
+        cfg["historical_credit_provisions"] = cfg["historical_credit_provisions"][:1]
     study.validate_config(cfg, smoke=False)
     current = study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="historical-hold")
     ledger = current.state["ledger"]
-    provision = ledger["historical_credit_provisions"][0]
+    provisions = ledger["historical_credit_provisions"]
     assert ledger["prior_nano"] == study.credits("14.54324")
-    assert provision["actual_nano"] is None and provision["status"] == "unknown"
-    room = ledger["ceiling_nano"] - ledger["prior_nano"] - provision["reserved_nano"]
-    assert room == study.credits("269685.45676")
+    assert all(item["actual_nano"] is None and item["status"] == "unknown" for item in provisions)
+    room = ledger["ceiling_nano"] - ledger["prior_nano"] - sum(item["reserved_nano"] for item in provisions)
+    assert room == study.credits("269385.45676" if include_startup else "269685.45676")
     study.reserve(ledger, "new", room)
     with pytest.raises(study.StudyError, match="ceiling"):
         study.reserve(ledger, "extra", 1)
     study.reconcile(ledger, "new", None)
     with pytest.raises(study.StudyError, match="Unknown usage"):
         study.reserve(ledger, "after-unknown", 0)
-    assert provision["actual_nano"] is None and provision["reserved_nano"] == 300 * study.NANO
+    assert all(item["actual_nano"] is None and item["reserved_nano"] == 300 * study.NANO for item in provisions)
 
 
 def test_historical_hold_cannot_be_forged_or_reused(study, tmp_path):
     cfg = study.read_json(ROOT / "harness/study-config.json")
-    original = cfg["historical_credit_provisions"][0]
-    for field, value in (("reserved_credits", 299), ("actual_credits", 0),
-                         ("attempt_id", "future-failure"), ("source_commit", "0" * 40),
-                         ("evidence_sha256", "0" * 64), ("approval", "")):
-        forged = dict(cfg, historical_credit_provisions=[dict(original, **{field: value})])
+    originals = cfg["historical_credit_provisions"]
+    for index, original in enumerate(originals):
+        for field, value in (("reserved_credits", 299), ("actual_credits", 0),
+                             ("attempt_id", "future-failure"), ("source_commit", "0" * 40),
+                             ("evidence_sha256", "0" * 64), ("approval", "")):
+            altered = originals.copy()
+            altered[index] = dict(original, **{field: value})
+            forged = dict(cfg, historical_credit_provisions=altered)
+            with pytest.raises(study.StudyError, match="exact owner-approved"):
+                study.validate_config(forged, smoke=False)
+    for invalid in ([originals[0], originals[0]], [*originals, originals[1]],
+                    originals[1:], originals[::-1]):
         with pytest.raises(study.StudyError, match="exact owner-approved"):
-            study.validate_config(forged, smoke=False)
-    with pytest.raises(study.StudyError, match="exact owner-approved"):
-        study.validate_config(dict(cfg, historical_credit_provisions=[original, original]), smoke=False)
+            study.validate_config(dict(cfg, historical_credit_provisions=invalid), smoke=False)
     current = study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="no-reuse")
-    with pytest.raises(study.StudyError, match="cannot be reused"):
-        study.reserve(current.state["ledger"], original["attempt_id"], 0)
+    for original in originals:
+        with pytest.raises(study.StudyError, match="cannot be reused"):
+            study.reserve(current.state["ledger"], original["attempt_id"], 0)
 
 
-def test_historical_hold_is_bound_to_resume_state(study, tmp_path):
+@pytest.mark.parametrize("hold_index", [0, 1])
+def test_historical_hold_is_bound_to_resume_state(study, tmp_path, hold_index):
     cfg = study.read_json(ROOT / "harness/study-config.json")
     current = study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="resume-hold")
-    current.state["ledger"]["historical_credit_provisions"][0]["reserved_nano"] = 0
+    current.state["ledger"]["historical_credit_provisions"][hold_index]["reserved_nano"] = 0
     current.save()
     with pytest.raises(study.StudyError, match="Stored budget"):
         study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="resume-hold")
@@ -115,7 +125,7 @@ def test_historical_hold_requires_known_prior_and_remaining_budget(study):
     with pytest.raises(study.StudyError, match="confirmed known prior"):
         study.validate_config(dict(cfg, prior_credits=0), smoke=False)
     with pytest.raises(study.StudyError, match="historical provisions exceed"):
-        study.validate_config(dict(cfg, ceiling_credits=314.54323), smoke=False)
+        study.validate_config(dict(cfg, ceiling_credits=614.54323), smoke=False)
 
 
 def test_ceiling_cannot_be_raised_or_prior_spend_assumed(study, config):

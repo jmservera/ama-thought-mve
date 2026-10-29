@@ -77,10 +77,12 @@ def test_exports_distinguish_historical_budget_hold_from_actual_usage(modules, r
     exporter(reports.parent, state, "export-test")
     provenance = study.read_json(reports / "provenance.json")
     assert provenance["prior_nano"] == study.credits("14.54324")
-    assert provenance["historical_reserved_nano"] == study.credits(300)
+    assert provenance["historical_reserved_nano"] == study.credits(600)
     assert provenance["historical_usage_complete"] is False
-    hold = provenance["historical_credit_provisions"][0]
-    assert hold["actual_nano"] is None and hold["status"] == "unknown"
+    holds = provenance["historical_credit_provisions"]
+    assert [hold["attempt_id"] for hold in holds] == [
+        item["attempt_id"] for item in cfg["historical_credit_provisions"]]
+    assert all(hold["actual_nano"] is None and hold["status"] == "unknown" for hold in holds)
 
 
 @pytest.mark.parametrize("attack", ["extra", "symlink", "size", "token", "env-secret"])

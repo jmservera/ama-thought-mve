@@ -108,12 +108,16 @@ The reported company 1,000,000/collaborator hard limit is not independently
 verified or a study-specific stop. A separate study provider hard cap is no
 longer required. See [collaborator billing instructions](../CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk).
 The isolated live backend is now a source candidate, not runtime acceptance.
-An excluded empty-workspace setup probe has unknown usage. On 29 October the
-owner approved its full 300-credit reservation as a separate historical budget
-provision, while retaining known prior usage of 14.54324 and unknown actual
-charge. This removes the unavailable-receipt prerequisite to accounting
-admission, not runtime/collection requirements. Future unknown usage still
-stops. The original ledger remains unchanged; the setup fix was not model-retried.
+Two excluded empty-workspace checks have unknown actual usage: the original
+setup failure and a later check stopped by unexpected built-in MCP startup.
+On 29 October the owner separately approved each full 300-credit reservation
+as an exact historical budget provision. Known prior stays 14.54324; 600 is held
+separately, leaving 269385.45676 inside local admission. Neither hold is actual
+spending or certified zero. This removes the unavailable-receipt prerequisite
+to accounting admission, not runtime/collection requirements. Future unknown
+usage still stops. Both original ledgers remain unchanged.
+The startup restriction was tested in a new owned tmux session without a model
+prompt; it does not establish a successful model roundtrip or new-source freeze.
 Financial acceptance waives no runtime/access or agent permission safeguards.
 Excluding HIR/IDR, passing offline checks
 or having a complete OSF draft grants no permission to collect data.

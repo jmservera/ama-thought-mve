@@ -34,6 +34,14 @@ APPROVED_HISTORICAL_PROVISION = {
     "evidence_sha256": "82ac0a3c7b6f4c54a2fb65d6cc43a5031ee1c197aa10ece8ba4f492ed7568d22",
     "approval": "owner-approved-carry-forward-2026-10-29",
 }
+APPROVED_STARTUP_PROVISION = {
+    "attempt_id": "gpt-6.1-sol-authorized-check-20261029-1",
+    "reserved_credits": 300,
+    "actual_credits": None,
+    "source_commit": "cb1955957e7950a520b9a75d07bb3486616c5bbf",
+    "evidence_sha256": "2d42df9f95198e97944f23aa67bfff9a41097463ebf0ea877c37928e3f561cf6",
+    "approval": "owner-approved-startup-carry-forward-2026-10-29",
+}
 MODEL_DESIGN = "model-stratified-v1"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "scripts")
 GATES = (
@@ -60,9 +68,10 @@ def credits(value: object) -> int:
 
 
 def historical_credit_provisions(cfg: dict, *, smoke: bool = False) -> list[dict]:
-    """Keep the one owner-approved historical hold separate from actual usage."""
+    """Keep specifically approved historical holds separate from actual usage."""
     provisions = cfg.get("historical_credit_provisions", [])
-    if provisions not in ([], [APPROVED_HISTORICAL_PROVISION]):
+    if provisions not in ([], [APPROVED_HISTORICAL_PROVISION],
+                          [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION]):
         raise StudyError("Historical provision must match the exact owner-approved attempt and evidence")
     if smoke:
         return []
