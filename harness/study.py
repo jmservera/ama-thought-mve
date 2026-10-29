@@ -22,7 +22,7 @@ from types import SimpleNamespace
 from analyze import step_usage
 from pilot_analysis import collection_role
 from runner import Run, git, head
-from study_io import ROOT, StudyError, atomic_json, command, read_json
+from study_io import ROOT, RetryableError, StudyError, atomic_json, command, read_json
 
 NANO = 1_000_000_000
 MAX_CREDITS = 300000 * NANO
@@ -36,10 +36,6 @@ GATES = (
     "telemetry_coverage", "prior_data_disclosure", "budget_calibration",
     "multi_model_harness_alignment",
 )
-
-
-class RetryableError(RuntimeError):
-    """An unmeasured infrastructure failure, never a measured task failure."""
 
 
 def credits(value: object) -> int:
@@ -91,7 +87,9 @@ def fingerprint(root: Path = ROOT) -> str:
         if source.is_symlink():
             raise StudyError("Execution inputs must not contain symlinks")
         for path in [source] if source.is_file() else sorted(source.rglob("*")):
-            if "__pycache__" in path.parts or ".pytest_cache" in path.parts:
+            relative = path.relative_to(root)
+            if ("__pycache__" in path.parts or ".pytest_cache" in path.parts
+                    or relative.parts[:3] == ("harness", "copilot-sdk", "node_modules")):
                 continue
             if path.is_symlink():
                 raise StudyError("Execution inputs must not contain symlinks")
@@ -215,22 +213,17 @@ def preflight(cfg: dict, *, smoke: bool, root: Path = ROOT) -> list[str]:
         errors.append(str(error))
     if sys.version_info < (3, 11):  # noqa: UP036 - check the VM, not just the development interpreter.
         errors.append("Python 3.11+ required")
-    for tool in (("git", "make") if smoke else ("git", "make", "copilot", "gh", "ruff", "lizard", "jscpd")):
+    for tool in (("git", "make") if smoke else ("git", "node", "copilot", "docker")):
         if not shutil.which(tool):
             errors.append(f"Required tool missing: {tool}")
     minimum = cfg.get("min_disk_gib")
     if type(minimum) is int and shutil.disk_usage(root).free < minimum * 1024**3:
         errors.append(f"Insufficient disk: require {minimum} GiB free")
     if not smoke:
-        if not os.environ.get("COPILOT_GITHUB_TOKEN"):
-            errors.append("COPILOT_GITHUB_TOKEN is not present (value never displayed)")
         if shutil.which("git") and command(["git", "status", "--porcelain"], cwd=root):
             errors.append("Live execution requires a clean git worktree")
         for tool, args, version in (
             ("copilot", ["copilot", "--no-auto-update", "--version"], "1.0.105"),
-            ("ruff", ["ruff", "--version"], "0.17.3"),
-            ("lizard", ["lizard", "--version"], "1.24.3"),
-            ("jscpd", ["jscpd", "--version"], "5.4.1"),
         ):
             if shutil.which(tool):
                 output = command(args).strip()
@@ -246,8 +239,8 @@ def preflight(cfg: dict, *, smoke: bool, root: Path = ROOT) -> list[str]:
                 errors.extend(freeze_errors(cfg, root))
             except (StudyError, OSError, ValueError, subprocess.TimeoutExpired):
                 errors.append("Freeze evidence unreadable or tag verification failed")
-        errors.append("Paid execution disabled: an isolated live backend is not implemented; "
-                      "runtime/access and source-bound collection acceptance remain required")
+        from isolated_runtime import runtime_errors
+        errors.extend(runtime_errors(cfg, root))
     return errors
 
 
@@ -413,10 +406,11 @@ class StudyRun(Run):
         return process.returncode, timed_out, time.time() - start
 
     def run_agent(self, prompt: str, step_dir: str, budget: int) -> dict:
-        """Only the built-in stub can execute until an isolated live backend exists."""
+        """Select isolated live execution or the unchanged built-in smoke stub."""
         controller = self.controller
         if not controller.smoke:
-            raise StudyError("No isolated live paid backend implemented")
+            from isolated_runtime import live_runtime
+            return live_runtime(self).run_agent(prompt, step_dir, budget)
         remaining_seconds, remaining_credits = self.remaining_allowance(budget)
         reserve_buffer = (credits(controller.cfg["session_reserve_credits"])
                           - credits(controller.cfg["session_soft_limit_credits"]))
@@ -470,6 +464,9 @@ class StudyRun(Run):
 
     def is_green(self) -> bool:
         """Bound visible-test writers under the same absolute study deadline."""
+        if not self.controller.smoke:
+            from isolated_runtime import live_runtime
+            return live_runtime(self).visible()
         from evaluation_env import evaluation_environment
         directory = Path(self.dir) / "attempts" / self.cell["attempts"][-1]["id"] / "checks"
         directory.mkdir(parents=True, exist_ok=True)
@@ -501,6 +498,11 @@ class StudyRun(Run):
             self.controller.save()
             try:
                 result = self._measure_once(k, step_dir, prev_ref, cr)
+            except StudyError:
+                measurement["status"] = "invalid_result"
+                self.controller.state["oracle_halt"] = True
+                self.controller.save()
+                raise
             except (RetryableError, OSError, subprocess.TimeoutExpired) as error:
                 measurement["status"] = "exhausted" if measurement["calls"] == 2 else "infrastructure_failure"
                 measurement["error"] = type(error).__name__
@@ -524,6 +526,9 @@ class StudyRun(Run):
 
     def _measure_once(self, k: int, step_dir: str, prev_ref: str, cr: bool = False) -> dict:
         """Execute one bounded external evaluation."""
+        if not self.controller.smoke:
+            from isolated_runtime import live_runtime
+            return live_runtime(self).measure(k, step_dir, prev_ref, cr)
         from evaluation_env import evaluation_environment
         directory = Path(self.dir) / "attempts" / self.cell["attempts"][-1]["id"] / "evaluation"
         directory.mkdir(parents=True, exist_ok=True)
@@ -545,6 +550,13 @@ class StudyRun(Run):
 
     def record(self, rec: dict) -> None:
         """Fsync the canonical step before marking it complete in controller state."""
+        if not self.controller.smoke and rec.get("kind") == "consolidation":
+            from isolated_runtime import live_runtime
+            runtime = live_runtime(self)
+            count = (runtime.last_export or {}).get("commit_count")
+            if type(count) is not int or count < 0:
+                raise StudyError("Missing isolated candidate commit-count evidence")
+            rec["commits"] = count if head(self.repo) == runtime.last_checkpoint else 0
         attempts = [attempt for attempt in self.cell["attempts"] if attempt["step"] == rec["step"]]
         rec["agent"]["usage"] = aggregate_usage(attempts)
         rec["agent"]["seconds"] = (sum(attempt["seconds"] for attempt in attempts)
@@ -557,6 +569,13 @@ class StudyRun(Run):
         for attempt in attempts:
             attempt["cost_included_in_step"] = True
         self.controller.save()
+
+    def post_step(self, k: int) -> None:
+        if not self.controller.smoke and self.arm == "C":
+            from isolated_runtime import live_runtime
+            live_runtime(self).review_step(k)
+            return
+        super().post_step(k)
 
 
 class Controller:
@@ -606,7 +625,7 @@ class Controller:
             raise StudyError("Recorded writer group may still be alive; stop it before resuming")
         self.state["writer_pid"] = None
         self.runtime_config = directory / "runtime.json"
-        runtime = read_json(ROOT / "harness/config.dry-run.json")
+        runtime = read_json(ROOT / ("harness/config.dry-run.json" if smoke else "harness/config.json"))
         runtime["runs_dir"] = str(directory / "runs")
         runtime["version_commands"] = {}
         atomic_json(self.runtime_config, runtime)
@@ -727,7 +746,7 @@ class Controller:
         try:
             for cell in self.state["cells"]:
                 if self.state.get("oracle_halt"):
-                    self.state["stop_reason"] = "Oracle snapshot integrity failed; manual investigation required"
+                    self.state["stop_reason"] = "Runtime or oracle integrity failed; manual investigation required"
                     break
                 if cell["status"] == "completed":
                     continue

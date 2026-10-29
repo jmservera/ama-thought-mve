@@ -962,10 +962,10 @@ def test_given_direct_measure_cli_when_metric_and_git_children_run_then_metadata
             stdout = ""
         elif command[0] == "/synthetic/ruff":
             stdout = "[]"
-        elif command[:2] == ["git", "rev-parse"]:
+        elif command[:4] == ["git", "-c", f"safe.directory={repo}", "rev-parse"]:
             stdout = "a" * 40
         else:
-            assert command[:2] == ["git", "diff"]
+            assert command[:4] == ["git", "-c", f"safe.directory={repo}", "diff"]
             stdout = "1\t0\tsrc/source.py\n"
         return subprocess.CompletedProcess(command, 0, stdout, "")
 

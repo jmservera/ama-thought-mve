@@ -47,8 +47,11 @@ Smoke spends zero model credits. The owner accepts soft-credit-limit overshoot
 risk: settings are buffered to 270/session and 270000 local admission, not
 guaranteed billed limits. The reported company 1M/collaborator hard cap is not
 independently verified. See CONTRIBUTOR.md before any authorized paid work.
-Paid execution remains disabled: the isolated live backend is not implemented;
-no budget receipt, package, licence assertion or freeze file alone enables it.
+The isolated live backend is a candidate, not collection approval. Install its
+repository-local SDK lockfile and validate the exact image/canaries as described
+in CONTRIBUTOR.md. Scientific/source acceptance, actual live usage/model
+evidence, source-bound owner freeze and prospective OSF recording remain gates;
+no budget receipt, package or licence assertion alone enables collection.
 Never expose this operator checkout, its archive or `.git` to a study model.
 """
 

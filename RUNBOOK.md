@@ -38,8 +38,9 @@ The controller implements the model matrix, immutable model/replicate identity,
 270,000-credit local admission stop and bounded infrastructure retries; analysis
 exports separate primary estimates per model. Before collection, require
 independent `multi_model_harness_alignment` evidence covering scheduling,
-model-specific inference, budgets and selected operational rules. Actual model access/runtime,
-independent acceptance and the isolated live backend remain unresolved.
+model-specific inference, budgets and selected operational rules. The isolated
+backend is implemented as a candidate; actual live model/accounting evidence
+and independent/source-bound owner acceptance remain unresolved.
 
 > [!IMPORTANT]
 > D1-D12 from 25 October remain historical decisions where compatible with the
@@ -62,8 +63,8 @@ Tool facts were checked on 24 October 2026 against GitHub Copilot CLI 1.0.95 hel
 
 The 26 October controller adds a single command, not permission to run the
 study. The older manual procedures below are historical operator instructions,
-**not a way around its safety gates**. No paid session is launched by this
-revision; there is no implemented isolated live backend.
+**not a way around its safety gates**. The current isolated-backend candidate
+does not authorize a paid study merely by being installed.
 
 ```bash
 ./run-study.sh --smoke
@@ -102,9 +103,10 @@ absolute study allowance and minimum disk space. The supplied `prior_credits`
 is the owner-confirmed **14.54324**, not zero. Add all later logged probe/prior
 charges before preparing the exact live config; unknown prior usage is rejected.
 Smoke explicitly has zero paid usage and does not consume a live allocation.
-No config field contains a token; set `COPILOT_GITHUB_TOKEN` only in the
-environment. Presence is checked without printing its value. `.env` is ignored,
-never loaded by the controller and never eligible for publication.
+No config field contains a token. The live SDK uses approved interactive user
+authentication on the trusted host; an environment token is not required.
+The optional billing audit has a separate credential requirement. `.env` is
+ignored, never loaded by the controller and never eligible for publication.
 
 The supplied finite study deadline is 14 days. Each original step keeps its
 30/15/45-minute allowance and original 270-credit soft allowance across at most
@@ -116,12 +118,13 @@ Measurement infrastructure may be retried once on the same retained snapshot,
 without replaying agent work; exhausted evaluation retries remain exhausted on
 resume. A snapshot inconsistency halts collection rather than rerunning until green.
 
-Live checks include Python, git/make, Copilot **1.0.105**,
-gh, ruff **0.17.3**, lizard **1.24.3**, jscpd **5.4.1**, free disk, clean git,
-known prior spending and owner freeze provenance. No model calls are used to
-check versions. The existing image recipe and legacy configs are not evidence
-of pinned execution; the selected local design needs verified runtime/tool
-evidence and access probes, not a fictional approved Docker amendment.
+Live host checks include Python, git, Node, Docker, Copilot **1.0.105**, the
+repository-local SDK **1.0.28**, free disk, clean Git, known prior spending and
+owner freeze provenance. No model calls are used to check versions.
+The isolated image contains Ruff **0.17.3**, Lizard **1.24.3** and jscpd **5.4.1**;
+its actual toolchain/profile is checked by offline canaries. Host `gh` is needed
+only for explicit publication, not model transport. Legacy image recipes and
+direct local command templates are not the selected runtime.
 
 For the owner's 28 October prospective toolchain amendment, use the pinned
 Python requirements and a repository-local duplication tool, without changing
@@ -140,6 +143,27 @@ superseded for changed inputs, not overwritten; use a fresh candidate and
 [the consolidated reviewer assignment](protocol/readiness-handoff.md).
 The owner excluded HIR/IDR outcomes; assistance/usage coverage remains mandatory.
 
+Install and check the local SDK as described in
+[CONTRIBUTOR.md](CONTRIBUTOR.md#repository-local-copilot-sdk). Build a separately
+named image from the **harness** build context, then verify actual offline
+containment and frozen-reference evaluation without a model session:
+
+```bash
+docker build --quiet -f harness/Dockerfile.isolated -t mve-isolated:CANDIDATE harness
+image="$(docker image inspect --format '{{.Id}}' mve-isolated:CANDIDATE)"
+.venv/bin/python -B harness/isolation_canary.py --image "$image" --out .study/runtime-canary.json
+MVE_TEST_ISOLATED_IMAGE="$image" .venv/bin/python -B -m pytest -p no:cacheprovider \
+  harness/tests/test_isolated_runtime.py -q
+```
+
+Replace `CANDIDATE` with a fresh operator-owned tag; do not overwrite unrelated
+images. Record the immutable content ID, not merely the tag. Base and primary
+tools are pinned, but transitive registry/apt inputs are not a fully locked
+reproducible build: a different rebuilt image requires fresh canaries and
+source-bound acceptance. Do not rebuild or switch images during collection.
+Regenerate canary evidence after execution inputs change. The receipt is
+private offline evidence, not scientific acceptance or a freeze authorization.
+
 The owner must separately supply `protocol/freeze.json`, containing:
 `commit` (full frozen source SHA), a new authorised versioned `tag`, `inputs_sha256`
 (the controller's complete protocol/harness/skeleton/suite digest),
@@ -152,16 +176,22 @@ evidence references for each gate: `independent_suite_review`, `access_probe`,
 `budget_calibration`, `multi_model_harness_alignment`. A file is a machine-checkable provenance record, not
 independent proof that its claims are true. No such file or tag is created here.
 The historical `protocol-frozen` tag alone is rejected. Formal H4/H7 definitions
-and an image digest are not requirements of this local estimation pilot.
+remain deferred. The selected isolated backend additionally requires
+`runtime_image` (immutable `sha256:...` image ID) and `runtime_canary_sha256`
+(SHA-256 of `.study/runtime-canary.json`) in the owner freeze. The legacy gate
+name `local_runtime_evidence` now covers the exact host SDK/container runtime,
+not acceptance of the old local-shell mode.
 The manifest itself is excluded from the input digest. HEAD must match the
 frozen source or differ only by a subsequent manifest-only commit, avoiding
 an impossible self-referential commit hash.
 Dry-run prints `inputs_sha256`; the digest includes the launcher/bootstrap
 scripts and executable bits as well as protocol, harness, skeleton and suites.
 
-Even complete freeze evidence cannot enable paid execution: an isolated live
-backend remains unimplemented. The inspected CLI exposes a soft session cap and
-final usage; the owner accepts residual financial risk, not missing isolation.
+Freeze evidence is necessary but is not independent proof of its claims.
+The SDK adapter must additionally validate actual model/effort/routing and
+complete explicit final usage; requested model names or a terminal summary
+alone are not billing evidence. The owner accepts residual soft-limit financial
+risk, not missing isolation or unknown accounting.
 `harness/billing_check.py` optionally audits a stronger provider budget read-only;
 it never modifies billing or enables dispatch. The ledger atomically reserves
 before launch; reconciled spending plus every outstanding reservation and
@@ -171,7 +201,8 @@ admission. This is a **hard launch-admission check**, not hard actual billing.
 No timeout or overshoot buffer guarantees the latter. Monitor/reconcile actual
 usage, preserve prior spend across billing-cycle resets, and never describe the
 reported company hard limit as verified study enforcement.
-The Docker command builder is preparation only, not a wired paid backend.
+The old Docker command builder remains historical; the non-smoke controller
+uses the restricted SDK bridge and isolated state broker instead.
 
 ### State and recovery
 
@@ -197,10 +228,16 @@ The absolute study deadline persists across restarts. Work after expiry is
 unattempted, not silently excluded. Each cell's metadata is created before any
 session, so even zero-step cells enter reporting. Normal smoke runs use separate
 disposable repositories and credential-minimal fake-agent environments, **not
-OS isolation**. The proposed Docker builder mounts only a run repository and a
-fresh attempt directory, not suites, references, evaluator outputs or the host
-Docker socket. Root filesystem/resource restrictions are not proof of network
-containment. Switching from D11's local choice still requires owner approval.
+OS isolation**. The new live tool containers have no network or writable host
+mounts; evaluators receive only selected read-only snapshots/kit/suites.
+Opaque worktree state is restored only in containers. Fresh tool calls preserve
+files, not running daemons or sockets. Trusted host checkpoints retain regular
+committed content and safe trajectory refs, not arbitrary candidate Git metadata.
+C alone retains an uncommitted regular REVIEW file. These prospective runtime
+differences supersede D11's old local implementation, not scientific or launch
+acceptance. A container identity/containment failure globally halts admissions:
+inspect only exact recorded IDs/names and verified ownership/image; never prune
+or kill unrelated resources. Do not remove pending intents to force a restart.
 
 ### Paper outputs and result-only publication
 

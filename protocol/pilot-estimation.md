@@ -124,6 +124,16 @@ CR1 text and tests must be withheld until its dedicated session. Actual local
 hidden/reference/CR1 access and subsequent evaluator-score/message visibility
 must be independently checked; temporary environments are not OS isolation.
 
+The prospective isolated-backend candidate uses repository-local Copilot SDK
+1.0.28 with explicit CLI1.0.105/protocol3 on the trusted host and only a restricted
+no-network container tool. Candidate tests and hidden/metric evaluation run in
+separate containers, not host subprocesses. See
+[the runtime clarification](prospective-corrections-2026-10-28.md#29-october-runtime-implementation-isolated-sdk-candidate)
+for canonical committed checkpoints, C's REVIEW exception, resource/process-state
+differences and protected-supervisor/oracle limitations. Exact-source offline
+evidence does not replace actual model/effort/routing/usage validation,
+independent scientific acceptance or owner freeze/launch authorization.
+
 The owner selected continuation: after an unsuccessful feature attempt, B/C
 still receive their scheduled post-step on the retained green state without
 replaying the discarded feature request. Continue later features and CR1;

@@ -1,6 +1,6 @@
 # Collaborator handoff
 
-**Status: offline source/setup package; paid execution is not enabled.**
+**Status: isolated-backend candidate; collection acceptance is pending.**
 The original [OSF registration](https://osf.io/ywsrv/overview) is owner-confirmed
 approved. This corrected candidate is subsequent to that registration. The
 owner must record [the prospective clarification](protocol/prospective-corrections-2026-10-28.md)
@@ -64,6 +64,28 @@ collection rather than claiming the source bundle is a frozen VM image.
 Version/help checks make no model call. No global installation, account
 configuration or package build is performed by the check-only bootstrap script.
 
+### Repository-local Copilot SDK
+
+The transport pins **`@github/copilot-sdk` 1.0.28**, compatible with the selected
+**Copilot CLI 1.0.105 / protocol 3**. Do not rely on an older machine-wide SDK or
+replace its bundled CLI implicitly. Install the lockfile locally:
+
+```bash
+npm ci --prefix harness/copilot-sdk --ignore-scripts --no-audit --no-fund
+npm --prefix harness/copilot-sdk test
+node harness/copilot-sdk/transport.mjs --check-runtime \
+  --cli-path "$(command -v copilot)" --base-directory "$PWD/.study/sdk-runtime-check"
+```
+
+These commands install dependencies, run fake-transport tests and check runtime/
+authentication metadata; they do not create a model session. The last command
+uses only private runtime scratch under `.study/`. `node_modules` is neither packaged nor a protocol input;
+the exact manifest, npm lockfile and transport source are. Reinstall with
+`npm ci`, not an unpinned upgrade, on the collaborator VM. The actual runtime
+must separately verify the explicit CLI executable, protocol and signed-in user.
+Keep OAuth on the trusted host; never copy authentication material into the
+candidate container. Passing these checks is not collection approval.
+
 ## Billing: soft limits and the accepted risk
 
 The owner accepted residual soft-limit overshoot risk on **29 October 2026**.
@@ -77,7 +99,7 @@ The supplied controller config applies a uniform **10% operational buffer**:
 
 | Control | Supplied setting | What it means |
 | --- | --- | --- |
-| `session_soft_limit_credits` | 270 | Intended CLI `--max-ai-credits 270`; per original session, including any retry, not a global study cap |
+| `session_soft_limit_credits` | 270 | SDK session soft limit; per original session, including any retry, not a global study cap |
 | `session_reserve_credits` | 300 | Nominal reservation ceiling; the initial reservation includes 30 credits of headroom above the soft threshold |
 | `ceiling_credits` | 270000 | Local admission stop, leaving 30000 below the registered 300000 envelope |
 | `prior_credits` | 14.54324 | Confirmed prior paid usage, never zeroed or silently omitted |
@@ -140,44 +162,58 @@ a model or authorizes execution. An unavailable/ambiguous response fails that
 optional audit, not the owner-accepted soft policy. Its supplied reset date
 still needs independent verification before claiming a provider hard boundary.
 
-## Runtime and information boundary: still blocking
+## Isolated live backend: acceptance pending
 
-The paid dispatch is not implemented. The Docker command builder and legacy
-configs are preparation, not a supported launch path or proof of isolation.
-Blanket tool approvals have been removed; specific preparation permissions are
-not a sandbox. Never add allow-all, YOLO, trust-all or permission-skipping flags
-to make a run succeed.
+The non-smoke controller now uses `harness/isolated_runtime.py`, not the legacy
+local/Docker command templates. The trusted host runs SDK 1.0.28 and the explicit
+CLI 1.0.105 executable using approved interactive authentication. No token is
+required in the controller environment. The SDK exposes only `isolated_exec`;
+built-in tools, discovery, MCP servers and unrelated permission requests are
+excluded or denied. Never add blanket approval, permission-skipping, extra host
+tools or trusted directories to repair a failed check.
 
-The intended default-deny gateway must permit only the required Copilot/auth
-transport while keeping agent tool traffic separate from that trusted transport.
-Do not allow `github.com`, `api.github.com` or raw-content hosts wholesale:
-the public repository contains held-out evaluator/reference/CR1 material.
-A generic CONNECT proxy cannot filter URL paths within TLS. Outbound NAT
-alone is not filtering. Network restrictions must be OS-enforced, not just
-prompts, URL deny rules or a transcript scan.
+Each tool call uses a fresh, no-network container with read-only root, bounded
+tmpfs/CPU/memory/processes/output and a nonroot candidate identity. A separate
+fixed supervisor controls state and result publication. No candidate container
+receives credentials, a writable host mount, the Docker socket, operator
+checkout, hidden suite, future prompts or reference solutions. Host OAuth/model
+transport is separate from candidate traffic; this does not depend on globally
+allowlisting GitHub domains or changing shared network policy.
+Linux resets ordinary child dumpability after exec; the boundary is the distinct
+protected supervisor, not persistent child-zero or a zero bounding set. The
+prospective notice records the actual UID/capability/NNP/core-limit observations.
 
-A candidate runtime must:
+Candidate filesystem/Git state is replayed only inside isolation and remains
+opaque on the host. Feature/CR checkpoints import only validated committed
+regular files. Uncommitted feature/CR changes are discarded; C retains only a
+regular `REVIEW.md` working file and reports other changes as violations.
+Canonical host Git never consumes candidate Git metadata. It preserves exported
+blob bytes and executable modes, including committed ignored files, rather than
+running candidate attribute filters. Trusted trajectory history retains
+`feature-start`/`feature-end`; arbitrary actor commit metadata is not retained.
+Fresh containers preserve files, not background daemons, sockets or process
+memory across calls. Resource ceilings and these differences are prospective
+runtime details, not claims that the original local environment is unchanged.
 
-- Expose only current task specifications/visible examples and the disposable
-  candidate repository, never evaluator results, future prompts, host home,
-  Docker socket, credentials or other run directories.
-- Isolate model-controlled shells, test execution, built-in file tools and any
-  MCP/LSP/subagent paths; host Copilot authentication must not become an
-  agent-readable token. Sandbox shell support alone does not isolate other
-  tool types.
-- Demonstrate negative filesystem and outbound canaries, including attempted
-  retrieval of this public repository's hidden/reference/CR1 files and metadata
-  endpoints; demonstrate positive required auth/model routes separately.
-- Bind actual response-model identity and final usage to the assigned model,
-  retain unknown charges and interrupted processes, and preserve the original
-  time/credit allowance across infrastructure-only retries.
+Visible tests and hidden/metric evaluation run in separate containers from
+read-only canonical snapshots. Only the applicable hidden stage is mounted;
+diagnostics and scores remain private and never return to the study agent.
+Protected supervisor framing and fixed-denominator validation are not proof
+that a fully adversarial Python implementation cannot tamper with in-process
+test observations. Keep that limitation explicit in independent review.
 
-Copilot 1.0.105 documents Linux MXC/bubblewrap shell sandboxing, but it requires
-host prerequisites and other file tools are not OS-sandboxed. A shell sandbox
-with all other tools exposed does not establish the required boundary. No
-supported, independently probed runtime boundary has been accepted here.
-Do not provision paid Azure infrastructure or alter shared network policy
-without separate authorization.
+Run the image-specific offline canaries, then the coupled Docker/reference tests.
+The controller requires `.study/runtime-canary.json` to match the execution
+source and owner freeze, including the immutable image ID and receipt hash.
+A canary receipt is test evidence, not owner approval. Actual response model,
+reasoning effort, routing and complete final billed usage require separate live
+evidence. Missing/partial usage retains its reservation and blocks admission.
+An ambiguous owned container or containment failure halts collection globally;
+never prune containers or edit state to manufacture recovery.
+
+No supported runtime has been accepted for collection merely by installing the
+SDK or passing offline checks. Do not provision paid Azure infrastructure or
+alter shared network policy without separate authorization.
 
 ## Collection handoff
 
@@ -193,5 +229,6 @@ Only after actual auth, buffered accounting/telemetry and containment are verifi
 the conditionally authorized logged non-study per-model probes proceed. Charge
 them to the whole-study ledger, never expose study features/CR1 in the probes,
 and record model/effort/routing/usage evidence. A subsequent explicitly
-authorized calibration/pilot launch requires the actual live backend as well;
-the current controller continues refusing it even if nominal gates are filled.
+authorized calibration/pilot launch requires the exact accepted runtime,
+source-bound canary receipt and owner freeze as well. This package creates no
+acceptance record, freeze/tag or launch authorization.

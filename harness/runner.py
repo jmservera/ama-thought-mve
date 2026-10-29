@@ -34,7 +34,12 @@ def sh(args, cwd, check=True, env=None):
 
 
 def git(repo, *args, check=True):
-    return sh(["git", *args], repo, check=check)
+    env = {"PATH": os.environ.get("PATH", os.defpath), "LC_ALL": "C",
+           "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
+           "GIT_TERMINAL_PROMPT": "0"}
+    return sh(["git", "-c", "core.hooksPath=" + os.devnull,
+               "-c", "core.fsmonitor=false", "-c", "core.attributesFile=" + os.devnull,
+               "-c", "protocol.allow=never", *args], repo, check=check, env=env)
 
 
 def head(repo):

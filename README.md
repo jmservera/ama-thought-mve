@@ -72,10 +72,13 @@ study hard cap is no longer required; the read-only budget audit is optional.
 See [CONTRIBUTOR.md](CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk)
 for monitoring, reset and overrun instructions.
 
-**Paid execution remains unavailable because the isolated live backend is not
-implemented.** Financial-risk acceptance does not waive runtime/access checks,
-agent safeguards, independent acceptance, source-bound owner freeze or the
-prospective OSF clarification. No protocol has been frozen or registered by this tool.
+**The isolated live backend is a candidate implementation, not collection
+approval.** It uses repository-local Copilot SDK **1.0.28** with CLI **1.0.105**:
+authentication stays on the trusted host; the model receives only a restricted
+container tool. Scientific/source acceptance, actual live usage/model evidence,
+source-bound runtime canaries, owner freeze and the prospective OSF update remain
+separate gates. No protocol has been frozen or registered by this tool.
+See [CONTRIBUTOR.md](CONTRIBUTOR.md#isolated-live-backend-acceptance-pending).
 See [RUNBOOK.md](RUNBOOK.md#unattended-controller) for state, recovery and gates.
 
 ## Integrity correction status
@@ -86,11 +89,12 @@ register or approve a study. The existing `protocol-frozen` tag and earlier
 runs/results are preserved; these code and method changes need reconciliation
 with a new authorised snapshot before registration and fresh pilot collection.
 
-Evaluator, metric and test subprocesses use an allowlisted environment and
-temporary home/cache directories, but this is not an OS or network sandbox.
-Direct CLI callers retain their own process environment. Generated code can still
-reach host files and hidden/reference assets subject to host permissions.
-No access-probe acceptance or containment is established by these fixes.
+Lower-level offline evaluator commands use an allowlisted environment and
+temporary home/cache directories, not an OS or network sandbox. They are not
+the new non-smoke controller path: that path runs candidate tools, visible tests,
+hidden imports and metrics in separate disposable containers. Do not use legacy
+direct-runner configurations to execute generated code on the operator host.
+Offline test success does not establish live model/access or scientific acceptance.
 
 Default analysis estimates H1 coverage, H2 retained-contract losses and H6 CR1
 with missingness and all-attempt costs; it issues no hypothesis verdicts.
@@ -128,7 +132,8 @@ python3 analyze.py --runs ../runs-dry --phase dry --out ../results-dry --cost-un
 
 The stand-in agent applies the reference solution; it checks pipeline mechanics,
 not agent performance. Historical local/Docker configurations are not launch
-authorisation. The unattended paid backend remains disabled.
+authorisation. The unattended live backend remains gated on exact-source evidence
+and owner acceptance.
 
 ## Prepare an offline OSF draft
 

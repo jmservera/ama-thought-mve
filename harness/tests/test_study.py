@@ -88,7 +88,7 @@ def test_interrupted_repository_setup_preserves_zero_step_metadata(study, config
     summary = study.read_json(tmp_path / "results/summary.json")
     assert len(summary["runs"]) == 3 and all(run["end"] is None for run in summary["runs"])
 
-def test_complete_nominal_freeze_cannot_bypass_missing_isolated_backend(study, config, monkeypatch):
+def test_complete_nominal_freeze_cannot_bypass_missing_runtime_evidence(study, config, monkeypatch, tmp_path):
     config["prior_credits"] = 0
     monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "synthetic-token-never-output")
     monkeypatch.setattr(study.shutil, "which", lambda tool: f"/tools/{tool}")
@@ -100,7 +100,7 @@ def test_complete_nominal_freeze_cannot_bypass_missing_isolated_backend(study, c
             assert args == ["copilot", "--no-auto-update", "--version"]
         return versions.get(args[0], "")
     monkeypatch.setattr(study, "command", version_output)
-    errors = study.preflight(config, smoke=False)
+    errors = study.preflight(config, smoke=False, root=tmp_path)
     assert len(errors) == 1
     assert "isolated live backend" in errors[0]
     assert "provider-enforced hard billing" not in errors[0]
@@ -119,14 +119,14 @@ def test_complete_nominal_freeze_cannot_bypass_missing_isolated_backend(study, c
     ("", False),
 ])
 def test_cli_version_requires_exact_release_and_retains_paid_stop(
-        study, config, monkeypatch, output, accepted):
+        study, config, monkeypatch, tmp_path, output, accepted):
     config["prior_credits"] = 0
     monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "synthetic-token-never-output")
     monkeypatch.setattr(study.shutil, "which", lambda tool: f"/tools/{tool}")
     monkeypatch.setattr(study, "freeze_errors", lambda *args: [])
     versions = {"copilot": output, "ruff": "0.17.3", "lizard": "1.24.3", "jscpd": "5.4.1"}
     monkeypatch.setattr(study, "command", lambda args, **kwargs: versions.get(args[0], ""))
-    errors = study.preflight(config, smoke=False)
+    errors = study.preflight(config, smoke=False, root=tmp_path)
     assert ("copilot must be pinned to 1.0.105" not in errors) is accepted
     assert any("isolated live backend" in error for error in errors)
 
@@ -376,7 +376,11 @@ def test_interrupted_unmeasured_attempt_retries_without_adding_replicates(study,
     assert sum(len(record["attempts"]) for record in records) == 5
 
 
-def test_dry_run_is_read_only_and_live_refusal_never_calls_agent(study, monkeypatch, capsys):
+def test_dry_run_is_read_only_and_live_refusal_never_calls_agent(study, monkeypatch, capsys, tmp_path):
+    import isolated_runtime
+
+    check_runtime = isolated_runtime.runtime_errors
+    monkeypatch.setattr(isolated_runtime, "runtime_errors", lambda cfg, root: check_runtime(cfg, tmp_path))
     monkeypatch.setattr(sys, "argv", ["study", "--smoke", "--dry-run"])
     monkeypatch.setattr(study.Controller, "__init__", lambda *args, **kwargs: pytest.fail("Dry-run wrote state"))
     assert study.main() == 0
@@ -633,19 +637,26 @@ def test_measurement_exhaustion_is_durable_and_never_replays_agent(study, config
     resumed = study_run(study, controller(study, config, tmp_path))
     with pytest.raises(study.StudyError, match="retry limit"):
         resumed.measure(1, "unused", "")
-    for status in ("pending", "running", "infrastructure_failure", "complete", "exhausted", "snapshot_changed"):
+    for status in ("pending", "running", "infrastructure_failure", "complete", "exhausted",
+                   "snapshot_changed", "invalid_result"):
         resumed.cell["attempts"][0]["measurement"]["status"] = status
         with pytest.raises(study.StudyError, match="replay"):
             resumed.run_agent("synthetic", "unused", 120)
     assert len(seen) == 2 and len(resumed.cell["attempts"]) == 1
 
 
-def test_evaluator_snapshot_mismatch_halts_future_collection(study, config, tmp_path, monkeypatch):
+@pytest.mark.parametrize("failure", ["wrong_head", "invalid_schema"])
+def test_evaluator_snapshot_mismatch_halts_future_collection(study, config, tmp_path, monkeypatch, failure):
     current = controller(study, config, tmp_path)
     run = study_run(study, current)
     run.setup()
     current.new_attempt(run.cell, run.current_step)
-    monkeypatch.setattr(run, "_measure_once", lambda *_: {"head": "wrong-snapshot"})
+    def invalid_result(*args):
+        if failure == "invalid_schema":
+            raise study.StudyError("Synthetic invalid snapshot result schema")
+        return {"head": "wrong-snapshot"}
+
+    monkeypatch.setattr(run, "_measure_once", invalid_result)
     with pytest.raises(study.StudyError, match="snapshot"):
         run.measure(1, "unused", "")
     assert current.state["oracle_halt"] is True

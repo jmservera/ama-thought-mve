@@ -13,6 +13,10 @@ class StudyError(RuntimeError):
     """An explicit safety or execution stop, safe to display without raw logs."""
 
 
+class RetryableError(RuntimeError):
+    """An unmeasured infrastructure failure, never a measured task failure."""
+
+
 def read_json(path: Path) -> dict:
     """Read an object rather than silently accepting malformed state."""
     with path.open(encoding="utf-8") as stream:

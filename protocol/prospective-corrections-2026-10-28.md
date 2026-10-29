@@ -167,7 +167,66 @@ mandatory budget prerequisite under this explicit risk acceptance.
 
 This financial decision changes no agent permission/trust/sandbox controls,
 evaluator separation, actual model/access checks, independent acceptance or
-owner-authorized source-bound freeze. It authorizes no account changes, paid
-probes or calibration/pilot launch. The isolated live backend is still absent.
+owner-authorized source-bound freeze. This financial decision itself authorizes
+no account changes, paid probes or calibration/pilot launch.
 Record this addendum and its exact revised source prospectively in OSF before
 affected collection; preserve the original approved attachment unchanged.
+
+## 29 October runtime implementation: isolated SDK candidate
+
+Following the owner's request to implement the backend, the revised candidate
+pins repository-local `@github/copilot-sdk` **1.0.28** and explicit CLI **1.0.105 /
+protocol 3**. Host interactive authentication remains separate from the model's
+sole custom container tool. Built-in/discovered/MCP tools and unrelated
+permissions are excluded or denied; no blanket approvals or sandbox bypasses
+are introduced. No shared egress gateway or paid Azure provisioning is required
+for this candidate design. Candidate tool traffic has no network; only the
+trusted host provider/authentication transport has normal connectivity.
+
+Tools use fresh read-only-root, no-network containers with bounded resources
+and tmpfs. Opaque candidate filesystem/Git state is replayed only in containers;
+it is never extracted into the trusted operator checkout. Feature/CR delivery
+uses committed regular content only, retaining the original changed-HEAD
+condition even for an empty commit. Uncommitted feature/CR work is discarded.
+C preserves its regular REVIEW working file and reports other committed/
+nonignored working edits as violations. Trusted canonical checkpoints preserve
+exported bytes/modes and trajectory refs, not arbitrary actor Git configuration
+or commit metadata. Attribute filters are not run on the trusted host.
+Files persist across tool calls; process/socket/daemon memory does not.
+
+A fixed supervisor and candidate have distinct identities. Actual offline
+checks observe supervisor UID0/dumpability0, no-new-privileges and only
+DAC_OVERRIDE/KILL/SETGID/SETUID capabilities. Candidate UID1001 has zero
+effective/permitted/inheritable/ambient capabilities and no-new-privileges;
+its finite bounding set is not claimed to be zero. Linux resets ordinary child
+dumpability from pre-exec0 to post-exec1. Persistent child-zero is not provided:
+the control boundary is the distinct protected supervisor, whose proc/control/
+memory/signal interference checks are tested, not a false post-exec assertion.
+Core-file limits are zero. No additional privileges are granted to hide this
+kernel behavior.
+
+Visible tests, hidden imports and metrics execute separately on read-only
+canonical snapshots with only the applicable hidden stage. No evaluator
+writeback, scores or diagnostics return to the study agent. Protected framing
+and fixed-result-schema checks do not prove a fully adversarial Python oracle
+tamper-proof. Filesystem/resource/export/output bounds and this limitation
+must remain explicit in independent source/runtime review.
+
+The immutable image content ID, canary source/helper hashes and whole execution
+input hash are bound to a private offline receipt and owner freeze. Base/primary
+tools are pinned; transitive registry/apt inputs are not a fully locked rebuild.
+A rebuilt/different image needs fresh validation and acceptance.
+SDK startup/status checks and offline Docker canaries spend no model credits.
+Actual response identity, medium effort, routing and complete final billed
+usage remain a separate constrained live-evidence gate; never infer them from
+requested parameters. Unknown usage retains its reservation and blocks;
+ambiguous owned containers or containment failures halt admissions globally.
+
+This is a prospective runtime clarification, not a change to the model matrix,
+18 pilot/nine calibration trajectories, fixed142 hidden identities (including
+CR1), timing, endpoints, estimation-only analysis or nominal credit envelope.
+The owner will assess a fresh independent AI technical report on the exact
+source; scientific acceptance, panel acceptance, runtime/freeze and collection
+permission are not synthesized. Record this revision through the existing
+OSF registration update process before affected collection; do not replace the
+original immutable attachments.

@@ -134,12 +134,12 @@ def load_stdlib_results(path, expected):
     return attributed_results(raw, expected, payload.get("provenance", {}))
 
 
-def run_hidden(repo, suite_dir, ids, runner, timeout=600):
+def run_hidden(repo, suite_dir, ids, runner, timeout=600, scratch_dir=None):
     if not ids or runner not in ("pytest", "stdlib"):
         raise ValueError("Hidden evaluation requires suite items and a supported test runner")
     repo = os.path.abspath(repo)
     src = os.path.join(repo, "src")
-    with tempfile.TemporaryDirectory(prefix=".hidden-", dir=os.path.dirname(repo)) as tmp, \
+    with tempfile.TemporaryDirectory(prefix=".hidden-", dir=scratch_dir or os.path.dirname(repo)) as tmp, \
             evaluation_environment() as env:
         files = []
         names = set()
@@ -276,8 +276,9 @@ def diff_stats(repo, prev_ref):
     if not prev_ref:
         return None
     with evaluation_environment() as env:
-        r = subprocess.run(["git", "diff", "--numstat", prev_ref, "HEAD"], cwd=repo, capture_output=True, text=True,
-                           env=env)
+        r = subprocess.run(["git", "-c", f"safe.directory={os.path.abspath(repo)}",
+                            "diff", "--numstat", prev_ref, "HEAD"], cwd=repo, capture_output=True, text=True,
+                           env=env, check=False)
     if r.returncode != 0:
         raise RuntimeError(f"git diff exited with code {r.returncode}")
     stats = {"src": [0, 0], "tests": [0, 0], "docs": [0, 0], "other": [0, 0]}
@@ -303,6 +304,7 @@ def main():
     ap.add_argument("--cr", action="store_true")
     ap.add_argument("--prev-ref")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--scratch-dir", help="Trusted writable evaluator scratch directory")
     ap.add_argument("--runner", default="pytest", choices=["pytest", "stdlib"])
     ap.add_argument("--complexity", default="lizard")
     ap.add_argument("--duplication", default="jscpd")
@@ -312,11 +314,13 @@ def main():
     from metrics_core import measure as code_metrics  # noqa: E402
 
     ids = suite_items(a.suite, a.k, a.cr)
-    hidden = run_hidden(a.repo, a.suite, ids, a.runner)
+    hidden = run_hidden(a.repo, a.suite, ids, a.runner,
+                        **({"scratch_dir": a.scratch_dir} if a.scratch_dir else {}))
     m = code_metrics(a.repo, a.complexity, a.duplication, a.lint)
     with evaluation_environment() as env:
-        head_result = subprocess.run(["git", "rev-parse", "--verify", "HEAD"], cwd=a.repo, capture_output=True,
-                                     text=True, env=env)
+        head_result = subprocess.run(["git", "-c", f"safe.directory={os.path.abspath(a.repo)}",
+                                      "rev-parse", "--verify", "HEAD"], cwd=a.repo, capture_output=True,
+                                     text=True, env=env, check=False)
     if head_result.returncode != 0 or not head_result.stdout.strip():
         raise RuntimeError("git rev-parse did not produce a valid HEAD")
     head = head_result.stdout.strip()
