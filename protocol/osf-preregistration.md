@@ -74,8 +74,17 @@ asserted from a local draft, manuscript statement or historical Git tag.
 
 ## Review status and preregistration policy
 
-This plan has **not received independent scientific acceptance**. Suite/panel,
-oracle/reference metrics and multi-model alignment reviews remain pending.
+This plan has **not received independent scientific acceptance**. On
+30 October the owner individually accepted the six scientific scopes for
+`90e393e`: suite adequacy, panel mapping and explicit panel acceptance,
+analysis/reference metrics, multi-model alignment and oracle stability.
+The owner selected documented owner review for this first exploratory pilot
+and deferred independent scientific review. This is a limitation to disclose,
+not a completed independent review. A separate operator does not independently
+validate the scientific design. See
+[the decision record](scientific-acceptance-2026-10-30.json).
+This prospective change supersedes the earlier independent scientific-review
+prerequisite only, and must be recorded before affected collection.
 Model/runtime entitlement, effort/routing/accounting and actual information
 boundaries remain unverified. Ordinary OSF preregistration records the plan;
 it does not require independent scientific peer review or certify validity.
@@ -85,7 +94,7 @@ On 28 October the owner explicitly approved the content at source commit
 approval-record updates, for submission with this disclosure. The owner
 confirmed no additional approvals are required before preregistration.
 The project retains all outstanding
-review and operational checks as prerequisites before calibration/pilot
+runtime/access and operational checks as prerequisites before calibration/pilot
 collection. No checks are marked accepted merely to prepare or submit this
 registration. Any substantive method changes arising from review will be
 documented prospectively in OSF and versioned before collecting affected data.
@@ -224,20 +233,23 @@ CR1, all expected tests passing; discrepancies block collection until
 investigated/versioned/revalidated, not rerun until green.
 
 The scheduler and analysis implement model-aware allocation and separate
-per-model primary estimates. Before collection obtain independent
-`multi_model_harness_alignment` evidence covering the
+per-model primary estimates. Owner-accepted
+`multi_model_harness_alignment` evidence covers the
 eighteen-trajectory model-aware schedule, model-specific analysis, revised
 budget and chosen operational rules. Requested model/runtime availability and
 compatible reasoning settings also require verification; no live probe or
-paid collection was performed by this work. The owner selected the prospective
+paid collection is authorized by the scientific decisions. Earlier excluded
+backend checks are separately disclosed; their runtime acceptance remains
+pending. The owner selected the prospective
 CLI 1.0.105/Ruff 0.17.3/Lizard 1.24.3/jscpd 5.4.1 amendment on 28 October;
 these candidates do not by themselves establish runtime acceptance.
 
-Attach `pilot-estimation.md`, `pilot-estimation.json`, candidate unreviewed
+Attach `pilot-estimation.md`, `pilot-estimation.json`, owner-accepted
 `contract-panel.json`, protocol/harness/suite source hashes, fixed prompts,
-analysis version, pending-evidence disclosures and data chronology.
-Existing oracle/reference diagnostics are unaccepted development evidence,
-not independent approval or a prerequisite to submit the plan.
+analysis version, `scientific-acceptance-2026-10-30.json`, pending-evidence
+disclosures and data chronology. Existing90e393e oracle/reference diagnostics
+were accepted by the owner within their recorded limits, not independently
+approved or newly executed on a later source.
 Source paper: jmservera/ama `196b97644bb9bffa43d41a9921d6a06a93b2699e`.
 Historical proposal/tag provenance is in the protocol; never replace the old tag.
 

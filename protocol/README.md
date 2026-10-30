@@ -14,12 +14,18 @@ The original registration is owner-confirmed approved following
 submission on 28 October 2026: https://osf.io/ywsrv/overview.
 The subsequent corrected candidate needs
 [prospective OSF recording](prospective-corrections-2026-10-28.md) and
-exact-source acceptance; no permission to collect data is recorded.
+final runtime/freeze acceptance; no permission to collect data is recorded.
+The owner separately approved all six scientific scopes for `90e393e` on
+30 October and selected owner review rather than independent scientific
+acceptance for this exploratory pilot. The lack of independent review is a
+disclosed limitation, not a completed review. See
+[the scientific decision record](scientific-acceptance-2026-10-30.json).
 
 The controller/analysis implement model-aware scheduling and separate primary
 estimates per model, with immutable assigned-model/replicate identity. Required
-`multi_model_harness_alignment` evidence and independent acceptance remain
-unresolved; engineering and an updated draft do not authorise the expanded study.
+`multi_model_harness_alignment` is owner-accepted on the reviewed source;
+runtime/access acceptance, source-bound freeze and final OSF recording remain.
+An updated draft does not authorise the expanded study.
 These are precollection safeguards, **not ordinary OSF submission requirements**.
 The owner authorised submitting an honestly unreviewed plan on 28 October 2026,
 with actual approval of 235489c content plus selected metadata now recorded.

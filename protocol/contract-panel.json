@@ -1296,8 +1296,10 @@
     }
   ],
   "review": {
-    "accepted": false,
-    "evidence": null
+    "accepted": true,
+    "evidence": "Owner explicitly accepted the90e393e panel on2026-10-30; protocol/scientific-acceptance-2026-10-30.json. Owner-reviewed exploratory policy; no independent scientific acceptance claimed.",
+    "capacity": "study-owner",
+    "independent": false
   },
-  "status": "candidate-unreviewed"
+  "status": "owner-accepted-exploratory-pilot"
 }

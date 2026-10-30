@@ -1,7 +1,14 @@
 {
   "schema_version": 1,
   "status": "post-registration-correction-candidate-pending-prospective-recording",
-  "readiness_policy": "Owner authorised 2026-10-28: separate ordinary OSF submission from collection readiness. Submission requires complete owner choices, secondary scope, prior-data disclosure and actual final source-bound owner approval, not independent review or runtime acceptance. Independent review, panel/oracle/reference, model-aware alignment, runtime/access, usage/accounting and registration/freeze prerequisites remain required before calibration or pilot collection; pending evidence stays null. Owner accepted residual soft-limit overshoot risk 2026-10-29 under the much larger reported company hard limit, superseding the earlier requirement for a separate study-specific provider hard cap. Operational buffers do not guarantee billed consumption or waive agent safeguards; prospective OSF recording remains pending.",
+  "readiness_policy": "Owner authorised separation of OSF submission from collection readiness on2026-10-28. On2026-10-30 the owner individually accepted all six scientific scopes for90e393e and selected documented owner review, without independent scientific acceptance, for this first exploratory pilot. The lack of independent review must be disclosed; separate experiment operation is not independent scientific validation. Legacy independent-named evidence keys retain their names but record owner acceptance explicitly. Runtime/access, usage/accounting, actual final owner approval, registration and source-bound freeze prerequisites remain; no agent permission, isolation or policy safeguard changes. Soft-limit overshoot risk remains owner-accepted with buffers, not billing guarantees. The review-policy change and other corrections require prospective OSF recording before affected collection.",
+  "scientific_review_policy": {
+    "mode": "owner-reviewed-exploratory-pilot",
+    "decision_date": "2026-10-30",
+    "evidence": "protocol/scientific-acceptance-2026-10-30.json",
+    "independent_review_required_before_collection": false,
+    "independent_review_completed": false
+  },
   "submission_metadata": {
     "template": "OSF Preregistration",
     "document_license": {
@@ -100,20 +107,20 @@
     "agent_failure_classification": "Owner selected 2026-10-27: only documented terminal agent-caused inability makes unattempted CR1 unsuccessful; infrastructure, measurement failure or unresolved causes remain missing with bounds. Missing data alone do not prove agent failure.",
     "assisted_run_disposition_and_telemetry": "Owner selected 2026-10-27: logged infrastructure administration only, no code fixes, task hints or design advice. Retain and flag content-assisted trajectories and all costs, without replacement or silent complete-case primary comparisons. Owner selected 2026-10-28: explicitly exclude HIR/IDR outcomes from this pilot; retain assistance/intervention logging, unassisted eligibility and primary cost/accounting requirements.",
     "comprehension_include_or_defer": "Owner selected 2026-10-27: defer comprehension assessment; make no comprehension-effect claim in this pilot.",
-    "oracle_repeat_count_and_failure_rules": "Owner selected 2026-10-27: require three unchanged reference executions at every feature stage and CR1, exact outcome agreement and all expected tests passing. Any discrepancy blocks fresh collection until investigated, versioned and revalidated, not rerun until green. Independent suite/panel review remains required.",
+    "oracle_repeat_count_and_failure_rules": "Owner selected 2026-10-27: require three unchanged reference executions at every feature stage and CR1, exact outcome agreement and all expected tests passing. Any discrepancy blocks fresh collection until investigated, versioned and revalidated, not rerun until green. Owner accepted the completed33evaluation90e393e evidence on2026-10-30. Owner scientific suite/panel review replaces independent scientific acceptance for this exploratory pilot, explicitly disclosed and pending prospective OSF recording.",
     "post_calibration_credit_cap_and_affordability": "Owner selected 2026-10-27: nominal 300-AI-Credit/session SOFT cap for calibration and pilot; corrected registered total is 300000 AI Credits including prior spend and calibration, superseding 2500 credits and the intermediate $6000 proposal. Approximately $3000 is an unverified estimate, not a conversion or separate precise ceiling. Owner superseded the separate study-specific provider hard-stop requirement 2026-10-29, explicitly accepting residual soft-limit overshoot under the reported 1000000-credit company hard limit. Implement uniform 10% buffers: 270/session and 270000 local admission, preserving original registered nominal maxima and all-attempt accounting; buffer size is an implementation assumption pending prospective recording. No guarantee of actual billed consumption or independent verification of company settings. Require a cost-only full-design affordability check after calibration; if unaffordable halt and amend, never silently shrink sample. Financial acceptance does not waive runtime/access, permission, independent review or source-bound freeze gates.",
     "actual_prior_data_seen_and_chronology": "Owner confirmed 2026-10-27: planned registered study has not run and starts only after OSF registration. Owner confirmed disclosed-only inventory 2026-10-28: earlier unmeasured manual work, measured MVE smoke-01 (Sonnet 5.5, B/F1 plus consolidation, 14.54324 credits), and offline/fake/reference diagnostics; no additional model runs or calibration/pilot trajectories reported. All are excluded. protocol/prior-data-disclosure.md records exact Git recording/interpretation dates with timezones; historical collection/first-inspection times remain unverified, not inferred from commits. Unrelated hve-squad benchmarking (https://github.com/Peter-N91/hve-squad/pull/212) is not pooled or used as MVE evidence."
   },
   "required_evidence": {
-    "independent_suite_review": null,
-    "contract_panel_review": null,
-    "oracle_stability": null,
+    "independent_suite_review": "Owner accepted bounded pilot workload on2026-10-30 for90e393e; protocol/scientific-acceptance-2026-10-30.json records scope, limits and owner-reviewed policy. No independent review is claimed.",
+    "contract_panel_review": "Owner accepted fixed142contract panel and test-weighted interpretation on2026-10-30 for90e393e; protocol/scientific-acceptance-2026-10-30.json. Independent scientific acceptance deferred, not completed.",
+    "oracle_stability": "Owner accepted33protected reference evaluations across11stages with exact triplicate all-pass vectors on90e393e, recorded2026-10-30 in protocol/scientific-acceptance-2026-10-30.json. Evidence remains bound to that source; contradictions halt collection.",
     "local_runtime_evidence": null,
     "access_probe_including_cr1_text": null,
-    "analysis_and_reference_metrics_acceptance": null,
+    "analysis_and_reference_metrics_acceptance": "Owner accepted H1/H2/CR1 estimands, missingness, model-specific exploratory interpretation, all-attempt costs and reference-metric limitations on2026-10-30 for90e393e; protocol/scientific-acceptance-2026-10-30.json.",
     "telemetry_coverage_or_explicit_secondary_unavailability": "Owner selected explicit HIR/IDR outcome exclusion on 2026-10-28; protocol/readiness-handoff.md records the decision and retained assistance/cost requirements. This resolves the explicit secondary-unavailability alternative only, not primary telemetry coverage or independent acceptance.",
     "prior_data_disclosure": "Owner disclosed-only inventory attested 2026-10-28; protocol/prior-data-disclosure.md documents observed smoke outcomes, excluded manual/offline/reference work, exact repository chronology and explicit unknown historical collection/first-inspection times. Commit dates are not event dates; no independent acceptance or final approval inferred.",
-    "multi_model_harness_alignment": null
+    "multi_model_harness_alignment": "Owner accepted existing18pilot/9calibration trajectory allocation, assigned-model resume, bounded retries/resource accounting and model-specific exports on2026-10-30 for90e393e; protocol/scientific-acceptance-2026-10-30.json. This is not runtime or paid-execution approval."
   },
   "owner_approval": {
     "approved": false,

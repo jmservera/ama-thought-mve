@@ -2,6 +2,12 @@
 
 **Original registration owner-confirmed approved on 28 October 2026;
 corrected candidate not execution-ready.**
+**Current scientific policy, 30 October:** all six scopes were individually
+accepted by the owner for `90e393e`. Independent scientific acceptance is
+deferred, not required for this exploratory pilot and not claimed completed.
+The decision supersedes the earlier scientific-review prerequisite below,
+not the runtime/access, accounting, freeze or prospective OSF requirements.
+See [the exact decision record](scientific-acceptance-2026-10-30.json).
 Scoped AI technical reviews were subsequently received: the requested Sonnet
 5.5 readiness review supported limited static conclusions, and a focused
 construct review requested the four now-approved corrections. Neither supplies
@@ -29,8 +35,9 @@ metadata/approval updates: CC BY-NC-ND 4.0 for submission documents and embargo
 through 2026-12-31. Contributors/permissions are settled and personal details
 will be entered directly in OSF. No additional preregistration approvals were
 reported as required. This closes only the submission approval entry.
-All review/operator requirements below remain prerequisites before collecting
-calibration/pilot data. Substantive changes must be documented prospectively
+The scientific scopes below now use explicit owner review; operator/runtime
+requirements remain prerequisites before collecting calibration/pilot data.
+Substantive changes must be documented prospectively
 before collecting affected data; the old candidate packet is not an approval.
 
 ## Recorded owner decisions, 28 October 2026
@@ -54,27 +61,31 @@ This decision resolves only
 `telemetry_coverage_or_explicit_secondary_unavailability`. No other evidence,
 independent acceptance, final owner approval or registration is inferred.
 
-## Consolidated precollection independent-review assignment
+## Scientific acceptance scopes and current owner-review policy
 
-The assignment below remains the exact-source acceptance contract; scoped
-AI reviews are partial supporting evidence, not completed entries.
+The assignment below describes the examined scientific scopes. Scoped AI
+reviews are supporting evidence, not independent human acceptance. The owner
+accepted each scope for `90e393e` on 30 October and explicitly deferred
+independent scientific review for this first exploratory paper.
 One review may cover multiple entries only if each conclusion is
 explicit. The reviewer should document their role/independence, actual review
 date, exact candidate commit/fingerprint, materials and commands examined,
 results, limitations, and an accept/request-changes/unable-to-assess decision
 for each applicable row. Do not sign unsupported rows.
 
-| Pending entry | Required examination or evidence |
+| Scientific scope (owner-accepted on 30 October) | Examination or evidence |
 |---|---|
 | `independent_suite_review` | Scientific/construct coverage, feature/CR1 meaning, exclusions and oracle adequacy. |
 | `contract_panel_review` | Source hashes, contract identities, unchanged eligibility, recurrence and panel mapping. |
-| `contract_panel_independent_acceptance` | Explicit panel acceptance bound to exact sources; may cite the same panel review. |
+| `contract_panel_independent_acceptance` (legacy name) | Explicit owner panel acceptance bound to exact sources; independent acceptance is not claimed. |
 | `analysis_and_reference_metrics_acceptance` | H1/H2/CR1 estimands, final P10 losses, missingness/bounds, model-specific inference, all-attempt costs; accept production-backend reference metrics only after checking versions/settings/coverage. |
 | `multi_model_harness_alignment` | Model assignment/identity/resume, 18/9 schedules, retries/resource accounting and model-specific analysis/exports. |
 | `oracle_stability` | Inspect operator evidence of three exact agreeing unchanged-reference executions at every feature stage and CR1, all expected tests passing; discrepancies block rather than rerun until green. |
 
-Operator-generated evidence supports review; tests and hash manifests are not
-independent acceptance. Return actual findings, not just checked boxes.
+Operator-generated evidence supports the recorded owner review; tests and
+hash manifests are not independent acceptance. The absence of independent
+scientific review and the policy change must be recorded prospectively in OSF.
+Future scientific changes require assessment of affected acceptance evidence.
 
 ## Operator and owner evidence still needed
 

@@ -18,6 +18,10 @@ def registration(monkeypatch):
 @pytest.fixture
 def config():
     config = json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
+    config.pop("scientific_review_policy", None)
+    for key in ("independent_suite_review", "contract_panel_review", "oracle_stability",
+                "analysis_and_reference_metrics_acceptance", "multi_model_harness_alignment"):
+        config["required_evidence"][key] = None
     config["owner_approval"] = {"approved": False, "date": None, "evidence": None}
     config["registration"] = {"submitted": False, "url": None, "date": None}
     return config
@@ -39,8 +43,11 @@ def test_candidate_panel_matches_exact_source_and_never_approves_itself(registra
     module = importlib.import_module("contract_panel")
     suite = ROOT / "suites/s1-retrofit"
     actual = module.checked_panel(ROOT / "protocol/contract-panel.json", suite)
-    assert actual == module.build_panel(suite)
-    assert len(actual["contracts"]) == 142 and not module.accepted(actual)
+    candidate = module.build_panel(suite)
+    assert {key: value for key, value in actual.items() if key not in ("review", "status")} == {
+        key: value for key, value in candidate.items() if key not in ("review", "status")}
+    assert len(actual["contracts"]) == 142 and not module.accepted(candidate)
+    assert module.accepted(actual) and actual["review"]["independent"] is False
     assert len({item["id"] for item in actual["contracts"]}) == 142
 
 
@@ -143,6 +150,35 @@ def test_unreviewed_plan_can_be_approved_for_submission_without_collection(regis
     assert report["independent_review_required_before_collection"]
     assert not report["registration_recorded"] and not report["execution_ready"]
     assert any("Isolated live backend" in blocker for blocker in report["execution_blockers"])
+
+
+def test_owner_scientific_review_is_explicit_and_does_not_clear_runtime_or_freeze(registration):
+    current = json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
+    panel = json.loads((ROOT / "protocol/contract-panel.json").read_text())
+    report = registration.readiness(current, panel)
+    assert report["scientific_review_mode"] == "owner-reviewed-exploratory-pilot"
+    assert report["independent_review_required_before_collection"] is False
+    assert set(report["collection_unresolved"]) == {
+        "required_evidence.local_runtime_evidence",
+        "required_evidence.access_probe_including_cr1_text", "owner_approval"}
+    assert report["execution_ready"] is False
+    panel["review"]["accepted"] = False
+    assert "contract_panel_acceptance" in registration.readiness(current, panel)["collection_unresolved"]
+    panel["review"]["accepted"] = True
+    current.pop("scientific_review_policy")
+    assert "contract_panel_independent_acceptance" in registration.readiness(
+        current, panel)["collection_unresolved"]
+
+
+@pytest.mark.parametrize("field,value", [
+    ("mode", "skip-review"), ("decision_date", None), ("evidence", "pending review"),
+    ("independent_review_required_before_collection", True), ("independent_review_completed", True),
+])
+def test_owner_review_policy_cannot_omit_provenance_or_claim_independence(registration, field, value):
+    current = json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
+    current["scientific_review_policy"][field] = value
+    with pytest.raises(registration.StudyError, match="scientific review|Scientific review"):
+        registration.readiness(current, {"review": {}})
 
 
 @pytest.mark.parametrize("key", ["prior_data_disclosure", "telemetry_coverage_or_explicit_secondary_unavailability"])

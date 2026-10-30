@@ -75,7 +75,7 @@ smoke 14.54324 plus excluded backend checks 3.05509), calibration,
 probes and all attempts count; billing-cycle resets do not reset study spending.
 Record [the prospective addendum](prospective-corrections-2026-10-28.md) before
 affected collection. Financial-risk acceptance waives no runtime/access,
-agent safeguard, independent review or freeze gate.
+agent safeguard, runtime/access acceptance or freeze gate.
 The owner's approximately $3,000 equivalent is
 unverified; it is not a conversion or separate precise monetary ceiling.
 After calibration, require a cost-only affordability check of the full unchanged
@@ -86,17 +86,23 @@ The controller implements the model matrix, immutable assigned-model/replicate
 identity, 270,000-credit local admission stop and bounded infrastructure retries;
 analysis exports primary estimates separately per model. The default finite
 study deadline is 14 days, not a change to the original agent-step allowances.
-`required_evidence.multi_model_harness_alignment` remains unresolved pending
-independent acceptance of engineering and operational alignment. Passing
-offline tests is neither scientific acceptance nor submission approval.
+`required_evidence.multi_model_harness_alignment` was explicitly owner-accepted
+for `90e393e` on 30 October, together with the other five scientific scopes.
+Passing offline tests alone is not that acceptance or submission approval.
 
 ## Preregistration versus collection readiness
 
 On 28 October 2026 the owner authorised separating ordinary OSF submission
 from permission to collect data. Independent review is **not required by OSF**
-for this preregistration; it remains a project methodological requirement
-before calibration or pilot collection, not a prerequisite to record the plan.
-Reviews and runtime/access acceptance are pending and will be disclosed as such.
+for this preregistration. On 30 October the owner prospectively replaced the
+project's independent scientific acceptance prerequisite with documented owner
+review for this initial exploratory pilot. All six scientific scopes were
+individually accepted for `90e393e`; independent review is deferred and must
+be disclosed as absent, not completed. A separate experiment operator offers
+operational separation, not independent scientific validation. See
+[the acceptance record](scientific-acceptance-2026-10-30.json).
+Runtime/access acceptance remains pending. Record this policy change in the
+existing registration before affected collection; do not alter original assets.
 
 Submission requires a complete consistent plan, recorded owner choices,
 secondary scope, prior-data disclosure and actual final source-bound owner
@@ -133,7 +139,7 @@ separate containers, not host subprocesses. See
 for canonical committed checkpoints, C's REVIEW exception, resource/process-state
 differences and protected-supervisor/oracle limitations. Exact-source offline
 evidence does not replace actual model/effort/routing/usage validation,
-independent scientific acceptance or owner freeze/launch authorization.
+owner scientific acceptance or owner freeze/launch authorization.
 
 The owner selected continuation: after an unsuccessful feature attempt, B/C
 still receive their scheduled post-step on the retained green state without
@@ -233,13 +239,14 @@ See [readiness-handoff.md](readiness-handoff.md) for the recorded scope decision
 and remaining reviewer/operator evidence.
 
 Structural metrics use frozen lizard/ruff/jscpd settings and raw trajectories.
-Reference gaps require independently accepted cumulative reference versions,
+Reference gaps require accepted cumulative reference versions under the
+disclosed owner-review policy,
 matching metric backends/settings and compatible complete feature coverage.
 Unavailable/mismatched reference evidence cannot yield a gap or a composite score.
 Require three unchanged reference executions at every feature stage and CR1,
 with exact outcome agreement and all expected tests passing. Discrepancy blocks
 fresh collection until investigated, versioned and revalidated, not rerun until
-green. This does not substitute for independent suite/panel acceptance.
+green. This alone does not substitute for explicit owner suite/panel acceptance.
 
 Offline diagnostics can be reproduced without collecting trajectories:
 

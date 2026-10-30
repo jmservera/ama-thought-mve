@@ -19,7 +19,12 @@ and embargo through 2026-12-31. The original registration is now
 [owner-confirmed approved](https://osf.io/ywsrv/overview).
 Subsequent approved corrections await
 [prospective OSF recording](protocol/prospective-corrections-2026-10-28.md);
-independent exact-source acceptance and execution readiness remain open.
+runtime acceptance, final source-bound freeze and execution readiness remain open.
+On 30 October the owner individually accepted the six scientific scopes for
+`90e393e` and selected an explicitly **owner-reviewed exploratory pilot**, without
+independent scientific acceptance. This limitation and policy change must be
+recorded prospectively in OSF; no independent review is claimed. See
+[the decision record](protocol/scientific-acceptance-2026-10-30.json).
 
 [CONTRIBUTOR.md](CONTRIBUTOR.md) documents the separate complete source/setup
 bundle, offline checks, read-only user-budget audit and actual launch blockers.
@@ -27,9 +32,9 @@ bundle, offline checks, read-only user-budget audit and actual launch blockers.
 The controller schedules the model-aware allocation, preserves model/replicate
 identity on resume and exports separate primary estimates per model, never a
 pooled primary result. Infrastructure retries share the original step allowances;
-measurement retries do not replay agent work. Independent
-`multi_model_harness_alignment` acceptance is still required before collection;
-implemented engineering is not study approval.
+measurement retries do not replay agent work. Owner scientific alignment
+acceptance is recorded; actual runtime/access acceptance and the final
+freeze/OSF steps remain separate requirements before collection.
 
 ## One-command quick start
 
@@ -181,9 +186,10 @@ and owner acceptance.
 The package refuses overwrites and contains only explicit submission inputs,
 source hashes and readiness checks, not raw logs. It neither contacts OSF nor
 registers or authorises a run. Owner choices are recorded in
-`protocol/pilot-estimation.json`. Model-aware harness acceptance
-and independent reviews remain pending **before collection**, not prerequisites
-to submit the plan. Follow [the OSF checklist](protocol/osf-submission-checklist.md):
+`protocol/pilot-estimation.json`. The six scientific scopes are owner-accepted
+under the prospectively disclosed owner-review policy; independent scientific
+review is deferred. Runtime/access and freeze/OSF requirements remain
+**before collection**. Follow [the OSF checklist](protocol/osf-submission-checklist.md):
 confirm owner choices, secondary scope and prior-data disclosure, disclose the
 unreviewed/unverified status, and approve the exact snapshot before submitting
 through OSF. Readiness reports separate `submission_unresolved` from

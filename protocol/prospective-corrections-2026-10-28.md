@@ -8,6 +8,35 @@ collection. No calibration or registered pilot was run during this preparation.
 
 ## Original registration and chronology
 
+### 30 October scientific acceptance and review-policy change
+
+The owner answered six explained questions individually and accepted the
+scientific implementation at `90e393ee1a27e845c4ee73ee3dd481d1bb33d0b8`,
+fingerprint `f2d6502a3e307e2d2fb1c6ca07a2b2cc90a40b2866a30968771dbacf3bd35a60`.
+The scopes are workload adequacy, contract mapping, explicit exact-source
+panel acceptance, analysis/reference metrics, three-model alignment and
+oracle stability. See [the full decision record](scientific-acceptance-2026-10-30.json)
+for the accepted interpretation, limitations and source/evidence hashes.
+
+The owner explicitly selected **documented owner review without independent
+scientific acceptance** for this first exploratory paper, deferring independent
+checks. This prospectively supersedes earlier statements in this dated notice
+that independent scientific acceptance is a precollection prerequisite.
+It does not claim that any independent review occurred, nor that an owner
+approval or AI assessment is an independent scientific review. A separate
+operator can provide operational separation, not independent design validation.
+
+The reviewed suite/reference/analysis/evaluator behavior is unchanged by
+recording these decisions; panel review metadata and readiness reporting are
+updated to represent them truthfully. Validation remains attributed to its
+actual90e393e source, not rerun or silently rebound to the recording commit.
+The recording changes the aggregate execution fingerprint; exact runtime
+acceptance/freeze must account for that administrative delta before execution.
+Runtime/access, permissions, isolation, unknown-usage stops, final source-bound
+freeze and prospective OSF requirements remain unchanged. No paid call or
+collection is authorized. Record this change in the existing registration
+last, before affected calibration/pilot; preserve the original attachments.
+
 The owner reported submission and subsequent approval of
 [the original registration](https://osf.io/ywsrv/overview), associated with
 [the project](https://osf.io/re98c), on 28 October 2026. Approval is

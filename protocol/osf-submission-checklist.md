@@ -95,8 +95,9 @@ real registration URL/date only once completion is confirmed; do not invent them
 
 ## Before any collection
 
-Complete the retained independent reviews, oracle/reference acceptance,
-model-aware alignment, runtime/access checks, assistance/usage coverage,
+Record the 30 October owner-reviewed scientific policy and six individually
+accepted scopes, explicitly disclosing no independent scientific acceptance.
+Complete remaining runtime/access checks, assistance/usage coverage,
 known prior spending and owner-authorised freeze. The 29 October owner-accepted
 soft-limit policy uses 270/session and 270,000 local admission buffers, not a
 guaranteed provider stop. Record it prospectively; a separate study hard cap
