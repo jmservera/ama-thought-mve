@@ -98,8 +98,8 @@ Offline smoke runs only the fake agent and consumes zero model credits.
 For the full existing offline tests and production metric tools:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r harness/requirements-measure.txt
+python3 -m venv --without-pip .venv
+uv pip install --python .venv/bin/python -r harness/requirements-measure.txt
 npm install --prefix .study/runtime-tools --no-audit --no-fund --save-exact jscpd@5.4.1
 export PATH="$PWD/.venv/bin:$PWD/.study/runtime-tools/node_modules/.bin:$PATH"
 .venv/bin/python -B -m pytest -p no:cacheprovider harness/tests -q
@@ -107,6 +107,11 @@ export PATH="$PWD/.venv/bin:$PWD/.study/runtime-tools/node_modules/.bin:$PATH"
 .venv/bin/python -B harness/contract_panel.py --out protocol/contract-panel.json --check
 ```
 
+Use `uv` outside the measurement environment to install Python dependencies;
+do not retain pip and its vulnerable bundled libraries in that environment.
+For an existing environment, run `uv pip uninstall --python .venv/bin/python pip`
+after installing the requirements. The isolated image likewise removes its
+build-only installer. This does not change the prepared VM's one-command launcher.
 Pin Copilot to 1.0.105, Ruff to 0.17.3, Lizard to 1.24.3 and jscpd to 5.4.1.
 The dependency manifest currently leaves some test-only/transitive packages
 unpinned; record the actual resolved environment and validate/freeze it before

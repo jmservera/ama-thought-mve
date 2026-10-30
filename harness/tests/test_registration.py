@@ -191,6 +191,7 @@ def test_owner_review_policy_cannot_omit_provenance_or_claim_independence(regist
 def test_owner_runtime_access_acceptance_does_not_authorize_execution_or_claim_independence(registration):
     current = json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
     current["owner_approval"] = {"approved": False, "date": None, "evidence": None}
+    current["required_evidence"]["local_runtime_evidence"] = "Synthetic accepted current-source runtime evidence"
     panel = json.loads((ROOT / "protocol/contract-panel.json").read_text())
     report = registration.readiness(current, panel)
     assert report["runtime_access_review_mode"] == "owner-reviewed-runtime-access"
@@ -204,6 +205,10 @@ def test_owner_runtime_access_acceptance_does_not_authorize_execution_or_claim_i
     pending = registration.readiness(current, panel)
     assert "required_evidence.access_probe_including_cr1_text" in pending["collection_unresolved"]
     assert any("require separate acceptance" in blocker for blocker in pending["execution_blockers"])
+    current["required_evidence"]["local_runtime_evidence"] = (
+        "Pending security refresh; historical owner acceptance covers its original source only.")
+    assert "required_evidence.local_runtime_evidence" in registration.readiness(
+        current, panel)["collection_unresolved"]
 
 
 @pytest.mark.parametrize("field,value", [

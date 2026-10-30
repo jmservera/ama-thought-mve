@@ -1,11 +1,14 @@
-FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS metrics
+FROM node:24-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS metrics
 RUN npm install --global jscpd@5.4.1 && npm cache clean --force
 
-FROM python:3.12.3-slim-bookworm@sha256:afc139a0a640942491ec481ad8dda10f2c5b753f5c969393b12480155fe15a63
+FROM python:3.12.16-slim-trixie@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git=1:2.39.5-0+deb12u3 make=4.3-4.1 \
+ && apt-get upgrade -y \
+ && apt-get install -y --no-install-recommends git=1:2.47.3-0+deb13u1 make=4.4.1-2 \
  && rm -rf /var/lib/apt/lists/*
-RUN pip install --no-cache-dir ruff==0.17.3 lizard==1.24.3 pytest==8.3.5 pytest-timeout==2.3.1
+RUN pip install --no-cache-dir --upgrade pip==26.2.2 \
+ && pip install --no-cache-dir ruff==0.17.3 lizard==1.24.3 pytest==9.1.1 pytest-timeout==2.4.0 \
+ && python -m pip uninstall -y pip
 COPY --from=metrics /usr/local/bin/node /usr/local/bin/node
 COPY --from=metrics /usr/local/lib/node_modules/jscpd /usr/local/lib/node_modules/jscpd
 RUN ln -s /usr/local/lib/node_modules/jscpd/run-jscpd.js /usr/local/bin/jscpd \

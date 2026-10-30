@@ -1,0 +1,109 @@
+{
+  "schema": "pre-osf-security-remediation/v1",
+  "status": "incomplete-blocked-residual-os-findings",
+  "record_date": "2026-10-30",
+  "owner_requested_all_security_fixes": true,
+  "owner_authorized_runtime_refresh": "Approve the recommended runtime refresh and offline revalidation",
+  "owner_accepted_residual_findings": false,
+  "all_security_issues_fixed": false,
+  "collection_authorized": false,
+  "paid_provider_calls": 0,
+  "osf_action_performed": false,
+  "historical_freeze": {
+    "tag": "protocol-frozen-v2",
+    "commit": "ea642af18c6bbae0aa48df33577c8ce1704f819e",
+    "unchanged": true,
+    "authorizes_security_refreshed_source": false
+  },
+  "implemented": [
+    "Override Zod to4.6.6 for GHSA-mrhx-c7xc-m3w5 while retaining Copilot SDK1.0.28 and CLI1.0.105.",
+    "Refresh active isolated runtime to digest-pinned Debian13/Python3.12.16 and Node24 images, including available distribution security updates.",
+    "Pin pytest9.1.1 and pytest-timeout2.4.0, retaining Ruff0.17.3, Lizard1.24.3 and jscpd5.4.1 scientific metric tools.",
+    "Remove build-only pip and its vulnerable bundled libraries from the final runtime and host measurement environment. Install host dependencies with external uv instead.",
+    "Preserve historical scientific/runtime decisions, registered assets, raw diagnostics and immutable tags; require a new accepted source freeze before collection."
+  ],
+  "runtime_image": "sha256:45bfe2232bd10dfcfeb9066bee51b9b4b768644f3cb0347bcf37337cf9482e83",
+  "runtime_component_sha256": {
+    "harness/Dockerfile.isolated": "880ce091143a3f514e0354d2c1a6def5b217193c4ba1274fb5889da7a1a96c23",
+    "harness/copilot-sdk/package.json": "20176a0befa3dae88df7a3f1258c778ff7281250f6e4a71433b123780dab7b16",
+    "harness/copilot-sdk/package-lock.json": "f0bbd5944c34f75571bc8641a3f409457310042fc316a6c50516efebf3eee45b",
+    "harness/isolation_canary.py": "8af54019ea3e5ca4b67cfabaadd29f031ae627d439c11499cc5307b8ca4c35bb",
+    "harness/requirements-measure.txt": "b9e773483255e223d274aec4b32ae310d03d7e4ca2c010dd8cb0625d4ae5000e"
+  },
+  "dependency_scan": {
+    "scanner": "Trivy0.76.1 official release, archive checksum verified; exported local image scanned without a Docker socket mount or private source/image upload.",
+    "database_updated_at": "2026-10-30T07:16:25.054174501Z",
+    "sdk_npm_audit_known_vulnerabilities": 0,
+    "host_python_pip_audit_known_vulnerabilities": 0,
+    "host_python_rootfs_packages_scanned": 13,
+    "host_python_rootfs_known_vulnerabilities": 0,
+    "runtime_node_package_known_vulnerabilities": 0,
+    "runtime_python_package_known_vulnerabilities": 0,
+    "old_runtime_os_package_advisory_matches": {
+      "CRITICAL": 12, "HIGH": 130, "MEDIUM": 231, "LOW": 209, "UNKNOWN": 14
+    },
+    "refreshed_runtime_os_package_advisory_matches": {
+      "CRITICAL": 0, "HIGH": 49, "MEDIUM": 85, "LOW": 126, "UNKNOWN": 7
+    },
+    "refreshed_runtime_distinct_os_advisory_ids": 140,
+    "refreshed_runtime_distinct_high_os_advisory_ids": 10,
+    "refreshed_runtime_os_findings_with_distribution_fixed_version": 0,
+    "interpretation": "Raw matches are retained without suppressions. Counts repeat advisories across binary packages; a source-package match is not proof of affected installed code or a demonstrated exploit. Missing fixed versions are not clearance.",
+    "evidence_sha256": {
+      "runtime-v2-audit.json": "314b9e0c6477dd42371a609fe62c878716d506654bbff4cacca3f3ea24f9cddd",
+      "runtime-trixie-audit.json": "e4621e52e81799dcbbff0ca68181b41701a1b80542f9cffe0909ddfa1c0779bd",
+      "host-python-final-audit.json": "72edca56b26e2a6db98f67d801d9e1e4e764e1ba1317220393ecf95edb377f26",
+      "host-python-final-rootfs-audit.json": "72a166fe2c9b13bbe6230c8747737244285f4ca54e6079f9d370127d9615c012",
+      "sdk-fixed-audit.json": "71d5fec7c7d9e4c54ed50ac881cc4ac486091d588a714be4b4d7394a8f063f3e",
+      "runtime-package-inventory.json": "fc7c36d957fdab5d9c24c104ee43d232547c0482acf0a6a0fe312f7e2ca00d50"
+    }
+  },
+  "bounded_offline_validation": {
+    "inputs_sha256_at_execution": "55e2ed4c51cd5660cf4448afcdd77729db7acfefa86bd9ba88a0bb6e446fa250",
+    "canary_checks_passed": 25,
+    "canary_sha256": "2353a37d038359fcaac9ef572f5a2892d8327404a22be8e8bdea1774246eaee0",
+    "harness_python_tests_passed": 756,
+    "harness_python_tests_log_sha256": "0b132a51333b1a2babe3b7356412ced6831f97dbf40f346b1def0307188af3a4",
+    "sdk_transport_tests_passed": 16,
+    "sdk_transport_tests_skipped": 0,
+    "sdk_transport_tests_log_sha256": "3f1cd91970a96dd3cee663c9c4d06f6f4bd90d20c3e214fa1693a20c42ac0df6",
+    "actual_sdk_startup": "Owned tmux session; local inference rejector installed before client startup, no provider forwarder. Expected fail-safe response and disabled MCP boundary verified. Not a paid model check.",
+    "protected_reference_evaluations_passed": 33,
+    "protected_reference_matrix_sha256": "1099e598d598cf4ece40e57b99852150b95007b2777035d99d8ead02fd54751c",
+    "protected_reference_result": "All11stages with three exact agreeing expected all-pass contract vectors. No snapshot writeback; stop-on-discrepancy policy retained.",
+    "scope": "These actual source-bound diagnostics precede this evidence/readiness metadata addition. They are not study observations, independent human acceptance, residual-risk acceptance or a new freeze. Fresh final-source canaries remain required."
+  },
+  "residual_high_triage": {
+    "not_affected_component_matches": {
+      "CVE-2026-16742": "systemd-homed is not installed; libsystemd0/libudev1 alone do not supply the affected service.",
+      "CVE-2026-12064": "Upstream explicitly limits the issue to the curl CLI, which is not installed; it does not affect the matched libcurl library."
+    },
+    "unresolved": [
+      "CVE-2025-69720: ncurses infocmp; optional-code removal or an actual patch remains to assess. ncurses-bin is marked Essential by Debian.",
+      "CVE-2026-54369: libacl privileged symlink traversal.",
+      "CVE-2026-76642, CVE-2026-78408, CVE-2026-78409 and CVE-2026-78410: util-linux; reconcile affected feature/version ranges and exact installed tools. Historical Bookworm applicability conclusions must not be copied to the newer version.",
+      "CVE-2026-8458: libcurl connection-reuse issue.",
+      "CVE-2026-9538: Perl Archive::Tar availability issue.",
+      "Lower-severity and unknown OS findings have not been individually adjudicated."
+    ],
+    "sources": [
+      "https://security-tracker.debian.org/tracker/CVE-2023-45853",
+      "https://security-tracker.debian.org/tracker/CVE-2025-7458",
+      "https://security-tracker.debian.org/tracker/CVE-2026-11824",
+      "https://github.com/systemd/systemd/security/advisories/GHSA-jm29-p7hh-vjhv",
+      "https://curl.se/docs/CVE-2026-12064.html",
+      "https://security-tracker.debian.org/tracker/CVE-2025-69720",
+      "https://security-tracker.debian.org/tracker/CVE-2026-54369",
+      "https://security-tracker.debian.org/tracker/CVE-2026-8458",
+      "https://security-tracker.debian.org/tracker/CVE-2026-9538"
+    ],
+    "disposition": "Unresolved; network isolation, unprivileged candidates and absent capabilities constrain several attack preconditions but do not repair a vulnerable package. No blanket dismissal or all-clear is justified."
+  },
+  "limitations": [
+    "No available GitHub code-scanning analysis; this is not SAST clearance or a penetration test.",
+    "AI-assisted source assessment found no additional high-confidence exploitable controller issue; it is not qualified independent human security acceptance.",
+    "Host operating system, kernel, Docker daemon and host interpreter/CLI binaries are not certified by these dependency scans.",
+    "Old paid checks retain their original source, charges and limitations. No new paid/provider calls, calibration, pilot or OSF operations were performed.",
+    "The prospective OSF completion date remains unset. A new accepted source freeze is blocked pending residual-finding disposition."
+  ]
+}

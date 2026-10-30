@@ -11,6 +11,10 @@ owner review, with no independent reviewers for this first study beyond the
 separate executor. That executor provides operational separation, not independent
 validation. Use [the OSF checklist](protocol/osf-submission-checklist.md) and
 [runtime decision record](protocol/runtime-acceptance-2026-10-30.json).
+The later [security refresh](protocol/security-remediation-2026-10-30.json)
+changes the runtime and remains blocked on residual OS findings. Do not reuse
+historical acceptance or the v2 freeze for that new environment. The active
+ledger deliberately requires new runtime/final-source acceptance before OSF.
 Owner submission approval is now recorded for 235489c content plus selected
 metadata/approval updates: CC BY-NC-ND 4.0 for submission documents and embargo
 through 2026-12-31. Enter settled contributor/affiliation details directly in
@@ -153,7 +157,8 @@ Python requirements and a repository-local duplication tool, without changing
 global installations:
 
 ```bash
-.venv/bin/python -m pip install -r harness/requirements-measure.txt
+uv pip install --python .venv/bin/python -r harness/requirements-measure.txt
+uv pip uninstall --python .venv/bin/python pip
 npm install --prefix .study/runtime-tools --no-audit --no-fund --save-exact jscpd@5.4.1
 export PATH="$PWD/.venv/bin:$PWD/.study/runtime-tools/node_modules/.bin:$PATH"
 ```

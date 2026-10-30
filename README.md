@@ -30,6 +30,11 @@ explicit owner review, without independent reviewers for this first study.
 The separate executor provides operational separation, not independent review.
 See [the runtime decision record](protocol/runtime-acceptance-2026-10-30.json).
 All permission, isolation, accounting and final freeze safeguards remain.
+The subsequent [security refresh](protocol/security-remediation-2026-10-30.json)
+patches Zod and updates the active runtime, but residual OS advisory findings
+remain unresolved. Historical acceptance and `protocol-frozen-v2` do not cover
+the new environment; its acceptance and replacement freeze are blocked. OSF
+recording must wait rather than treating clean npm/Python audits as an all-clear.
 
 [CONTRIBUTOR.md](CONTRIBUTOR.md) documents the separate complete source/setup
 bundle, offline checks, read-only user-budget audit and actual launch blockers.

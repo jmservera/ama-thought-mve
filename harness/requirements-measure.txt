@@ -1,6 +1,6 @@
 # Host-side tools for the runner's green check and the measurements (install the same versions as the image).
-pytest
-pytest-timeout
+pytest==9.1.1
+pytest-timeout==2.4.0
 lizard==1.24.3
 radon
 ruff==0.17.3

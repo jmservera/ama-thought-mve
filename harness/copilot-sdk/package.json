@@ -4,5 +4,6 @@
   "type": "module",
   "engines": { "node": ">=24" },
   "scripts": { "test": "node --test transport.test.mjs" },
-  "dependencies": { "@github/copilot-sdk": "1.0.28" }
+  "dependencies": { "@github/copilot-sdk": "1.0.28" },
+  "overrides": { "zod": "4.6.6" }
 }

@@ -368,7 +368,7 @@ print("evaluator-private")
             "/usr/bin/sha256sum /opt/isolation_helper.py"
         ), 10)
         assert result["exit_code"] == 0, result
-        assert all(version in result["stdout"] for version in ("3.12.3", "0.17.3", "1.24.3", "5.4.1"))
+        assert all(version in result["stdout"] for version in ("3.12.16", "0.17.3", "1.24.3", "9.1.1", "5.4.1"))
         helper_digest = hashlib.sha256((Path(__file__).parent / "isolation_helper.py").read_bytes()).hexdigest()
         assert helper_digest + "  /opt/isolation_helper.py" in result["stdout"]
         receipt["image_helper_sha256"] = helper_digest
