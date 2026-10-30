@@ -15,6 +15,8 @@ The later [security refresh](protocol/security-remediation-2026-10-30.json)
 changes the runtime and remains blocked on residual OS findings. Do not reuse
 historical acceptance or the v2 freeze for that new environment. The active
 ledger deliberately requires new runtime/final-source acceptance before OSF.
+See the [later component-hardening evidence](protocol/security-hardening-2026-10-30.json)
+for the exact updated image, backport qualification and still-unresolved findings.
 Owner submission approval is now recorded for 235489c content plus selected
 metadata/approval updates: CC BY-NC-ND 4.0 for submission documents and embargo
 through 2026-12-31. Enter settled contributor/affiliation details directly in
@@ -176,12 +178,27 @@ named image from the **harness** build context, then verify actual offline
 containment and frozen-reference evaluation without a model session:
 
 ```bash
+docker build --quiet --target security-qualification -f harness/Dockerfile.isolated \
+  -t mve-security-qualification:CANDIDATE harness
+docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
+  mve-security-qualification:CANDIDATE
 docker build --quiet -f harness/Dockerfile.isolated -t mve-isolated:CANDIDATE harness
 image="$(docker image inspect --format '{{.Id}}' mve-isolated:CANDIDATE)"
 .venv/bin/python -B harness/isolation_canary.py --image "$image" --out .study/runtime-canary.json
 MVE_TEST_ISOLATED_IMAGE="$image" .venv/bin/python -B -m pytest -p no:cacheprovider \
   harness/tests/test_isolated_runtime.py -q
 ```
+
+The qualification target contains build tools, not the study runtime. It runs
+the unchanged util-linux upstream suite as an ordinary user in an ordinary Docker
+container, where upstream's existing container/hardware preconditions apply.
+Retain skips and known failures in the evidence; a successful root package build
+alone is not this qualification. Do not change tests or relax Docker permissions
+to obtain a pass. The runtime build also tests the actual patched openat2 wrapper:
+a regular file opens, while an ordinary symlink must fail with `ELOOP`.
+Only the selected rebuilt Debian packages enter the final image; compiler and
+build dependencies do not. Custom package versions retain the `+mve1` suffix;
+they are local backports, not official Debian security releases.
 
 Replace `CANDIDATE` with a fresh operator-owned tag; do not overwrite unrelated
 images. Record the immutable content ID, not merely the tag. Base and primary

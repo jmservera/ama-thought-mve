@@ -1,0 +1,118 @@
+{
+  "schema": "pre-osf-component-hardening/v1",
+  "record_date": "2026-10-30",
+  "status": "verified-targeted-delta-blocked-residual-findings",
+  "previous_record": "protocol/security-remediation-2026-10-30.json",
+  "previous_record_scope": "The first refresh and its image, source hashes and test receipts remain historical evidence, not receipts for this later environment.",
+  "owner_authorized_targeted_hardening": true,
+  "owner_accepted_residual_findings": false,
+  "all_security_issues_fixed": false,
+  "collection_authorized": false,
+  "new_freeze_created": false,
+  "paid_provider_calls": 0,
+  "osf_action_performed": false,
+  "runtime_image": "sha256:af62aca74b11d19c149a18eec713281496137741a7e933bc28945c3a5eba6bc6",
+  "runtime_component_sha256": {
+    "harness/Dockerfile.isolated": "a0c201653dbf379045aaf2c47769a91c565838232927f3f84ebc094b0b69e52d",
+    "harness/isolation_canary.py": "a8a45470f80544f6d12af7abb5f36b62d30dd144ebc78895c6e30cb3107e57a4",
+    "harness/security/openat2-regression.c": "007f63d02c8724df81938c04f8634654b236a7550c9189eb9870d9dda5eaed5d",
+    "harness/security/util-linux-compat.patch": "0cb4a20430a00f2baf0498e93b5eb3b8f31e0d0085fdea68551e4ae5508b58fe"
+  },
+  "patch_encoding_equivalence": {
+    "patch_sha256_used_at_image_build": "0c2c6d297e2eb7e817553720c6427cbde7bbb747df752922e036c05cf218dc78",
+    "current_encoding_in_component_hashes": true,
+    "all_12_upstream_and_local_patched_files_byte_identical_to_compiled_source": true,
+    "equivalence_evidence_sha256": "9376333c3645da06b49b5168f997b7d800ccb31e6c2c8605ffe992eee5feaead",
+    "scope": "After execution, unified-diff context encoding was shortened to avoid literal context-marker whitespace diagnostics. The current patch applies with fuzz0; every patched source file matches the actual compiled and qualified builder byte-for-byte. No runtime code, binary or image changed; compiler warnings and Git whitespace checks remain enabled."
+  },
+  "implemented": [
+    "Install signed official trixie-backports curl8.21.0 packages, fixing CVE-2026-8458 without rebuilding curl or importing an unstable core runtime.",
+    "Physically remove optional infocmp and Perl Archive::Tar module/wrappers, retaining package metadata and the Perl interpreter. Canaries require Perl to work and Archive::Tar loading to fail.",
+    "Build the nine originally installed util-linux family packages from signed Debian2.41.5-0+deb13u1 source with checksum-pinned upstream descriptor/mount hardening patches. Existing Debian patches are verified by exact reverse dry runs; new hunks require fuzz0.",
+    "Retain honest local +mve1 package versions, including Debian's special bsdutils/login epochs. No claim that these are official Debian fixes or the entire next upstream release.",
+    "Correct the backported RESOLVE_NO_SYMLINKS fallback to Linux ABI0x04 and include its defining header in hook_idmap.c. A real compiled-wrapper regression rejects ordinary symlinks; its wrong0x02 negative control fails.",
+    "Strengthen actual candidate and evaluator identity/authority canaries without broadening permissions, capabilities, network access or filesystem mounts."
+  ],
+  "advisory_dispositions": {
+    "CVE-2025-69720": "Affected infocmp executable removed and absence checked. This does not clear other ncurses parser/library findings.",
+    "CVE-2026-9538": "Archive::Tar code and entry points removed; actual module-load rejection checked. Other Perl advisories remain unresolved.",
+    "CVE-2026-8458": "Fixed by the installed8.21.0 curl backport; actual loaded GnuTLS libcurl version recorded. This does not clear advisories affecting8.21.0.",
+    "util_linux": "Pinned upstream hardening series installed and real wrapper checked. Keep raw source-package matches; CVE-2026-78409 version/feature applicability remains explicitly uncleared rather than silently copying an earlier-version conclusion.",
+    "CVE-2026-54369": "libacl library remains unpatched. The actual unprivileged child cannot alter a protected read-only target through a symlink; candidate/evaluator UID1001, capabilities0 and NNP1 are checked. No privileged libacl caller was identified in the fixed supervisor path. This is scoped caller mitigation, not a library fix or owner risk acceptance.",
+    "CVE-2026-16742": "Affected systemd-homed service is not installed; source-package matches on libsystemd/libudev do not provide that service.",
+    "CVE-2026-12064": "Upstream limits this issue to the curl CLI, which is not installed, not the matched libcurl library.",
+    "remaining_lower_and_unknown": "Bounded triage found additional curl, Perl regex, ncurses parser, Expat, Pod::Text, glibc loader, dash and tar issues requiring separate fixes or exact applicability evidence. No blanket dismissal based on isolation, UID or absent network access."
+  },
+  "scan": {
+    "scanner": "Trivy0.76.1 with the retained2026-10-30 database; exported image scanned locally, no source/image upload and no suppressions.",
+    "raw_os_package_advisory_matches": {"CRITICAL": 0, "HIGH": 51, "MEDIUM": 94, "LOW": 154, "UNKNOWN": 7},
+    "distinct_os_advisory_ids": 140,
+    "distinct_high_os_advisory_ids": 10,
+    "matches_with_distribution_fixed_version": 0,
+    "runtime_node_python_known_findings": 0,
+    "interpretation": "Raw counts repeat IDs across installed packages, including removed or locally patched code whose metadata is deliberately retained. They are not an exploit count or a clean scan. Larger counts than the first refresh are not suppressed.",
+    "image_identity": {
+      "scanned_config": "sha256:3fc1fbe0007a60dd14d688671b8ac3d41327e1679762d5e1df10966ddc3779e4",
+      "bound_manifest": "sha256:d2ffc1d0ef545414cb98961892efc00d53b1d54732ae8d817d631bfbfb61a77e",
+      "oci_index_manifest_config_hash_chain_verified": true,
+      "all_14_rootfs_diffids_match_inspected_runtime": true,
+      "explanation": "Docker's OCI index ID and Trivy's configuration ID differ by design; exact exported blobs bind them. The provisional-image identity concern was resolved by the same verification, not by assuming equal identifiers."
+    },
+    "audit_sha256": "5f1d6787c2994f7bdbd72b537f133c85ef173688ebfce7d1529f45adff73a9f8",
+    "inventory_sha256": "1cc7520972ed193b5d4a3fe5b3c9ad88bc1fe113c5c2dde07fa1bb5535c4b0b4",
+    "image_binding_sha256": "65426384d070b8d9e5c5746510cfb093ccf81da3e3ba520b65ccaf45fb216868"
+  },
+  "offline_validation": {
+    "inputs_sha256_at_execution": "cbf0db4d7d9a0db6ea10628421d696b0c5d05af6f1e73817bb3de9db64bfa3c4",
+    "canary_checks_passed": 25,
+    "canary_sha256": "41d9cb9eb8bb640ab83362636f4d9c971aaab388e9b5bce5caa2194d14f867b7",
+    "harness_python_tests_passed": 756,
+    "harness_python_log_sha256": "f179479787dc5c5e8501b4ecdbfeb790cc7fbf4c5dff4afa9b318f9986231a3f",
+    "final_metadata_tests_passed": 38,
+    "protected_reference_evaluations_passed": 33,
+    "protected_reference_matrix_sha256": "b0521e06d74adb74499fdbd296d7559a574bdddff7ad4e8a2a09610b7b06b452",
+    "reference_result": "All11stages with three exact agreeing expected all-pass contract vectors. No snapshot writeback or provider calls; stop-on-discrepancy policy retained.",
+    "upstream_package_qualification": {
+      "exit_code": 0,
+      "reported_suite_total": 337,
+      "raw_upstream_summary": "All 337 tests PASSED",
+      "existing_exclusions": "The unchanged suite retains root/device/hardware/Docker skips and five known-failing subcases. This does not mean337fully executed, unconditionally passing tests. The setarch Docker exclusion was detected naturally.",
+      "tests_modified": false,
+      "permissions_broadened": false,
+      "log_sha256": "4d12e68b1d96241b5f8ec068483a69c81a4c810da0878472874a5086d3f8e4e8"
+    },
+    "scope": "These actual source-bound diagnostics precede this evidence/readiness metadata addition. They are not study observations, independent human acceptance, residual-risk acceptance or a replacement freeze. Final-source canaries must be renewed after metadata settles."
+  },
+  "preserved_diagnostics": [
+    "The first root package build skipped nonroot upstream checks and was not treated as sufficient qualification.",
+    "The nonroot BuildKit build exposed a setarch personality-denial failure. Stock distribution setarch has the same denial; unchanged upstream tests explicitly detect/skip unsupported Docker execution. Ordinary Docker qualification uses natural environment detection, not modified tests or expanded permissions.",
+    "An accidentally offline qualification-image build could not fetch public build dependencies. Rebuilt with ordinary dependency-download access; actual nonroot qualification and candidate/evaluator execution remain network-isolated.",
+    "The first wrapper fixture had a duplicate _GNU_SOURCE definition; fixed the fixture instead of disabling compiler warnings. Both the positive test and deliberate incorrect-flag negative control were retained.",
+    "A shortened diff context initially failed exact application; corrected its encoding without changing source. The byte-equivalence diagnostic initially tried reading root-owned patch text as the unprivileged qualifier; it now passes the non-sensitive file list from source preparation instead. No user or permission was elevated."
+  ],
+  "next_blocker": {
+    "component": "curl advisories still affecting8.21.0",
+    "upstream_release": "8.23.0, published2026-10-14; release asset SHA2568dadd7d2536a314f982ad05a651b713f426bf7d02cc2c76cffb9796f2218e6c5",
+    "signed_binary_compatibility_probe": "Official sid8.23.0-1 packages require libc6>=2.43 and libngtcp2>=1.24.0; this Debian13 runtime has2.41 and1.22.1. Stable/backports-only apt simulation correctly refused them. No dependency was forced or replaced.",
+    "probe_log_sha256": "ee205ac0bfba557f1f7be5908aa8f69583d90cba395ef5440a2bb265fe1578f0",
+    "decision_needed": "Source-backport newer curl against the existing runtime versus a broader core-runtime migration versus waiting for a compatible maintained package. No unstable libc upgrade or residual-risk acceptance inferred."
+  },
+  "sources": [
+    "https://curl.se/docs/vuln.json",
+    "https://curl.se/docs/CVE-2026-8458.html",
+    "https://curl.se/docs/CVE-2026-107928.html",
+    "https://github.com/curl/curl/releases/tag/curl-8_23_0",
+    "https://sources.debian.org/src/curl/8.23.0-1/debian/control/",
+    "https://lists.security.metacpan.org/cve-announce/msg/42536248/",
+    "https://security-tracker.debian.org/tracker/CVE-2025-6141",
+    "https://github.com/libexpat/libexpat/pull/1433",
+    "https://github.com/libexpat/libexpat/pull/1444",
+    "https://github.com/libexpat/libexpat/pull/1450"
+  ],
+  "limitations": [
+    "Unresolved dependency findings remain; passing containment and reference tests do not repair all vulnerable libraries.",
+    "Source-range applicability and lower/unknown findings are not exhaustively adjudicated. No all-clear, formal VEX or qualified independent security approval is claimed.",
+    "Historical approvals, protocol-frozen-v2, original registered assets and accounting ledgers remain unchanged. Current runtime/final-source acceptance is still pending.",
+    "No new paid/provider call, calibration, pilot, OSF action or freeze was performed."
+  ]
+}

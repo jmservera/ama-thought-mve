@@ -35,6 +35,9 @@ patches Zod and updates the active runtime, but residual OS advisory findings
 remain unresolved. Historical acceptance and `protocol-frozen-v2` do not cover
 the new environment; its acceptance and replacement freeze are blocked. OSF
 recording must wait rather than treating clean npm/Python audits as an all-clear.
+The [targeted hardening record](protocol/security-hardening-2026-10-30.json)
+separately documents later component removals, local util-linux backports,
+stronger authority checks and the remaining library-update blockers.
 
 [CONTRIBUTOR.md](CONTRIBUTOR.md) documents the separate complete source/setup
 bundle, offline checks, read-only user-budget audit and actual launch blockers.

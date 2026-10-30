@@ -1,0 +1,11 @@
+--- a/include/fileutils.h
++++ b/include/fileutils.h
+@@ -69,3 +69,3 @@
+ #ifndef RESOLVE_NO_SYMLINKS
+-# define RESOLVE_NO_SYMLINKS	0x02
++# define RESOLVE_NO_SYMLINKS	0x04
+ #endif
+--- a/libmount/src/hook_idmap.c
++++ b/libmount/src/hook_idmap.c
+@@ -25,0 +26 @@
++#include "fileutils.h"

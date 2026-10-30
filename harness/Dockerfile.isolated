@@ -1,11 +1,65 @@
 FROM node:24-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS metrics
 RUN npm install --global jscpd@5.4.1 && npm cache clean --force
 
+FROM python:3.12.16-slim-trixie@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159 AS security-source
+RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/debian.sources \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends build-essential dpkg-dev devscripts \
+ && apt-get build-dep -y util-linux=2.41.5-0+deb13u1
+WORKDIR /build
+RUN apt-get source util-linux=2.41.5-0+deb13u1
+ADD --checksum=sha256:45f633b2f551469a2ffd28244654a3ff10a581d3b42c9adc6d3a3f854bc073f2 https://github.com/util-linux/util-linux/commit/2dacaf3eea391e3bbf48e7d3ecce02cafe045b6d.patch /patches/01.patch
+ADD --checksum=sha256:cf12a53cd8bf86d729c14929ab00d589aa996b6479a42523c96cbbb5c1b817d1 https://github.com/util-linux/util-linux/commit/43ec8a89f6c99130727084b3496a2ffd2b4200f0.patch /patches/02.patch
+ADD --checksum=sha256:95a3ecfea9c019a7e68b86589f54cfdc6e5f938b9186d9e7a9cc7b10da96a9a3 https://github.com/util-linux/util-linux/commit/4cccf4edc256507734e3484cfaedf5980945c2fa.patch /patches/03.patch
+ADD --checksum=sha256:10da28197f417a69904370cc11135b8d4f5d1601ab0e2fe18f8e8e4d1246339a https://github.com/util-linux/util-linux/commit/71ff1c94be2fd2577bf600accb5c6ad2782276ef.patch /patches/04.patch
+ADD --checksum=sha256:57e099beb88d046193f02d9011fdc418c8bf5a79497e60a1221ff3f3d6ce9145 https://github.com/util-linux/util-linux/commit/b21f4cee55f723b045920dad5ce48a659d34cac8.patch /patches/05.patch
+ADD --checksum=sha256:86dc6819c9465d829849734605cfe586404607fd7612f3f05ad5c829a33d0bb6 https://github.com/util-linux/util-linux/commit/9fcb98bf08d9119d07ba3a3c709b1a85e4a1bbcb.patch /patches/06.patch
+ADD --checksum=sha256:874e91ef452c086c94192eec0bf94b324a4e6c4b8f23bcc2e26fafe828edad91 https://github.com/util-linux/util-linux/commit/a15c00a9e545aa8b9cf6ec0f888ff6c7b3eaeedc.patch /patches/07.patch
+COPY security/util-linux-compat.patch /patches/08.patch
+RUN cd /build/util-linux-2.41.5 \
+ && patch --force --reverse --dry-run -p1 --fuzz=0 < /patches/01.patch \
+ && patch --force -p1 --fuzz=0 < /patches/02.patch \
+ && patch --force -p1 --fuzz=0 < /patches/03.patch \
+ && patch --force -p1 --fuzz=0 < /patches/04.patch \
+ && patch --force --reverse --dry-run -p1 --fuzz=0 < /patches/05.patch \
+ && patch --force -p1 --fuzz=0 < /patches/06.patch \
+ && patch --force -p1 --fuzz=0 < /patches/07.patch \
+ && patch --force -p1 --fuzz=0 < /patches/08.patch \
+ && DEBFULLNAME='MVE build' DEBEMAIL='build@example.invalid' dch --newversion 2.41.5-0+deb13u1+mve1 --distribution trixie 'Backport pinned upstream mount and descriptor security fixes.'
+FROM security-source AS security-packages
+# Debian's root build is followed by separate nonroot qualification in ordinary Docker.
+RUN cd /build/util-linux-2.41.5 \
+ && dpkg-buildpackage --build=binary --no-sign -j2 \
+ && mkdir -p /rebuilt \
+ && cp /build/bsdutils_*.deb /build/libblkid1_*.deb /build/liblastlog2-2_*.deb \
+       /build/libmount1_*.deb /build/libsmartcols1_*.deb /build/libuuid1_*.deb \
+       /build/login_*.deb /build/mount_*.deb /build/util-linux_*.deb /rebuilt/
+COPY security/openat2-regression.c /regression.c
+RUN cd /build/util-linux-2.41.5 \
+ && cc -DHAVE_CONFIG_H -I. -Iinclude -include config.h -Wall -Wextra -Werror \
+       /regression.c .libs/libcommon.a -o /tmp/openat2-regression \
+ && runuser --user nobody -- /tmp/openat2-regression
+FROM security-packages AS security-qualification
+RUN useradd --create-home --uid 1000 builder \
+ && chown -R builder:builder /build
+USER builder
+WORKDIR /build/util-linux-2.41.5
+CMD ["make", "check"]
+
 FROM python:3.12.16-slim-trixie@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159
-RUN apt-get update \
+COPY --from=security-packages /rebuilt /tmp/mve-debs
+RUN printf '%s\n' 'deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian trixie-backports main' > /etc/apt/sources.list.d/mve-backports.list \
+ && apt-get update \
  && apt-get upgrade -y \
  && apt-get install -y --no-install-recommends git=1:2.47.3-0+deb13u1 make=4.4.1-2 \
- && rm -rf /var/lib/apt/lists/*
+ && apt-get install -y --no-install-recommends --target-release trixie-backports libcurl3t64-gnutls=8.21.0-2~bpo13+1 \
+ && apt-get install -y --no-install-recommends /tmp/mve-debs/*.deb \
+ && rm -rf -- /var/lib/apt/lists /tmp/mve-debs
+RUN rm -- /usr/bin/infocmp /usr/bin/ptar /usr/bin/ptardiff /usr/bin/ptargrep \
+       /usr/share/perl/5.40.1/Archive/Tar.pm \
+       /usr/share/perl/5.40.1/Archive/Tar/Constant.pm \
+       /usr/share/perl/5.40.1/Archive/Tar/File.pm \
+ && rmdir /usr/share/perl/5.40.1/Archive/Tar
 RUN pip install --no-cache-dir --upgrade pip==26.2.2 \
  && pip install --no-cache-dir ruff==0.17.3 lizard==1.24.3 pytest==9.1.1 pytest-timeout==2.4.0 \
  && python -m pip uninstall -y pip

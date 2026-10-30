@@ -1,5 +1,6 @@
 {
   "schema": "pre-osf-security-remediation/v1",
+  "follow_up_record": "protocol/security-hardening-2026-10-30.json",
   "status": "incomplete-blocked-residual-os-findings",
   "record_date": "2026-10-30",
   "owner_requested_all_security_fixes": true,

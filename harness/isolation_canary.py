@@ -43,7 +43,7 @@ def canaries(image, directory, receipt):
     os.environ["ISOLATION_HOST_SENTINEL"] = host_marker.read_text()
     try:
         command = python(f"""
-import os, socket, pathlib, json, ctypes, resource
+import os, socket, pathlib, json, ctypes, resource, errno, hashlib
 assert os.getuid() == os.getgid() == 1001
 assert "ISOLATION_HOST_SENTINEL" not in os.environ
 assert not pathlib.Path({str(host_marker.absolute())!r}).exists()
@@ -70,11 +70,31 @@ for fd in range(3, 256):
         extra_fds.append(fd)
     except OSError: pass
 assert not extra_fds, extra_fds
+acl = ctypes.CDLL("libacl.so.1", use_errno=True)
+acl.acl_from_text.argtypes = [ctypes.c_char_p]
+acl.acl_from_text.restype = ctypes.c_void_p
+acl.acl_set_file.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p]
+acl.acl_set_file.restype = ctypes.c_int
+acl.acl_free.argtypes = [ctypes.c_void_p]
+entry = acl.acl_from_text(b"u::rw-,g::r--,o::---")
+assert entry
+link = pathlib.Path("acl-protected-link")
+before = hashlib.sha256(pathlib.Path("/etc/passwd").read_bytes()).hexdigest()
+try:
+    link.symlink_to("/etc/passwd")
+    assert acl.acl_set_file(b"acl-protected-link", 0x8000, entry) == -1
+    acl_errno = ctypes.get_errno()
+    assert acl_errno in (errno.EROFS, errno.EACCES, errno.EPERM), acl_errno
+    assert hashlib.sha256(pathlib.Path("/etc/passwd").read_bytes()).hexdigest() == before
+finally:
+    link.unlink(missing_ok=True)
+    acl.acl_free(entry)
 print(json.dumps({{
     "boundary": "ok", "uid": list(os.getresuid()), "gid": list(os.getresgid()),
     "dumpability_after_exec": ctypes.CDLL(None).prctl(3, 0, 0, 0, 0),
     "no_new_privileges": ctypes.CDLL(None).prctl(39, 0, 0, 0, 0), "capabilities": caps,
     "extra_inherited_fds": extra_fds, "core_limit": list(resource.getrlimit(resource.RLIMIT_CORE)),
+    "acl_protected_target_unchanged": True, "acl_protected_target_errno": acl_errno,
 }}))
 """)
         result = broker.execute(state, command, 10)
@@ -84,6 +104,11 @@ print(json.dumps({{
         assert observed["no_new_privileges"] == 1 and observed["core_limit"] == [0, 0]
         receipt["child_dumpability_after_exec"] = observed["dumpability_after_exec"]
         receipt["child_after_exec"] = observed
+        receipt["libacl_caller_probe"] = {
+            "protected_target_unchanged": observed["acl_protected_target_unchanged"],
+            "errno": observed["acl_protected_target_errno"],
+            "disposition": "UID1001 caller mitigation only; libacl is not patched",
+        }
         receipt["child_preexec"] = broker.last_child_setup
         receipt["protected_supervisor"] = broker.last_supervisor
         state = result["state"]
@@ -317,6 +342,15 @@ while True: time.sleep(1)
         (tools / "fixed").write_text("trusted-kit\n")
         script = """
 import pathlib, json, os
+status = pathlib.Path("/proc/self/status").read_text().splitlines()
+identity = {
+    "uid": list(os.getresuid()), "gid": list(os.getresgid()),
+    "caps": {key: int(next(line for line in status if line.startswith(key + ":")).split()[1], 16)
+             for key in ("CapEff", "CapPrm", "CapInh", "CapAmb")},
+    "nnp": int(next(line for line in status if line.startswith("NoNewPrivs:")).split()[1]),
+}
+assert identity["uid"] == identity["gid"] == [1001, 1001, 1001]
+assert all(value == 0 for value in identity["caps"].values()) and identity["nnp"] == 1
 secret = pathlib.Path("/suite/hidden").read_text()
 assert pathlib.Path("/work/candidate.py").read_text() == "pass\\n"
 assert pathlib.Path("/kit/harness/evaluate.py").is_file()
@@ -328,7 +362,7 @@ for path in ("/work/hidden-leak", "/runner/hidden-leak", "/suite/hidden-leak",
         pathlib.Path(path).write_text(secret)
         raise AssertionError("readonly evaluation input writable")
     except OSError: pass
-pathlib.Path("/tmp/private-result.json").write_text(json.dumps({"secret": secret}))
+pathlib.Path("/tmp/private-result.json").write_text(json.dumps({"secret": secret, "identity": identity}))
 print("evaluator-private")
 """
         (runner / "evaluate.py").write_text(script)
@@ -338,8 +372,10 @@ print("evaluator-private")
             timeout=600, env={"MVE_COMPLEXITY": "lizard"}, output_file="/tmp/private-result.json",
         )
         assert evaluated["exit_code"] == 0, evaluated
-        assert json.loads(base64.b64decode(evaluated["result"])) == {"secret": sentinel}
-        assert json.loads(evaluated["output"]) == {"secret": sentinel}
+        private_result = json.loads(base64.b64decode(evaluated["result"]))
+        assert private_result["secret"] == sentinel
+        assert json.loads(evaluated["output"]) == private_result
+        receipt["evaluator_child"] = private_result["identity"]
         assert not any(path.name == "hidden-leak" for root in (work, runner, suite, tools) for path in root.iterdir())
         result = broker.execute(state, "test ! -e /tmp/private-result.json; test ! -e hidden-leak", 10)
         assert result["exit_code"] == 0 and sentinel not in result["stdout"], result
@@ -362,8 +398,16 @@ print("evaluator-private")
         checks["memory_bound_and_exact_cleanup"] = True
         result = broker.execute(state, (
             "python3 --version; git --version; ruff --version; "
-            "python3 -c 'import importlib.metadata as m; print(m.version(\"lizard\")); "
-            "print(m.version(\"pytest\"))'; jscpd --version; "
+            "python3 -c 'import importlib.metadata as m, importlib.util as u; "
+            "assert u.find_spec(\"pip\") is None; print(m.version(\"lizard\")); "
+            "print(m.version(\"pytest\"))' || exit 97; "
+            "test ! -e /usr/bin/infocmp && test ! -e /usr/bin/ptar && "
+            "test ! -e /usr/bin/ptardiff && test ! -e /usr/bin/ptargrep && "
+            "test ! -e /usr/share/perl/5.40.1/Archive/Tar.pm && "
+            "test ! -e /usr/share/perl/5.40.1/Archive/Tar || exit 98; "
+            "perl -e1 || exit 98; "
+            "if perl -MArchive::Tar -e1 >/dev/null 2>&1; then exit 98; fi; "
+            "jscpd --version; "
             "test -x /usr/local/bin/python3 && test -x /usr/bin/make || exit 99; "
             "/usr/bin/sha256sum /opt/isolation_helper.py"
         ), 10)
