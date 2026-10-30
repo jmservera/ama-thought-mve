@@ -1,0 +1,121 @@
+{
+  "schema": "pre-osf-alpine-adoption/v1",
+  "status": "implementation-adopted-final-source-runtime-acceptance-pending",
+  "previous_record": "protocol/security-hardening-2026-10-30.json",
+  "historical_records_and_freezes_preserved": true,
+  "owner_adoption_response": "adopt_qualified_alpine",
+  "production_implementation_adoption_authorized": true,
+  "final_source_or_image_acceptance": false,
+  "independent_professional_security_acceptance": false,
+  "all_security_issues_fixed": false,
+  "publication_authorized": false,
+  "new_freeze_created": false,
+  "osf_action_performed": false,
+  "provider_calls": 0,
+  "collection_authorized": false,
+  "runtime_image": "sha256:88e6ef172ffe76be68d41e129b3d183291f5be19e16a81eb03d44d1dcd51daa9",
+  "private_qualification_image": "sha256:e84541dd6bece558787c05f6d67a688540a352f17d6cabf0a36cf81670c74e35",
+  "runtime_components_sha256": {
+    "harness/Dockerfile.isolated": "f6f193bd3bfad9cb4f5df32a405b9112e434be211c134791ed1d3aba89fd956c",
+    "harness/isolation_canary.py": "364deb03460f264ea5e43d99e75812298bb9d1733597a6adee2bb3b1dc3c2550"
+  },
+  "private_qualified_runtime_components_sha256": {
+    "harness/Dockerfile.isolated": "1f0f7c757dcdf572d9403a0b6b083806928bb6718fd5868539fc9a3c1e381572",
+    "harness/isolation_canary.py": "364deb03460f264ea5e43d99e75812298bb9d1733597a6adee2bb3b1dc3c2550"
+  },
+  "implementation": {
+    "bases": "Digest-pinned official Python3.12.16 and Node24.22.2 on Alpine3.24",
+    "expat": "Signed local2.9.0-r100 packages with four pinned upstream security fixes and their prerequisites; retained upstream regressions/checks and honest local revision",
+    "python_xml": "Original interpreter retained; pyexpat and _elementtree rebuilt with system Expat. APK-owned replacement modules replace the original independently bundled extensions through explicit symlinks.",
+    "busybox": "Signed local1.37.0-r100 family; AR/CPIO/DPKG/DPKG_DEB/RPM/RPM2CPIO/TAR/UNZIP disabled in all three normalized variants. Actual post-check linker maps, unstripped symbols, applet rejection and final installed ELF binding prove identified extraction-consumer removal.",
+    "date_compatibility": "A small source-pinned musl UTC-literal compatibility patch preserves the unchanged upstream date-timezone assertions; numeric offsets remain tested.",
+    "optional_code": "ACL, Perl, GNU tar and dash package origins absent; pip removed after tool installation. Package absence alone is not claimed as proof of BusyBox applet absence.",
+    "authority": "No candidate/evaluator authority, network, mount, permission, deadline, accounting, retry or missingness safeguard changed. Trusted BusyBox package checks alone use ordinary networking for unchanged upstream wget tests.",
+    "build": "Self-contained multi-stage recipe; no undeclared prebuilt local builder dependency. Only signer public keys reach the final image; final APK installation retains default signature verification.",
+    "maintenance": "Custom Expat, Python XML and BusyBox leaf builds remain. The unchanged one-line launcher does not imply a stock-image-only maintenance model."
+  },
+  "production_artifact_delivery": {
+    "reason": "Literal unified-diff context whitespace is data. Preserve it without disabling Git whitespace checks or modifying patched source.",
+    "upstream_diffs": "Eight immutable upstream commit.diff URLs retain their original SHA512-pinned payloads.",
+    "local_diffs": "Two lossless gzip artifacts preserve the exact qualified local patch payloads; the rebased Expat payload is additionally checked after decompression.",
+    "all_ten_patch_payloads_byte_identical": true,
+    "equivalence_sha256": "fcd603e4e25c84c880c6a54a997dfb592e3c4bc0cc3d51604f75ab0c5e6db6e1",
+    "new_production_image_not_private_evidence_relabeling": true,
+    "production_validation_required": "Actual final-image imports/installed ELF proof, unsuppressed scan/binding, renewed final-source canaries, full harness tests and protected-reference comparison; final owner acceptance remains separate."
+  },
+  "advisory_dispositions": {
+    "CVE-2026-113351": "Pinned upstream Expat fix applied; both active Python XML extensions use the patched shared parser.",
+    "CVE-2026-115506": "Pinned upstream Expat fix applied; both active Python XML extensions use the patched shared parser.",
+    "CVE-2026-117610": "Pinned upstream Expat fix applied; both active Python XML extensions use the patched shared parser.",
+    "CVE-2026-118370": "Pinned upstream Expat fix applied; added upstream regression and registration retained after exact context rebasing.",
+    "CVE-2026-108119": "Identified BusyBox archive-extraction consumers compiled out; not merely deleted command symlinks.",
+    "CVE-2026-92205": "Complete identified archive-consumer removal is the mitigation. The precise non-public trigger was not reproduced; no claim of a verified upstream patch or direct CVE regression.",
+    "CVE-2025-66382": "Explicitly unfixed. Conditional owner policy only, with separate final immutable-image/source acceptance still pending. Earlier private expansion as CVE-2026-66382 was incorrect; historical evidence is preserved with a correction."
+  },
+  "scoped_low_exception": {
+    "owner_response": "approve_scoped_exception",
+    "policy_approved": true,
+    "advisory_fixed": false,
+    "published_cna_cvss3": "LOW2.9",
+    "accepted_policy_risk": "Non-public XML CPU-exhaustion trigger may exhaust the bounded unprivileged evaluator, set oracle_halt and lose all remaining observations, causing potentially informative missingness.",
+    "conditions": [
+      "Only CVE-2025-66382; no waiver for other Expat or BusyBox issues.",
+      "One subsequently qualified immutable first-study image, separately presented for final owner approval; no automatic carryover to rebuilds.",
+      "Existing isolation, limits, cleanup, accounting, stop, retry and missingness rules remain unchanged.",
+      "No direct host execution or host parsing of candidate-derived XML; legacy/direct host paths excluded.",
+      "Recheck upstream before final freeze and collection.",
+      "Expire at first-study completion or new upstream trigger/fix/impact information, whichever occurs first.",
+      "Always disclose the advisory as unfixed with scoped owner acceptance, never repaired or scanner-cleared."
+    ],
+    "resource_scope": "UID/GID1001, capabilities0, NNP, one CPU-equivalent,512MiB memory/memory-plus-swap,64PIDs,16MiB scratch; evaluator deadline at most600seconds or remaining study time. Attach watchdog has an additional10seconds, not a strict610second end-to-end Docker/host guarantee.",
+    "limits": "No explicit pre-parse XML-size cap or verified trigger-unreachability proof. Candidate XML is parsed inside the container; active host controller consumes validated JSON, not candidate XML."
+  },
+  "offline_qualification": {
+    "scope": "Private source before this adoption/readiness metadata, not relabeled as final-production-source evidence; renew final-source containment receipt after metadata settles.",
+    "private_source_parent": "e1f886a25e6f5b355058c0637b7eac49024c45fd",
+    "private_inputs_sha256": "0d5b7c74b0e896d35db81edc70e369e3646957c3d10c39402c2a3551f04c1221",
+    "qualification_record_sha256": "71805d1cc43e3717c6d789c265be713b2eaf0863d2c10364ddb0e35475fae103",
+    "authority_canaries": 25,
+    "isolation_runtime_tests": 40,
+    "protected_reference_evaluations": 33,
+    "scientific_equivalence": "All33 entire scientific metric dictionaries and hidden outcome vectors exactly equal the qualified Debian baseline; no normalization or tolerance.",
+    "expat_check": "1 passed upstream wrapper,0skips; inner test count not retained",
+    "python_xml_check": "490tests,12upstream skips,0failures",
+    "busybox_check": "870passes,29upstream/configuration skips under unchanged test assertions and explicit skip policies. Removed features are not claimed as exercised; static variant has code-removal/applicability checks, not a full upstream test run.",
+    "installed_elf_binding": "All program headers and PT_LOAD bytes match the post-check code proof, except non-executed ELF section-table bookkeeping altered by standard stripping.",
+    "metric_comparison_sha256": "9ef1059270aa3984b94bbd84e5b64b65cd10de63dd558bc681b6fd9a23e9d34d",
+    "runtime_proof_sha256": "c940d04e7ce1f76d21a8cdec976738ce74dc22172d0b9640302706b54e385791",
+    "installed_elf_binding_sha256": "891f9ba16b71d52033dc42e8d37c8b27e1fdfe466038a5383cfe71755446b868"
+  },
+  "private_qualification_scan": {
+    "scanner": "Trivy0.76.1, retained2026-10-30 database; local exported image, no suppressions or upload",
+    "package_records": {"alpine": 54, "node": 2, "python": 9},
+    "reported_matches": 0,
+    "interpretation": "Vendor-map silence is not security clearance: missing advisory mappings and bundled-code blind spots were demonstrated. The explicitly unfixed Expat advisory remains disclosed.",
+    "scanned_config": "sha256:bf98534d18fac2b23679419dda6cee530651023765182b6ebfff530e75659fb3",
+    "bound_manifest": "sha256:0b11d17468f1ad6ed8d341a6c6b18600efa22ead7f8dd520a14badaad5845616",
+    "oci_index_manifest_config_hash_chain_verified": true,
+    "all_21_rootfs_diffids_match": true,
+    "audit_sha256": "aa51f5098e4c965ede59af7009a253d3a2ad17bc46192c198fc556e0baa04144",
+    "image_binding_sha256": "349d9ae41139b92aef325e62bb77b89efcd1b1248a07854b50f93eb9c57699f8"
+  },
+  "scan": {
+    "scope": "Actual production image88e6ef1, not the private qualification image",
+    "scanner": "Trivy0.76.1, retained2026-10-30 database; local exported image, no suppressions or upload",
+    "package_records": {"alpine": 54, "node": 2, "python": 9},
+    "reported_matches": 0,
+    "interpretation": "Not blanket clearance; CVE-2025-66382 remains explicitly unfixed under conditional policy only.",
+    "scanned_config": "sha256:1678aacc2294e484ea5604602d770b230c7eb3f3bca30f81f49d72821c1a5a51",
+    "bound_manifest": "sha256:6987980662ed5debb54cd6491fc56a5f78d028d85a9d8531b5b99bafbfa73e6e",
+    "oci_index_manifest_config_hash_chain_verified": true,
+    "all_21_rootfs_diffids_match": true,
+    "audit_sha256": "83daa28d6dc290d5b452d0a02e322681c56acd8bb80162694aea77067d37dc8d"
+  },
+  "limitations": [
+    "musl/ash and removed archive commands are deliberate compatibility changes; exact reference equality does not prove equivalence for every possible future candidate program.",
+    "AI technical assistance is not independent qualified human security acceptance or an exhaustive security proof.",
+    "Host kernel, Docker, Copilot CLI and host interpreter binaries are not certified by the container scan.",
+    "Historical freezes, original registration attachments and accounting evidence remain unchanged.",
+    "Final exact-source/runtime acceptance, publication, replacement freeze and prospective OSF update remain separate; no paid/provider calls or collection authorized."
+  ]
+}

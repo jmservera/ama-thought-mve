@@ -1,0 +1,66 @@
+pkgname=expat
+pkgver=2.9.0
+pkgrel=100
+pkgdesc="XML parser with source-pinned MVE security backports"
+url="https://libexpat.github.io/"
+arch="all"
+license="MIT"
+checkdepends="bash"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc lib$pkgname:libs"
+source="https://github.com/libexpat/libexpat/releases/download/R_2_9_0/expat-$pkgver.tar.xz
+	d545081f6a90792208e0d274888a352e2e5d894d.patch::https://github.com/libexpat/libexpat/commit/d545081f6a90792208e0d274888a352e2e5d894d.diff
+	da504c0c111086072172431c76867800673fbc34.patch::https://github.com/libexpat/libexpat/commit/da504c0c111086072172431c76867800673fbc34.diff
+	b34f62d5935495f61ef3d9d40779ca0ca7b432b2.patch::https://github.com/libexpat/libexpat/commit/b34f62d5935495f61ef3d9d40779ca0ca7b432b2.diff
+	b068d5a0a228029bb4aac50dc3f343971634f25e.patch::https://github.com/libexpat/libexpat/commit/b068d5a0a228029bb4aac50dc3f343971634f25e.diff
+	c30145b28632b31f805d57f9838ba36b8db99367.patch::https://github.com/libexpat/libexpat/commit/c30145b28632b31f805d57f9838ba36b8db99367.diff
+	d8f31e647a4d1eda088e89354f4769b0dad303d3.patch::https://github.com/libexpat/libexpat/commit/d8f31e647a4d1eda088e89354f4769b0dad303d3.diff
+	c8c6d89617e7408235b160d14707de4ca9e40be7.patch::https://github.com/libexpat/libexpat/commit/c8c6d89617e7408235b160d14707de4ca9e40be7.diff
+	facd124e8dc8f1a0c039dda1c51a87bb3d398353.patch::https://github.com/libexpat/libexpat/commit/facd124e8dc8f1a0c039dda1c51a87bb3d398353.diff
+	2480a0520fee623a8f7c3f038ff9fb491105472c-mve-backport.patch.gz
+	"
+builddir="$srcdir/expat-$pkgver"
+
+prepare() {
+	gzip -dc "$srcdir/2480a0520fee623a8f7c3f038ff9fb491105472c-mve-backport.patch.gz" \
+		> "$srcdir/2480a0520fee623a8f7c3f038ff9fb491105472c-mve-backport.patch"
+	echo "1e61d29691de8598e11e0e20d6f619da98be8a41b6313402f57043892900a5ae31948c8ac81d23ba22a5e5c31e204c443d30d01488d605842e9cb1cec94b8ac2  $srcdir/2480a0520fee623a8f7c3f038ff9fb491105472c-mve-backport.patch" | sha512sum -c -
+	for commit in \
+		d545081f6a90792208e0d274888a352e2e5d894d \
+		da504c0c111086072172431c76867800673fbc34 \
+		b34f62d5935495f61ef3d9d40779ca0ca7b432b2 \
+		b068d5a0a228029bb4aac50dc3f343971634f25e \
+		c30145b28632b31f805d57f9838ba36b8db99367 \
+		d8f31e647a4d1eda088e89354f4769b0dad303d3 \
+		c8c6d89617e7408235b160d14707de4ca9e40be7 \
+		facd124e8dc8f1a0c039dda1c51a87bb3d398353 \
+		2480a0520fee623a8f7c3f038ff9fb491105472c-mve-backport
+	do
+		patch --batch --forward --fuzz=0 -p2 -i "$srcdir/$commit.patch"
+	done
+}
+
+build() {
+	./configure --prefix=/usr --mandir=/usr/share/man --enable-static
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+677b5a39ea47aa238813412061eefba0ff2e819597efee69452eab7fd63b1387537eda0dfd4e5891b938be202dc87df4b5115bdae75c6b81643ac2363bb99b34  expat-2.9.0.tar.xz
+c0b70c4e261d07f793005dc4d6d9ac0d1035088887c60c67a53089106461acf4fe9426ed3a736fefea094b4c8b4b382029a1b15ae580cd861adfe11f3de8ddc7  d545081f6a90792208e0d274888a352e2e5d894d.patch
+5d76ad66d3889dbb451915f20df01fa14b0a121dc92821a436fba074a05ec660af5822438415825cb394762233c2cbcfe3fcc10f9ccc81c86911a63ccb22a14f  da504c0c111086072172431c76867800673fbc34.patch
+c1eb2db543c1091c321da1ec9b34c0e78d1073547b274897894883f8efb266c1cde526260325a50c2b1df9cdb15fa39694b1412c5acda4918550d82f4058227d  b34f62d5935495f61ef3d9d40779ca0ca7b432b2.patch
+0bfb0ce1189ae5ef571e9a62a161ee67721d6b97eff622396c88d8001b3737fb59cd04ad0207ca035474bcdf80543612195d8be510630bc607a9cf4295baff14  b068d5a0a228029bb4aac50dc3f343971634f25e.patch
+52e0035745da412c68a7070c20f1f10d9356709f807f5fa7c5300c736ba5481c830cf9f3091a4330d2bbddc532c9e82122bff23a1129a69816e8219110aa4a51  c30145b28632b31f805d57f9838ba36b8db99367.patch
+c03099cc57fa19afdbe2b3d1c5c968d1c8d15c4b4504d95a690e9b0ebcb09b6ac615706f12c6d496383037b53caca0967776045ac631b4b9cf6d9e8feb562f00  d8f31e647a4d1eda088e89354f4769b0dad303d3.patch
+3ee506bc77bbc4202bf21fd238b4341d1d9d602eee8345f28f82bcaa79ae9904ea6ee26b2c1fa3bef5c4a41af965b52bb3c1efc8e22e9a7118473383c397c8ce  c8c6d89617e7408235b160d14707de4ca9e40be7.patch
+98c7f01b95923ffdb2cf0e9816b0ab96d1acce01948fa8b1dec4c1f28cfc20e719652d19bd104cd720a6bea8bc717236a2b70647f3a6069a4d62f034d35cf271  facd124e8dc8f1a0c039dda1c51a87bb3d398353.patch
+1523d2a4591a66f6fe2fd01d5069325efb47fb30591dabe3dd8d157998ff1b977743e1f2fcdbbab2490af4ed6050975eff542b8ca9738f937a84af939e667ca4  2480a0520fee623a8f7c3f038ff9fb491105472c-mve-backport.patch.gz
+"

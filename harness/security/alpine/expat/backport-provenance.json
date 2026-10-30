@@ -1,0 +1,26 @@
+{
+  "base": "Official Expat2.9.0 release; tarball SHA512 pinned from immutable Alpine APKBUILD",
+  "security_commits": [
+    "c30145b28632b31f805d57f9838ba36b8db99367",
+    "d8f31e647a4d1eda088e89354f4769b0dad303d3",
+    "c8c6d89617e7408235b160d14707de4ca9e40be7",
+    "2480a0520fee623a8f7c3f038ff9fb491105472c"
+  ],
+  "upstream_prerequisites": [
+    "d545081f6a90792208e0d274888a352e2e5d894d",
+    "da504c0c111086072172431c76867800673fbc34",
+    "b34f62d5935495f61ef3d9d40779ca0ca7b432b2",
+    "b068d5a0a228029bb4aac50dc3f343971634f25e",
+    "facd124e8dc8f1a0c039dda1c51a87bb3d398353"
+  ],
+  "local_backport": {
+    "file": "2480a0520fee623a8f7c3f038ff9fb491105472c-mve-backport.patch.gz",
+    "artifact_encoding": "Lossless gzip preserves exact diff-context bytes without disabling Git whitespace checks; upstream diffs are fetched by immutable commit with their original SHA512 checksums",
+    "artifact_sha512": "1523d2a4591a66f6fe2fd01d5069325efb47fb30591dabe3dd8d157998ff1b977743e1f2fcdbbab2490af4ed6050975eff542b8ca9738f937a84af939e667ca4",
+    "decompressed_payload_sha512": "1e61d29691de8598e11e0e20d6f619da98be8a41b6313402f57043892900a5ae31948c8ac81d23ba22a5e5c31e204c443d30d01488d605842e9cb1cec94b8ac2",
+    "upstream_diff_sha512": "22da61ff3d4fb661891bcffbfc9cb70ad21fc37e53a9035e59e768165c1736b43917150174f0c23cc3fe94af519bdeecacfb93e7fe0c05b33a781d9e12b3b545",
+    "change": "Rebase only final test-registration context onto2.9.0, which lacks two later unrelated tests. The parser fix, added regression-test implementation and registration are retained unchanged.",
+    "patch_matching": "Forward-only, fuzz0; no ignored failure or test weakening"
+  },
+  "unfixed_exception": "CVE-2025-66382 remains unfixed; conditional owner policy is recorded separately, not implied by these fixes"
+}

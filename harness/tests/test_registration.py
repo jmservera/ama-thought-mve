@@ -242,6 +242,9 @@ def test_package_is_allowlisted_hashed_private_and_refuses_overwrite(registratio
     copied = {path.relative_to(out).as_posix() for path in out.rglob("*") if path.is_file()}
     assert copied == set(registration.SUBMISSION_FILES) | {"manifest.json", "readiness.json"}
     assert set(manifest["package_sha256"]) == set(registration.SUBMISSION_FILES)
+    security_record = "protocol/security-alpine-adoption.json"
+    assert (out / security_record).read_bytes() == (draft_root / security_record).read_bytes()
+    assert not report["execution_ready"]
     assert not out.stat().st_mode & 0o077
     assert all(not path.stat().st_mode & 0o077 for path in out.rglob("*"))
     before = (out / "manifest.json").read_bytes()

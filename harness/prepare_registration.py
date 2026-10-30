@@ -25,6 +25,7 @@ SUBMISSION_FILES = (
     "protocol/runtime-acceptance-2026-10-30.json",
     "protocol/security-remediation-2026-10-30.json",
     "protocol/security-hardening-2026-10-30.json",
+    "protocol/security-alpine-adoption.json",
     "harness/prompts/feature-step.prompt.md", "harness/prompts/consolidation-step.prompt.md",
     "harness/prompts/review-only-step.prompt.md", "harness/prompts/change-request.prompt.md",
 )

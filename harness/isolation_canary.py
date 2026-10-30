@@ -70,31 +70,59 @@ for fd in range(3, 256):
         extra_fds.append(fd)
     except OSError: pass
 assert not extra_fds, extra_fds
-acl = ctypes.CDLL("libacl.so.1", use_errno=True)
-acl.acl_from_text.argtypes = [ctypes.c_char_p]
-acl.acl_from_text.restype = ctypes.c_void_p
-acl.acl_set_file.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p]
-acl.acl_set_file.restype = ctypes.c_int
-acl.acl_free.argtypes = [ctypes.c_void_p]
-entry = acl.acl_from_text(b"u::rw-,g::r--,o::---")
-assert entry
+apk = pathlib.Path("/lib/apk/db/installed")
+origins = [line[2:] for line in apk.read_text().splitlines() if line.startswith("o:")] if apk.is_file() else []
+if apk.is_file():
+    assert "musl" in origins
+acl_absent = apk.is_file() and "acl" not in origins
+if acl_absent:
+    try:
+        ctypes.CDLL("libacl.so.1", use_errno=True)
+    except OSError:
+        pass
+    else:
+        raise AssertionError("Uninventoried libacl is loadable")
+    assert not any(list(pathlib.Path(base).glob("libacl.so*")) for base in ("/lib", "/usr/lib", "/usr/local/lib"))
+    acl = entry = None
+else:
+    acl = ctypes.CDLL("libacl.so.1", use_errno=True)
+    acl.acl_from_text.argtypes = [ctypes.c_char_p]
+    acl.acl_from_text.restype = ctypes.c_void_p
+    acl.acl_set_file.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p]
+    acl.acl_set_file.restype = ctypes.c_int
+    acl.acl_free.argtypes = [ctypes.c_void_p]
+    entry = acl.acl_from_text(b"u::rw-,g::r--,o::---")
+    assert entry
 link = pathlib.Path("acl-protected-link")
 before = hashlib.sha256(pathlib.Path("/etc/passwd").read_bytes()).hexdigest()
+before_mode = pathlib.Path("/etc/passwd").stat().st_mode
+acl_errno = None
 try:
     link.symlink_to("/etc/passwd")
-    assert acl.acl_set_file(b"acl-protected-link", 0x8000, entry) == -1
-    acl_errno = ctypes.get_errno()
-    assert acl_errno in (errno.EROFS, errno.EACCES, errno.EPERM), acl_errno
+    try:
+        os.chmod(link, 0o777)
+    except OSError as error:
+        permission_errno = error.errno
+        assert permission_errno in (errno.EROFS, errno.EACCES, errno.EPERM), permission_errno
+    else:
+        raise AssertionError("Protected target permissions changed through symlink")
+    if acl is not None:
+        assert acl.acl_set_file(b"acl-protected-link", 0x8000, entry) == -1
+        acl_errno = ctypes.get_errno()
+        assert acl_errno in (errno.EROFS, errno.EACCES, errno.EPERM), acl_errno
     assert hashlib.sha256(pathlib.Path("/etc/passwd").read_bytes()).hexdigest() == before
+    assert pathlib.Path("/etc/passwd").stat().st_mode == before_mode
 finally:
     link.unlink(missing_ok=True)
-    acl.acl_free(entry)
+    if acl is not None:
+        acl.acl_free(entry)
 print(json.dumps({{
     "boundary": "ok", "uid": list(os.getresuid()), "gid": list(os.getresgid()),
     "dumpability_after_exec": ctypes.CDLL(None).prctl(3, 0, 0, 0, 0),
     "no_new_privileges": ctypes.CDLL(None).prctl(39, 0, 0, 0, 0), "capabilities": caps,
     "extra_inherited_fds": extra_fds, "core_limit": list(resource.getrlimit(resource.RLIMIT_CORE)),
     "acl_protected_target_unchanged": True, "acl_protected_target_errno": acl_errno,
+    "acl_library_absent": acl_absent, "protected_target_permission_errno": permission_errno,
 }}))
 """)
         result = broker.execute(state, command, 10)
@@ -107,7 +135,13 @@ print(json.dumps({{
         receipt["libacl_caller_probe"] = {
             "protected_target_unchanged": observed["acl_protected_target_unchanged"],
             "errno": observed["acl_protected_target_errno"],
-            "disposition": "UID1001 caller mitigation only; libacl is not patched",
+            "permission_errno": observed["protected_target_permission_errno"],
+            "library_absent": observed["acl_library_absent"],
+            "disposition": (
+                "libacl absent: APK origin, loader and paths checked; protected-target permission denial retained"
+                if observed["acl_library_absent"]
+                else "UID1001 caller mitigation only; libacl is not patched"
+            ),
         }
         receipt["child_preexec"] = broker.last_child_setup
         receipt["protected_supervisor"] = broker.last_supervisor
@@ -405,8 +439,14 @@ print("evaluator-private")
             "test ! -e /usr/bin/ptardiff && test ! -e /usr/bin/ptargrep && "
             "test ! -e /usr/share/perl/5.40.1/Archive/Tar.pm && "
             "test ! -e /usr/share/perl/5.40.1/Archive/Tar || exit 98; "
+            "if command -v perl >/dev/null 2>&1; then "
             "perl -e1 || exit 98; "
             "if perl -MArchive::Tar -e1 >/dev/null 2>&1; then exit 98; fi; "
+            "else python3 -c 'from pathlib import Path; "
+            "s=Path(\"/lib/apk/db/installed\").read_text(); "
+            "assert \"\\no:musl\\n\" in s and \"\\no:perl\\n\" not in s; "
+            "assert not any(list(Path(p).glob(\"perl*\")) for p in (\"/usr/bin\", \"/usr/local/bin\")); "
+            "print(\"Perl absent; APK origin verified\")' || exit 98; fi; "
             "jscpd --version; "
             "test -x /usr/local/bin/python3 && test -x /usr/bin/make || exit 99; "
             "/usr/bin/sha256sum /opt/isolation_helper.py"
@@ -527,7 +567,7 @@ def main():
                    ("Child dumpability is disabled before exec; Linux can reset it on exec. "
                     "Supervisor dumpability and separate identity protect the control channel."),
                    "Fresh calls preserve bounded regular filesystem/Git state, not daemon/process memory.",
-                   ("Base and primary tools are pinned; transitive registry/apt inputs are captured by "
+                   ("Base and primary tools are pinned; transitive registry/distribution inputs are captured by "
                     "the built image content ID, not a fully locked reproducible build."),
                ]}
     try:

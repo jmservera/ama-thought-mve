@@ -8,6 +8,45 @@ collection. No calibration or registered pilot was run during this preparation.
 
 ## Original registration and chronology
 
+### Alpine runtime adoption and scoped Expat exception
+
+The owner selected `adopt_qualified_alpine` after private offline qualification.
+The self-contained runtime recipe now uses digest-pinned official Python
+3.12.16 and Node 24.22.2 Alpine 3.24 bases, signed local Expat security
+backports, rebuilt system-linked Python XML extensions and BusyBox without
+the identified archive-extraction consumers. No candidate/evaluator
+permissions, information boundaries, resource accounting or retry/missingness
+rules changed. The host-authenticated one-line launcher remains unchanged.
+Custom leaf builds remain necessary; musl/ash and absent archive commands
+are deliberate compatibility changes, not a stock-image-only simplification.
+
+The exact private image passed 25 containment canaries, 40 isolation/runtime
+tests and 33 protected references. Every scientific metric dictionary and
+outcome vector exactly matches the qualified Debian baseline, without tolerance
+or normalization. Existing upstream/configuration skips are disclosed;
+no test assertions or explicit skip policies were weakened. These are bounded
+offline diagnostics, not study observations, independent acceptance or proof
+of equivalence for every future candidate program.
+
+**CVE-2025-66382 remains unfixed.** The owner approved a conditional policy
+only for that published LOW advisory: XML CPU exhaustion inside the bounded
+unprivileged evaluator may still halt all remaining observations, producing
+potentially informative missingness. No host parsing of candidate XML is
+allowed. Unchanged limits/cleanup/accounting/stop/retry rules apply. Recheck
+upstream before freeze and collection; expire the exception at first-study
+completion or new trigger/fix/impact information, whichever occurs first.
+The policy does not carry over automatically to rebuilt images and does not
+waive other findings. Zero scanner matches do not establish security clearance.
+
+See [the exact adoption and exception record](security-alpine-adoption.json)
+for immutable image, provenance, resource limits, validation and limitations.
+Implementation adoption does not approve final source/runtime, publication,
+a replacement freeze, OSF changes or collection. Renew final-source containment
+evidence after metadata settles; obtain separate final owner acceptance.
+Record this environment change, conditional risk and scientific missingness
+consequence prospectively in the existing registration last, preserving
+original attachments. Historical Debian/v2 approvals are not relabeled.
+
 ### 30 October runtime/access acceptance and review-policy clarification
 
 After individually explained decisions, the owner accepted bounded supporting

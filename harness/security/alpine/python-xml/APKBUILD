@@ -1,0 +1,43 @@
+pkgname=mve-python-xml
+pkgver=3.12.16
+pkgrel=1
+pkgdesc="CPython XML extensions rebuilt against security-backported system Expat"
+url="https://www.python.org/"
+arch="all"
+license="PSF-2.0"
+depends="libexpat=2.9.0-r100"
+makedepends="expat-dev=2.9.0-r100"
+source="https://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.xz
+	verify-python-xml.py"
+builddir="$srcdir/Python-$pkgver"
+
+build() {
+	./configure --build=x86_64-linux-musl \
+		--enable-loadable-sqlite-extensions --enable-option-checking=fatal \
+		--enable-shared --with-lto --with-ensurepip --with-system-expat
+	local suffix=$(/usr/local/bin/python3-config --extension-suffix)
+	make "Modules/pyexpat$suffix" "Modules/_elementtree$suffix" \
+		"Modules/_testcapi$suffix" "Modules/_testinternalcapi$suffix"
+}
+
+check() {
+	export PYTHONPATH="$builddir/Modules:$builddir/Lib"
+	/usr/local/bin/python3 -B "$srcdir/verify-python-xml.py" "$builddir"
+	/usr/local/bin/python3 -B -m unittest \
+		test.test_pyexpat test.test_xml_etree test.test_xml_etree_c
+}
+
+package() {
+	local suffix=$(/usr/local/bin/python3-config --extension-suffix)
+	for module in pyexpat _elementtree; do
+		install -Dm755 "Modules/$module$suffix" \
+			"$pkgdir/usr/lib/mve-python-xml/$module$suffix"
+	done
+	install -Dm644 mve-python-xml-proof.json \
+		"$pkgdir/usr/share/mve-security/python-xml-proof.json"
+}
+
+sha512sums="
+adc13563d138248e5049e3d71f6497ff645e5fb3713fc14146fef8809608f447c7d205a6fa468434239504e56b9f826554e1a02c31c9e123e65b17030a7c2afc  Python-3.12.16.tar.xz
+1a10f24fbbcb6605afc61a44ffdfc449948a675c721f6c4c0421bc45a97f1485814f8cca3362120ee795ed590fe15bd1c6c505defab39a1d016faa7d1c7065a5  verify-python-xml.py
+"

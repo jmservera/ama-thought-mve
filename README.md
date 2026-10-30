@@ -30,14 +30,20 @@ explicit owner review, without independent reviewers for this first study.
 The separate executor provides operational separation, not independent review.
 See [the runtime decision record](protocol/runtime-acceptance-2026-10-30.json).
 All permission, isolation, accounting and final freeze safeguards remain.
-The subsequent [security refresh](protocol/security-remediation-2026-10-30.json)
-patches Zod and updates the active runtime, but residual OS advisory findings
-remain unresolved. Historical acceptance and `protocol-frozen-v2` do not cover
-the new environment; its acceptance and replacement freeze are blocked. OSF
-recording must wait rather than treating clean npm/Python audits as an all-clear.
-The [targeted hardening record](protocol/security-hardening-2026-10-30.json)
-separately documents later component removals, local util-linux backports,
-stronger authority checks and the remaining library-update blockers.
+The [security refresh](protocol/security-remediation-2026-10-30.json) and
+[Debian component hardening](protocol/security-hardening-2026-10-30.json)
+remain historical evidence. The owner subsequently
+[adopted the qualified Alpine implementation](protocol/security-alpine-adoption.json):
+patched shared Expat, rebuilt Python XML extensions and archive-free BusyBox.
+Its 25 containment canaries, 40 runtime tests and 33 protected references pass;
+all scientific metric dictionaries and outcome vectors exactly match Debian.
+The recipe remains self-contained, but custom leaf builds, musl/ash and absent
+archive commands are deliberate maintenance/compatibility tradeoffs.
+**CVE-2025-66382 remains unfixed under conditional owner policy**, including
+the risk of halting remaining observations. Zero scanner matches are not an
+all-clear. Final exact-source/runtime acceptance, publication, a replacement
+freeze and prospective OSF recording remain separate; historical acceptance
+and `protocol-frozen-v2` do not authorize the new environment or collection.
 
 [CONTRIBUTOR.md](CONTRIBUTOR.md) documents the separate complete source/setup
 bundle, offline checks, read-only user-budget audit and actual launch blockers.
