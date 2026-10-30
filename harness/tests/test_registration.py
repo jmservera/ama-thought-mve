@@ -156,6 +156,7 @@ def test_unreviewed_plan_can_be_approved_for_submission_without_collection(regis
 
 def test_owner_scientific_review_is_explicit_and_does_not_clear_runtime_or_freeze(registration):
     current = json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
+    current["owner_approval"] = {"approved": False, "date": None, "evidence": None}
     current.pop("runtime_access_review_policy")
     for key in ("local_runtime_evidence", "access_probe_including_cr1_text"):
         current["required_evidence"][key] = None
@@ -189,6 +190,7 @@ def test_owner_review_policy_cannot_omit_provenance_or_claim_independence(regist
 
 def test_owner_runtime_access_acceptance_does_not_authorize_execution_or_claim_independence(registration):
     current = json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
+    current["owner_approval"] = {"approved": False, "date": None, "evidence": None}
     panel = json.loads((ROOT / "protocol/contract-panel.json").read_text())
     report = registration.readiness(current, panel)
     assert report["runtime_access_review_mode"] == "owner-reviewed-runtime-access"

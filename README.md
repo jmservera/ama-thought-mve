@@ -19,7 +19,7 @@ and embargo through 2026-12-31. The original registration is now
 [owner-confirmed approved](https://osf.io/ywsrv/overview).
 Subsequent approved corrections await
 [prospective OSF recording](protocol/prospective-corrections-2026-10-28.md);
-final source-bound freeze and execution readiness remain open.
+prospective amendment completion and execution authorization remain open.
 On 30 October the owner individually accepted the six scientific scopes for
 `90e393e` and selected an explicitly **owner-reviewed exploratory pilot**, without
 independent scientific acceptance. This limitation and policy change must be
@@ -39,7 +39,10 @@ identity on resume and exports separate primary estimates per model, never a
 pooled primary result. Infrastructure retries share the original step allowances;
 measurement retries do not replay agent work. Owner scientific alignment
 and runtime/access acceptance are recorded for their named sources; the final
-source-bound freeze/OSF steps and launch authorization remain before collection.
+source freeze was authorized on 30 October after merging #4; its exact inputs
+are recorded in [the freeze manifest](protocol/freeze.json).
+The prospective OSF amendment date remains unset, so the launcher still blocks
+collection. OSF recording is last; no new model calls are authorized.
 
 ## One-command quick start
 

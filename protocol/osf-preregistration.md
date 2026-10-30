@@ -2,7 +2,9 @@
 
 **Original 763945b submission: owner-confirmed registered and approved,
 28 October 2026. This subsequent corrected candidate is not yet prospectively
-recorded or source-bound approved; not authorised for data collection.**
+recorded; its merged source is owner-approved for freezing, not authorised
+for data collection.** The [freeze manifest](freeze.json) keeps prospective
+amendment completion unset until the actual OSF update is recorded.
 Preserve the original attachment and record
 [the prospective clarification](prospective-corrections-2026-10-28.md)
 before affected collection.

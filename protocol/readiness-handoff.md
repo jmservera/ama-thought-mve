@@ -95,7 +95,13 @@ hash manifests are not independent acceptance. The absence of independent
 scientific review and the policy change must be recorded prospectively in OSF.
 Future scientific changes require assessment of affected acceptance evidence.
 
-## Owner-accepted runtime/access evidence; final freeze still needed
+## Owner-accepted runtime/access evidence and source freeze
+
+On 30 October the owner explicitly authorized merging #4 and freezing its
+merged source. [The freeze manifest](freeze.json) binds the final source/tag,
+input fingerprint, image and canary receipt. Its prospective-registration
+completion date remains unset until the actual OSF update; the original date
+must not be substituted. This is a source freeze, not permission to collect.
 
 | Accepted entry | Evidence and remaining boundary |
 |---|---|

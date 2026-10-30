@@ -1,6 +1,11 @@
 # Collaborator handoff
 
-**Status: owner-reviewed runtime/access evidence accepted; final freeze, prospective OSF update and collection authorization remain pending.**
+**Status: owner-reviewed runtime/access evidence accepted and source freeze authorized after merging #4. Prospective OSF update and collection authorization remain pending.**
+
+[The freeze manifest](protocol/freeze.json) binds the exact source/tag, input
+fingerprint, image and canary receipt. Its prospective-registration completion
+date is deliberately unset until the actual OSF amendment is recorded; do not
+substitute the original registration date or treat the freeze as launch permission.
 The original [OSF registration](https://osf.io/ywsrv/overview) is owner-confirmed
 approved. This corrected candidate is subsequent to that registration. The
 owner must record [the prospective clarification](protocol/prospective-corrections-2026-10-28.md)

@@ -21,8 +21,10 @@ The design, analysis, operational choices, secondary scope and prior-data
 disclosure are specified in the attached protocol. The six scientific scopes
 and corrected `1120002` runtime/access evidence are owner-accepted, not
 independently validated. See the [runtime decision record](runtime-acceptance-2026-10-30.json).
-Final source-bound owner approval/freeze, prospective OSF recording and launch
-authorization remain; finite diagnostics do not guarantee future entitlement.
+The owner authorized source-bound approval/freeze after merging #4 on 30 October.
+See [the freeze manifest](freeze.json). Prospective OSF completion stays unset;
+actual amendment recording and separate launch authorization remain. Finite
+diagnostics do not guarantee future entitlement.
 
 `readiness.json` reports `submission_unresolved` separately from
 `collection_unresolved`. `unresolved` is an alias for submission blockers.
