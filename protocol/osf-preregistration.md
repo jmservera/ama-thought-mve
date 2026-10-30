@@ -1,7 +1,11 @@
 # OSF Preregistration submission draft
 
-**OWNER-APPROVED FOR SUBMISSION, 28 October 2026. Not submitted or registered;
-not authorised for data collection.**
+**Original 763945b submission: owner-confirmed registered and approved,
+28 October 2026. This subsequent corrected candidate is not yet prospectively
+recorded or source-bound approved; not authorised for data collection.**
+Preserve the original attachment and record
+[the prospective clarification](prospective-corrections-2026-10-28.md)
+before affected collection.
 Use the general-purpose **OSF Preregistration** form. Field wording may change:
 transfer these answers into the live form and attach the approved protocol,
 decision ledger, candidate contract panel and checksums. The panel is not
@@ -70,10 +74,25 @@ asserted from a local draft, manuscript statement or historical Git tag.
 
 ## Review status and preregistration policy
 
-This plan has **not received independent scientific acceptance**. Suite/panel,
-oracle/reference metrics and multi-model alignment reviews remain pending.
-Model/runtime entitlement, effort/routing/accounting and actual information
-boundaries remain unverified. Ordinary OSF preregistration records the plan;
+This plan has **not received independent scientific acceptance**. On
+30 October the owner individually accepted the six scientific scopes for
+`90e393e`: suite adequacy, panel mapping and explicit panel acceptance,
+analysis/reference metrics, multi-model alignment and oracle stability.
+The owner selected documented owner review for this first exploratory pilot
+and deferred independent scientific review. This is a limitation to disclose,
+not a completed independent review. A separate operator does not independently
+validate the scientific design. See
+[the decision record](scientific-acceptance-2026-10-30.json).
+The owner subsequently accepted corrected `1120002` runtime/access evidence
+and confirmed no independent reviewers for this first study beyond the separate
+executor. This also prospectively supersedes the independent-access-review
+sign-off prerequisite; no independent scientific or access/security review is
+claimed. The executor supplies operational separation only. See
+[the runtime decision record](runtime-acceptance-2026-10-30.json).
+Historical paid model checks retain their actual source and limited scope;
+current offline evidence is finite, not an exhaustive security proof or future
+entitlement guarantee. All permission, isolation, accounting, final freeze and
+prospective OSF requirements remain. Ordinary OSF preregistration records the plan;
 it does not require independent scientific peer review or certify validity.
 
 On 28 October the owner explicitly approved the content at source commit
@@ -81,7 +100,7 @@ On 28 October the owner explicitly approved the content at source commit
 approval-record updates, for submission with this disclosure. The owner
 confirmed no additional approvals are required before preregistration.
 The project retains all outstanding
-review and operational checks as prerequisites before calibration/pilot
+runtime/access and operational checks as prerequisites before calibration/pilot
 collection. No checks are marked accepted merely to prepare or submit this
 registration. Any substantive method changes arising from review will be
 documented prospectively in OSF and versioned before collecting affected data.
@@ -200,31 +219,43 @@ policy deviations and unplanned analyses are versioned and labelled exploratory.
 150 excluded calibration sessions/60 hours; combined 468 sessions/193.5 hours
 excluding non-agent overhead. Counts are planned sessions; allowed infrastructure retries can add
 calls but share the original step's aggregate time and credit allowance.
-Fixed 300-AI-Credit/session soft cap for both
+Nominal registered 300-AI-Credit/session soft cap for both
 stages; **300,000 AI Credits total**, including prior spend and calibration.
+The owner's 29 October prospective policy accepts soft-limit overshoot risk:
+supplied operational settings use a 10% buffer, **270/session** and **270,000
+local admission**, without changing allocation or the nominal registered envelope.
+An in-flight response can exceed the CLI threshold; neither buffer guarantees
+actual billed consumption. The company hard limit of 1,000,000/collaborator is
+owner-reported, not independently verified or a study-specific stop. A separate
+provider study hard cap is no longer a project prerequisite. Record this
+addendum prospectively before affected collection; the original OSF attachment
+is unchanged.
 The owner's approximately $3,000 equivalent is unverified, not a conversion or
 separate precise monetary limit. A cost-only full-design affordability check
 after calibration must pass; otherwise halt and amend rather than reduce sample
-silently. A provider-enforced hard billing boundary is still absent.
+silently. Actual usage completeness and the isolated live backend remain required.
 Require three exact agreeing reference executions at every feature stage and
 CR1, all expected tests passing; discrepancies block collection until
 investigated/versioned/revalidated, not rerun until green.
 
 The scheduler and analysis implement model-aware allocation and separate
-per-model primary estimates. Before collection obtain independent
-`multi_model_harness_alignment` evidence covering the
+per-model primary estimates. Owner-accepted
+`multi_model_harness_alignment` evidence covers the
 eighteen-trajectory model-aware schedule, model-specific analysis, revised
 budget and chosen operational rules. Requested model/runtime availability and
 compatible reasoning settings also require verification; no live probe or
-paid collection was performed by this work. The owner selected the prospective
+paid collection is authorized by the scientific decisions. Earlier excluded
+backend checks are separately disclosed; their runtime acceptance remains
+pending. The owner selected the prospective
 CLI 1.0.105/Ruff 0.17.3/Lizard 1.24.3/jscpd 5.4.1 amendment on 28 October;
 these candidates do not by themselves establish runtime acceptance.
 
-Attach `pilot-estimation.md`, `pilot-estimation.json`, candidate unreviewed
+Attach `pilot-estimation.md`, `pilot-estimation.json`, owner-accepted
 `contract-panel.json`, protocol/harness/suite source hashes, fixed prompts,
-analysis version, pending-evidence disclosures and data chronology.
-Existing oracle/reference diagnostics are unaccepted development evidence,
-not independent approval or a prerequisite to submit the plan.
+analysis version, `scientific-acceptance-2026-10-30.json`, pending-evidence
+disclosures and data chronology. Existing90e393e oracle/reference diagnostics
+were accepted by the owner within their recorded limits, not independently
+approved or newly executed on a later source.
 Source paper: jmservera/ama `196b97644bb9bffa43d41a9921d6a06a93b2699e`.
 Historical proposal/tag provenance is in the protocol; never replace the old tag.
 

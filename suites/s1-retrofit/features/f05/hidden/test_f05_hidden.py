@@ -48,6 +48,7 @@ def test_h05_every_move_raises_onhold():
     wb.place_hold(cid, reason="hazard", by="bea")
     assert raises(OnHold, wb.move, cid, "designed", by="ana")
     assert raises(OnHold, wb.move, cid, "ready", by="ana")
+    assert raises(OnHold, wb.move, cid, "not-a-stage", by="ana")
     assert wb.history(cid) == [("candidate", "surveyed", "ana")]
 
 

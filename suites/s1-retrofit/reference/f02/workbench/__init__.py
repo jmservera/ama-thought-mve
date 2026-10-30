@@ -1,5 +1,6 @@
 """Reference implementation of suite S1 at snapshot f02. Generated from source.py; never shown to agents."""
 import csv
+
 import datetime
 import hashlib
 import io

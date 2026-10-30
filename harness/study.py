@@ -1,4 +1,4 @@
-"""Offline-safe, resumable study controller. Current Copilot billing is soft-capped."""
+"""Resumable controller with buffered soft-credit settings and explicit launch gates."""
 from __future__ import annotations
 
 import argparse
@@ -22,12 +22,36 @@ from types import SimpleNamespace
 from analyze import step_usage
 from pilot_analysis import collection_role
 from runner import Run, git, head
-from study_io import ROOT, StudyError, atomic_json, command, read_json
+from study_io import ROOT, RetryableError, StudyError, atomic_json, command, read_json
 
 NANO = 1_000_000_000
 MAX_CREDITS = 300000 * NANO
+APPROVED_HISTORICAL_PROVISION = {
+    "attempt_id": "gpt-6.1-sol-nonstudy-1",
+    "reserved_credits": 300,
+    "actual_credits": None,
+    "source_commit": "44ec37d9bb470521b2efd396a71ce23deb2f8ebf",
+    "evidence_sha256": "82ac0a3c7b6f4c54a2fb65d6cc43a5031ee1c197aa10ece8ba4f492ed7568d22",
+    "approval": "owner-approved-carry-forward-2026-10-29",
+}
+APPROVED_STARTUP_PROVISION = {
+    "attempt_id": "gpt-6.1-sol-authorized-check-20261029-1",
+    "reserved_credits": 300,
+    "actual_credits": None,
+    "source_commit": "cb1955957e7950a520b9a75d07bb3486616c5bbf",
+    "evidence_sha256": "2d42df9f95198e97944f23aa67bfff9a41097463ebf0ea877c37928e3f561cf6",
+    "approval": "owner-approved-startup-carry-forward-2026-10-29",
+}
+APPROVED_RENEWED_PROVISION = {
+    "attempt_id": "gpt-6.1-sol-authorized-check-20261029-5585ed1-1",
+    "reserved_credits": 300,
+    "actual_credits": None,
+    "source_commit": "5585ed1cf8fa27b253c42b40325aa54cc3ab25bd",
+    "evidence_sha256": "63804ae9c968423a651b1afe626aa849ce7178c0f06e379a3a5c18a0592ddf25",
+    "approval": "owner-approved-renewed-check-carry-forward-2026-10-29",
+}
 MODEL_DESIGN = "model-stratified-v1"
-INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "scripts")
+INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
     "missing_feature_policy", "retry_policy", "evaluator_information_policy",
@@ -36,10 +60,6 @@ GATES = (
     "telemetry_coverage", "prior_data_disclosure", "budget_calibration",
     "multi_model_harness_alignment",
 )
-
-
-class RetryableError(RuntimeError):
-    """An unmeasured infrastructure failure, never a measured task failure."""
 
 
 def credits(value: object) -> int:
@@ -55,19 +75,48 @@ def credits(value: object) -> int:
     return int(amount)
 
 
+def historical_credit_provisions(cfg: dict, *, smoke: bool = False) -> list[dict]:
+    """Keep specifically approved historical holds separate from actual usage."""
+    provisions = cfg.get("historical_credit_provisions", [])
+    if provisions not in ([], [APPROVED_HISTORICAL_PROVISION],
+                          [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION],
+                          [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION,
+                           APPROVED_RENEWED_PROVISION]):
+        raise StudyError("Historical provision must match the exact owner-approved attempt and evidence")
+    if smoke:
+        return []
+    return [{
+        "attempt_id": item["attempt_id"],
+        "reserved_nano": credits(item["reserved_credits"]),
+        "actual_nano": None,
+        "status": "unknown",
+        "source_commit": item["source_commit"],
+        "evidence_sha256": item["evidence_sha256"],
+        "approval": item["approval"],
+    } for item in provisions]
+
+
 def validate_config(cfg: dict, *, smoke: bool) -> None:
     """Reject unaffordable, unknown or unbounded controller settings."""
-    expected = {"seed", "ceiling_credits", "prior_credits", "session_reserve_credits",
+    expected = {"seed", "ceiling_credits", "prior_credits", "session_reserve_credits", "session_soft_limit_credits",
                 "max_attempts", "study_timeout_seconds", "min_disk_gib", "freeze_manifest"}
-    if set(cfg) != expected:
+    if set(cfg) - {"historical_credit_provisions"} != expected:
         raise StudyError("Configuration has missing or unknown fields; never put credentials in config")
     if not 0 < credits(cfg["ceiling_credits"]) <= MAX_CREDITS:
         raise StudyError("Aggregate ceiling must be positive and at most 300,000 AI credits")
     prior = 0 if smoke else credits(cfg["prior_credits"])
     if prior > credits(cfg["ceiling_credits"]):
         raise StudyError("Prior pilot spending exceeds aggregate ceiling")
+    provisions = historical_credit_provisions(cfg, smoke=smoke)
+    if provisions and prior < credits("17.59833"):
+        raise StudyError("Historical provision requires the confirmed known prior spending")
+    if prior + sum(item["reserved_nano"] for item in provisions) > credits(cfg["ceiling_credits"]):
+        raise StudyError("Prior spending and historical provisions exceed aggregate ceiling")
     if credits(cfg["session_reserve_credits"]) != 300 * NANO:
-        raise StudyError("Session reservation must match the approved 300-credit soft allowance")
+        raise StudyError("Session reservation must match the nominal 300-credit allowance")
+    soft = cfg["session_soft_limit_credits"]
+    if type(soft) is not int or not 30 <= soft <= 300:
+        raise StudyError("Session soft limit must be an integer from 30 through the nominal reservation")
     if credits(cfg["session_reserve_credits"]) > credits(cfg["ceiling_credits"]):
         raise StudyError("Session reservation must fit the aggregate ceiling")
     for name, upper in (("max_attempts", 2), ("study_timeout_seconds", 30 * 86400),
@@ -88,7 +137,9 @@ def fingerprint(root: Path = ROOT) -> str:
         if source.is_symlink():
             raise StudyError("Execution inputs must not contain symlinks")
         for path in [source] if source.is_file() else sorted(source.rglob("*")):
-            if "__pycache__" in path.parts or ".pytest_cache" in path.parts:
+            relative = path.relative_to(root)
+            if ("__pycache__" in path.parts or ".pytest_cache" in path.parts
+                    or relative.parts[:3] == ("harness", "copilot-sdk", "node_modules")):
                 continue
             if path.is_symlink():
                 raise StudyError("Execution inputs must not contain symlinks")
@@ -131,17 +182,20 @@ def schedule(smoke: bool, phase: str, seed: int) -> list[dict]:
 
 
 def reserve(ledger: dict, attempt: str, amount: int) -> None:
-    """Hard admission rule: reconciled spend plus outstanding reservations fits."""
+    """Admit work only when known spending plus all held budget fits."""
     if type(amount) is not int or amount < 0:
         raise StudyError("Reservation must be nonnegative integer nano-credits")
     if attempt in ledger["entries"]:
         raise StudyError("Attempt reservation already exists")
+    provisions = ledger.get("historical_credit_provisions", [])
+    if any(item["attempt_id"] == attempt for item in provisions):
+        raise StudyError("Historical provision attempt cannot be reused")
     entries = ledger["entries"].values()
     if any(entry["status"] == "unknown" for entry in entries):
         raise StudyError("Unknown usage holds its reservation and blocks new work")
     if any(entry["status"] == "complete" and entry["actual_nano"] > entry["reserved_nano"] for entry in entries):
         raise StudyError("Actual credits exceeded a reservation; new work stays blocked")
-    used = ledger["prior_nano"] + sum(
+    used = ledger["prior_nano"] + sum(item["reserved_nano"] for item in provisions) + sum(
         entry["actual_nano"] if entry["status"] == "complete" else entry["reserved_nano"]
         for entry in ledger["entries"].values())
     if used + amount > ledger["ceiling_nano"]:
@@ -212,22 +266,17 @@ def preflight(cfg: dict, *, smoke: bool, root: Path = ROOT) -> list[str]:
         errors.append(str(error))
     if sys.version_info < (3, 11):  # noqa: UP036 - check the VM, not just the development interpreter.
         errors.append("Python 3.11+ required")
-    for tool in (("git", "make") if smoke else ("git", "make", "copilot", "gh", "ruff", "lizard", "jscpd")):
+    for tool in (("git", "make") if smoke else ("git", "node", "copilot", "docker")):
         if not shutil.which(tool):
             errors.append(f"Required tool missing: {tool}")
     minimum = cfg.get("min_disk_gib")
     if type(minimum) is int and shutil.disk_usage(root).free < minimum * 1024**3:
         errors.append(f"Insufficient disk: require {minimum} GiB free")
     if not smoke:
-        if not os.environ.get("COPILOT_GITHUB_TOKEN"):
-            errors.append("COPILOT_GITHUB_TOKEN is not present (value never displayed)")
         if shutil.which("git") and command(["git", "status", "--porcelain"], cwd=root):
             errors.append("Live execution requires a clean git worktree")
         for tool, args, version in (
             ("copilot", ["copilot", "--no-auto-update", "--version"], "1.0.105"),
-            ("ruff", ["ruff", "--version"], "0.17.3"),
-            ("lizard", ["lizard", "--version"], "1.24.3"),
-            ("jscpd", ["jscpd", "--version"], "5.4.1"),
         ):
             if shutil.which(tool):
                 output = command(args).strip()
@@ -243,9 +292,30 @@ def preflight(cfg: dict, *, smoke: bool, root: Path = ROOT) -> list[str]:
                 errors.extend(freeze_errors(cfg, root))
             except (StudyError, OSError, ValueError, subprocess.TimeoutExpired):
                 errors.append("Freeze evidence unreadable or tag verification failed")
-        errors.append("Paid execution disabled: Copilot 1.0.105 has only soft credit caps; "
-                      "a provider-enforced hard billing boundary is required")
+        from isolated_runtime import runtime_errors
+        errors.extend(runtime_errors(cfg, root))
     return errors
+
+
+def budget_policy(cfg: dict) -> dict:
+    """Expose operational buffers without claiming a provider billing guarantee."""
+    return {
+        "session_soft_limit_credits": cfg.get("session_soft_limit_credits"),
+        "session_reservation_credits": cfg.get("session_reserve_credits"),
+        "local_admission_ceiling_credits": cfg.get("ceiling_credits"),
+        "registered_ceiling_credits": MAX_CREDITS // NANO,
+        "known_prior_credits": cfg.get("prior_credits"),
+        "historical_credit_provisions": cfg.get("historical_credit_provisions", []),
+        "historical_usage_complete": not bool(cfg.get("historical_credit_provisions")),
+        "company_hard_limit_credits_owner_reported": 1000000,
+        "company_hard_limit_independently_verified": False,
+        "owner_accepted_soft_limit_overshoot_risk": True,
+        "study_specific_provider_hard_cap_required": False,
+        "hard_billing_guarantee": False,
+        "warning": "CLI session limits are soft: an in-flight response can finish over the limit. "
+                   "The local study admission stop includes prior/all-attempt usage and reservations, "
+                   "but neither it nor the buffer guarantees final billed consumption.",
+    }
 
 
 @contextmanager
@@ -271,13 +341,13 @@ def group_alive(pid: int) -> bool:
 
 def docker_command(repo: Path, session: Path, image: str, prompt: str, cap: int,
                    name: str, model: str = "claude-sonnet-5.5") -> list[str]:
-    """Prepare a restricted fresh session; this is not a hard-billing backend."""
+    """Prepare a restricted fresh session; this is not an implemented live backend."""
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", image):
         raise StudyError("Agent image must use an immutable sha256 digest")
     if not re.fullmatch(r"mve-[a-z0-9-]+", name):
         raise StudyError("Invalid owned container name")
-    if type(cap) is not int or cap <= 0:
-        raise StudyError("Session cap must be a positive integer")
+    if type(cap) is not int or not 30 <= cap <= 300:
+        raise StudyError("Session soft cap must be an integer from 30 through 300 credits")
     if model not in read_json(ROOT / "protocol/pilot-estimation.json")["study"]["model_roster"]:
         raise StudyError("Unapproved assigned model")
     return [
@@ -292,7 +362,12 @@ def docker_command(repo: Path, session: Path, image: str, prompt: str, cap: int,
         "-e", "HOME=/session/home", "-e", "COPILOT_HOME=/session/copilot-home",
         "-e", "COPILOT_AUTO_UPDATE=false", image,
         "copilot", "-C", "/work", "-p", prompt, "--model", model,
-        "--reasoning-effort", "medium", "--allow-all-tools", "--no-ask-user",
+        "--reasoning-effort", "medium", "--no-ask-user",
+        "--allow-tool", "write(/work)",
+        "--allow-tool", "shell(python3)",
+        "--allow-tool", "shell(make)",
+        "--allow-tool", "shell(git status)",
+        "--allow-tool", "shell(git diff)",
         "--no-custom-instructions", "--disable-builtin-mcps", "--no-auto-update",
         "--deny-tool", "shell(git push)", "--deny-tool", "url",
         "--deny-tool", "shell(curl)", "--deny-tool", "shell(wget)",
@@ -387,12 +462,15 @@ class StudyRun(Run):
         return process.returncode, timed_out, time.time() - start
 
     def run_agent(self, prompt: str, step_dir: str, budget: int) -> dict:
-        """Only the built-in stub can execute until real hard billing is supported."""
+        """Select isolated live execution or the unchanged built-in smoke stub."""
         controller = self.controller
         if not controller.smoke:
-            raise StudyError("No hard-bounded paid backend implemented")
+            from isolated_runtime import live_runtime
+            return live_runtime(self).run_agent(prompt, step_dir, budget)
         remaining_seconds, remaining_credits = self.remaining_allowance(budget)
-        attempt = controller.new_attempt(self.cell, self.current_step, remaining_credits)
+        reserve_buffer = (credits(controller.cfg["session_reserve_credits"])
+                          - credits(controller.cfg["session_soft_limit_credits"]))
+        attempt = controller.new_attempt(self.cell, self.current_step, remaining_credits + reserve_buffer)
         attempt.update(seconds_limit=remaining_seconds, credit_limit_nano=remaining_credits)
         directory = Path(self.dir) / "attempts" / attempt["id"]
         directory.mkdir(parents=True, mode=0o700)
@@ -432,13 +510,19 @@ class StudyRun(Run):
             seconds += duration
             spent += usage
         remaining_seconds = budget - seconds
-        remaining_credits = credits(self.controller.cfg["session_reserve_credits"]) - spent
+        remaining_credits = credits(self.controller.cfg["session_soft_limit_credits"]) - spent
         if remaining_seconds <= 0 or remaining_credits <= 0:
             raise StudyError("Original step time or credit allowance exhausted")
+        if not self.controller.smoke and remaining_credits < 30 * NANO:
+            raise StudyError("Remaining original soft allowance is below the CLI minimum of 30 credits; "
+                             "do not top up or reset the limit")
         return remaining_seconds, remaining_credits
 
     def is_green(self) -> bool:
         """Bound visible-test writers under the same absolute study deadline."""
+        if not self.controller.smoke:
+            from isolated_runtime import live_runtime
+            return live_runtime(self).visible()
         from evaluation_env import evaluation_environment
         directory = Path(self.dir) / "attempts" / self.cell["attempts"][-1]["id"] / "checks"
         directory.mkdir(parents=True, exist_ok=True)
@@ -470,6 +554,11 @@ class StudyRun(Run):
             self.controller.save()
             try:
                 result = self._measure_once(k, step_dir, prev_ref, cr)
+            except StudyError:
+                measurement["status"] = "invalid_result"
+                self.controller.state["oracle_halt"] = True
+                self.controller.save()
+                raise
             except (RetryableError, OSError, subprocess.TimeoutExpired) as error:
                 measurement["status"] = "exhausted" if measurement["calls"] == 2 else "infrastructure_failure"
                 measurement["error"] = type(error).__name__
@@ -493,6 +582,9 @@ class StudyRun(Run):
 
     def _measure_once(self, k: int, step_dir: str, prev_ref: str, cr: bool = False) -> dict:
         """Execute one bounded external evaluation."""
+        if not self.controller.smoke:
+            from isolated_runtime import live_runtime
+            return live_runtime(self).measure(k, step_dir, prev_ref, cr)
         from evaluation_env import evaluation_environment
         directory = Path(self.dir) / "attempts" / self.cell["attempts"][-1]["id"] / "evaluation"
         directory.mkdir(parents=True, exist_ok=True)
@@ -514,6 +606,13 @@ class StudyRun(Run):
 
     def record(self, rec: dict) -> None:
         """Fsync the canonical step before marking it complete in controller state."""
+        if not self.controller.smoke and rec.get("kind") == "consolidation":
+            from isolated_runtime import live_runtime
+            runtime = live_runtime(self)
+            count = (runtime.last_export or {}).get("commit_count")
+            if type(count) is not int or count < 0:
+                raise StudyError("Missing isolated candidate commit-count evidence")
+            rec["commits"] = count if rec["commits"] > 0 and head(self.repo) == runtime.last_checkpoint else 0
         attempts = [attempt for attempt in self.cell["attempts"] if attempt["step"] == rec["step"]]
         rec["agent"]["usage"] = aggregate_usage(attempts)
         rec["agent"]["seconds"] = (sum(attempt["seconds"] for attempt in attempts)
@@ -526,6 +625,13 @@ class StudyRun(Run):
         for attempt in attempts:
             attempt["cost_included_in_step"] = True
         self.controller.save()
+
+    def post_step(self, k: int) -> None:
+        if not self.controller.smoke and self.arm == "C":
+            from isolated_runtime import live_runtime
+            live_runtime(self).review_step(k)
+            return
+        super().post_step(k)
 
 
 class Controller:
@@ -556,7 +662,9 @@ class Controller:
                           "writer_pid": None, "status": "prepared", "errors": [],
                           "writer_pending": False,
                           "ledger": {"ceiling_nano": credits(cfg["ceiling_credits"]),
-                                     "prior_nano": 0 if smoke else credits(cfg["prior_credits"]), "entries": {}},
+                                     "prior_nano": 0 if smoke else credits(cfg["prior_credits"]),
+                                     "historical_credit_provisions": historical_credit_provisions(cfg, smoke=smoke),
+                                     "entries": {}},
                           "cells": [dict(cell, status="pending", attempts=[], checkpoint=None)
                                     for cell in proposed]}
             self.save()
@@ -566,6 +674,8 @@ class Controller:
             raise StudyError("Stored allocation differs from immutable schedule")
         if (self.state["ledger"]["ceiling_nano"] != credits(cfg["ceiling_credits"])
                 or self.state["ledger"]["prior_nano"] != (0 if smoke else credits(cfg["prior_credits"]))
+                or self.state["ledger"].get("historical_credit_provisions", [])
+                != historical_credit_provisions(cfg, smoke=smoke)
                 or self.state["deadline"] > self.state["started"] + cfg["study_timeout_seconds"]):
             raise StudyError("Stored budget, prior spending or deadline differs from immutable limits")
         pid = self.state.get("writer_pid")
@@ -575,7 +685,7 @@ class Controller:
             raise StudyError("Recorded writer group may still be alive; stop it before resuming")
         self.state["writer_pid"] = None
         self.runtime_config = directory / "runtime.json"
-        runtime = read_json(ROOT / "harness/config.dry-run.json")
+        runtime = read_json(ROOT / ("harness/config.dry-run.json" if smoke else "harness/config.json"))
         runtime["runs_dir"] = str(directory / "runs")
         runtime["version_commands"] = {}
         atomic_json(self.runtime_config, runtime)
@@ -670,6 +780,7 @@ class Controller:
             steps.append((f"{run.suite['change_request']['id']}-change", run.change_request, ()))
         if done != [step[0] for step in steps[:len(done)]]:
             raise StudyError("Durable step order differs from frozen schedule")
+        cell["completed_steps"] = len(done)
         cell["status"] = "running"
         self.save()
         for step, function, params in steps:
@@ -680,7 +791,9 @@ class Controller:
             cell["checkpoint"] = {"step": step, "head": head(run.repo)}
             self.save()
             run.current_step = step
+            show_progress(self.state, f"{cell.get('assigned_model', 'offline stub')} / {cell['arm']} / {step}")
             function(*params)
+            cell["completed_steps"] += 1
             cell["checkpoint"] = None
             self.save()
         cell["status"] = "completed"
@@ -696,7 +809,7 @@ class Controller:
         try:
             for cell in self.state["cells"]:
                 if self.state.get("oracle_halt"):
-                    self.state["stop_reason"] = "Oracle snapshot integrity failed; manual investigation required"
+                    self.state["stop_reason"] = "Runtime or oracle integrity failed; manual investigation required"
                     break
                 if cell["status"] == "completed":
                     continue
@@ -728,7 +841,24 @@ class Controller:
         self.save()
         from study_report import export
         export(self.directory, self.state, self.study_id)
+        show_progress(self.state, self.state["status"])
         return success
+
+
+def show_progress(state: dict, current: str = "") -> None:
+    """Count durable completed steps, not attempts or inferred successes."""
+    total = completed = 0
+    for cell in state["cells"]:
+        planned = cell["features"] * (1 if cell["arm"] == "A" else 2) + int(cell["change_request"])
+        done = cell.get("completed_steps", planned if cell["status"] == "completed" else 0)
+        if type(done) is not int or not 0 <= done <= planned:
+            raise StudyError("Invalid saved step progress")
+        total += planned
+        completed += done
+    finished = sum(cell["status"] == "completed" for cell in state["cells"])
+    print(f"Progress: {completed}/{total} steps completed; {total - completed} remaining | "
+          f"{finished}/{len(state['cells'])} trajectories complete"
+          + (f" | {current}" if current else ""), flush=True)
 
 
 def main() -> int:
@@ -742,9 +872,25 @@ def main() -> int:
     parser.add_argument("--phase", choices=["pilot", "first", "calibration", "pilot-estimation"],
                         default="pilot-estimation")
     parser.add_argument("--publish", action="store_true", help="push only derived results and create/update a PR")
+    saved = parser.add_mutually_exclusive_group()
+    saved.add_argument("--status", action="store_true", help="show saved progress without authentication or model calls")
+    saved.add_argument("--share", action="store_true", help="package existing derived results locally; never run models")
     args = parser.parse_args()
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", args.study_id):
         raise StudyError("study-id must be lowercase letters/digits/hyphens, at most 64 characters")
+    directory = ROOT / ".study" / args.study_id
+    if (ROOT / ".study").is_symlink() or directory.is_symlink():
+        raise StudyError("Study state must not be symlinked")
+    if args.status or args.share:
+        if not (directory / "state.json").is_file():
+            raise StudyError(f"No saved experiment: {args.study_id}")
+        state = read_json(directory / "state.json")
+        show_progress(state, state["status"])
+        if args.share:
+            from study_report import package_results
+            with study_lock(directory):
+                print(f"Shareable results: {package_results(directory / 'results', args.study_id)}")
+        return 0
     cfg = read_json(args.config)
     errors = preflight(cfg, smoke=args.smoke)
     preview = {"mode": "stub-smoke" if args.smoke else args.phase,
@@ -752,22 +898,26 @@ def main() -> int:
                "schedule": (schedule(args.smoke, args.phase, cfg["seed"])
                             if type(cfg.get("seed")) is int else []),
                "token_present": bool(os.environ.get("COPILOT_GITHUB_TOKEN")),
-               "hard_billing_supported": False, "errors": errors}
+               "hard_billing_supported": False, "budget_policy": budget_policy(cfg), "errors": errors}
     if args.dry_run or args.check_vm:
         print(json.dumps(preview, indent=2))
         return 2 if errors else 0
     if errors:
         raise StudyError("; ".join(errors))
-    directory = ROOT / ".study" / args.study_id
-    if (ROOT / ".study").is_symlink() or directory.is_symlink():
-        raise StudyError("Study state must not be symlinked")
+    if not args.smoke:
+        from isolated_runtime import check_host_auth
+        check_host_auth(ROOT)
+        print("Authentication: signed-in host Copilot user; no credentials enter candidate containers.", flush=True)
     with study_lock(directory):
         controller = Controller(directory, cfg, smoke=args.smoke, phase=args.phase, study_id=args.study_id)
         success = controller.go()
+        from study_report import package_results
+        print(f"Shareable results: {package_results(directory / 'results', args.study_id)}")
         if args.publish:
             from study_report import publish
             publish(directory / "results", args.study_id)
-    print(f"{'Completed diagnostic pipeline' if success else 'Partial diagnostic pipeline retained'}: "
+    label = "offline diagnostic" if args.smoke else "experiment"
+    print(f"{'Completed' if success else 'Partial'} {label}: "
           f".study/{args.study_id}/results/report.md")
     return 0 if success else 1
 

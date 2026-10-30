@@ -18,8 +18,17 @@ import tempfile
 import xml.etree.ElementTree as ET
 
 from evaluation_env import evaluation_environment
+from failure_attribution import api_policy
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+class HiddenResults(dict):
+    """Keep the established identity/outcome mapping API and private evidence."""
+
+    def __init__(self, outcomes, provenance):
+        super().__init__(outcomes)
+        self.provenance = provenance
 
 
 def sha256(path):
@@ -88,6 +97,30 @@ def validated_results(results, expected):
     return {test: results.get(test, "error") for test in expected}
 
 
+def attributed_results(raw, expected, provenance):
+    result = validated_results(raw, expected)
+    if not isinstance(provenance, dict) or set(provenance) - set(raw):
+        raise RuntimeError("Test runner produced malformed provenance")
+    evidence = {}
+    for key, record in provenance.items():
+        if (key not in raw or not isinstance(record, dict) or record.get("raw_outcome") != raw[key]
+                or record.get("outcome") not in ("passed", "failed", "error", "skipped", "timeout")
+                or not isinstance(record.get("attribution"), str)
+                or not isinstance(record.get("diagnostic"), str)):
+            raise RuntimeError("Test runner produced malformed provenance")
+    for identity in expected:
+        collection = identity.split("::", 1)[0] + "::<import>"
+        source = identity if identity in raw else collection
+        record = provenance.get(source)
+        if record:
+            result[identity] = record["outcome"]
+            evidence[identity] = {**record, "reported_identity": source}
+        else:
+            evidence[identity] = {"raw_outcome": raw.get(source, "error"), "outcome": result[identity],
+                                  "attribution": "runner_status", "diagnostic": ""}
+    return HiddenResults(result, evidence)
+
+
 def load_stdlib_results(path, expected):
     try:
         with open(path, encoding="utf-8") as report:
@@ -96,15 +129,17 @@ def load_stdlib_results(path, expected):
         raise RuntimeError("Test runner did not produce a readable JSON report") from error
     if not isinstance(payload, dict):
         raise RuntimeError("Test runner produced a malformed JSON report")
-    return validated_results(payload.get("tests"), expected)
+    raw = payload.get("tests")
+    validated_results(raw, expected)
+    return attributed_results(raw, expected, payload.get("provenance", {}))
 
 
-def run_hidden(repo, suite_dir, ids, runner, timeout=600):
+def run_hidden(repo, suite_dir, ids, runner, timeout=600, scratch_dir=None):
     if not ids or runner not in ("pytest", "stdlib"):
         raise ValueError("Hidden evaluation requires suite items and a supported test runner")
     repo = os.path.abspath(repo)
     src = os.path.join(repo, "src")
-    with tempfile.TemporaryDirectory(prefix=".hidden-", dir=os.path.dirname(repo)) as tmp, \
+    with tempfile.TemporaryDirectory(prefix=".hidden-", dir=scratch_dir or os.path.dirname(repo)) as tmp, \
             evaluation_environment() as env:
         files = []
         names = set()
@@ -121,17 +156,30 @@ def run_hidden(repo, suite_dir, ids, runner, timeout=600):
                 shutil.copy(path, tmp)
                 files.append(path)
         expected = expected_tests(files)
+        policy_path = os.path.join(tmp, "policy.json")
+        with open(policy_path, "w", encoding="utf-8") as policy_file:
+            json.dump(api_policy(suite_dir, ids), policy_file)
         if runner == "pytest":
             xml = os.path.join(tmp, "junit.xml")
-            bootstrap = "import sys, pytest; sys.path.insert(0, sys.argv.pop(1)); raise SystemExit(pytest.main(sys.argv[1:]))"
-            cmd = [sys.executable, "-I", "-B", "-c", bootstrap, src, "-q", "-p", "no:cacheprovider",
+            provenance_path = os.path.join(tmp, "provenance.json")
+            bootstrap = (
+                "import importlib.util, json, sys, pytest; "
+                "helper, src, policy, output = sys.argv[1:5]; "
+                "spec = importlib.util.spec_from_file_location('_mve_failure_attribution', helper); "
+                "module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); "
+                "plugin = module.pytest_plugin(src, json.load(open(policy)), output); "
+                "sys.path.insert(0, src); raise SystemExit(pytest.main(sys.argv[5:], plugins=[plugin]))"
+            )
+            cmd = [sys.executable, "-I", "-B", "-c", bootstrap,
+                   os.path.join(HERE, "failure_attribution.py"), src, policy_path, provenance_path,
+                   "-q", "-p", "no:cacheprovider",
                    "--continue-on-collection-errors", f"--junit-xml={xml}", tmp]
             if importlib.util.find_spec("pytest_timeout"):
                 cmd[-1:-1] = ["-p", "pytest_timeout", "--timeout=10"]
         else:
             js = os.path.join(tmp, "res.json")
             cmd = [sys.executable, "-I", "-B", os.path.join(HERE, "stdlib_tests.py"), tmp,
-                   "--src", src, "--json", js, "-q"]
+                   "--src", src, "--json", js, "--policy", policy_path, "-q"]
         try:
             process = subprocess.run(cmd, cwd=tmp, env=env, capture_output=True, text=True, timeout=timeout)
         except (OSError, subprocess.TimeoutExpired) as error:
@@ -159,6 +207,33 @@ def run_hidden(repo, suite_dir, ids, runner, timeout=600):
                     raise RuntimeError(f"Hidden pytest reported a duplicate test identity: {key}")
                 out[key] = outcome
             result = validated_results(out, expected)
+            # Validate the raw report/exit agreement before any scientific reclassification.
+            raw_not_passed = any(value in ("failed", "error", "timeout") for value in result.values())
+            if (process.returncode == 0 and raw_not_passed) or (process.returncode == 1 and not raw_not_passed):
+                raise RuntimeError(f"Hidden {runner} exit status disagrees with its test report")
+            provenance = {}
+            for case in root.iter("testcase"):
+                problem = case.find("error")
+                if problem is None:
+                    problem = case.find("failure")
+                if problem is not None:
+                    classname, name = case.get("classname", ""), case.get("name", "")
+                    key = f"{classname.replace('.', '::')}::{name}" if classname else \
+                        f"{name.removesuffix('.py')}::<import>"
+                    provenance[key] = {
+                        "raw_outcome": out[key], "outcome": "error", "attribution": "unknown",
+                        "diagnostic": problem.text or problem.get("message", ""),
+                    }
+            if os.path.isfile(provenance_path):
+                try:
+                    with open(provenance_path, encoding="utf-8") as report:
+                        captured = json.load(report)["provenance"]
+                    if not isinstance(captured, dict):
+                        raise TypeError("Malformed provenance records")
+                    provenance.update(captured)
+                except (OSError, ValueError, KeyError, TypeError) as error:
+                    raise RuntimeError("Hidden pytest produced malformed provenance") from error
+            result = attributed_results(out, expected, provenance)
         else:
             result = load_stdlib_results(js, expected)
         not_passed = any(outcome in ("failed", "error", "timeout") for outcome in result.values())
@@ -201,8 +276,9 @@ def diff_stats(repo, prev_ref):
     if not prev_ref:
         return None
     with evaluation_environment() as env:
-        r = subprocess.run(["git", "diff", "--numstat", prev_ref, "HEAD"], cwd=repo, capture_output=True, text=True,
-                           env=env)
+        r = subprocess.run(["git", "-c", f"safe.directory={os.path.abspath(repo)}",
+                            "diff", "--numstat", prev_ref, "HEAD"], cwd=repo, capture_output=True, text=True,
+                           env=env, check=False)
     if r.returncode != 0:
         raise RuntimeError(f"git diff exited with code {r.returncode}")
     stats = {"src": [0, 0], "tests": [0, 0], "docs": [0, 0], "other": [0, 0]}
@@ -228,6 +304,7 @@ def main():
     ap.add_argument("--cr", action="store_true")
     ap.add_argument("--prev-ref")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--scratch-dir", help="Trusted writable evaluator scratch directory")
     ap.add_argument("--runner", default="pytest", choices=["pytest", "stdlib"])
     ap.add_argument("--complexity", default="lizard")
     ap.add_argument("--duplication", default="jscpd")
@@ -237,11 +314,13 @@ def main():
     from metrics_core import measure as code_metrics  # noqa: E402
 
     ids = suite_items(a.suite, a.k, a.cr)
-    hidden = run_hidden(a.repo, a.suite, ids, a.runner)
+    hidden = run_hidden(a.repo, a.suite, ids, a.runner,
+                        **({"scratch_dir": a.scratch_dir} if a.scratch_dir else {}))
     m = code_metrics(a.repo, a.complexity, a.duplication, a.lint)
     with evaluation_environment() as env:
-        head_result = subprocess.run(["git", "rev-parse", "--verify", "HEAD"], cwd=a.repo, capture_output=True,
-                                     text=True, env=env)
+        head_result = subprocess.run(["git", "-c", f"safe.directory={os.path.abspath(a.repo)}",
+                                      "rev-parse", "--verify", "HEAD"], cwd=a.repo, capture_output=True,
+                                     text=True, env=env, check=False)
     if head_result.returncode != 0 or not head_result.stdout.strip():
         raise RuntimeError("git rev-parse did not produce a valid HEAD")
     head = head_result.stdout.strip()
@@ -250,6 +329,7 @@ def main():
         "k": a.k,
         "cr": a.cr,
         "hidden": hidden,
+        "hidden_provenance": getattr(hidden, "provenance", {}),
         "hidden_passed": sum(1 for v in hidden.values() if v == "passed"),
         "hidden_total": len(hidden),
         "metrics": {k: v for k, v in m.items() if not k.startswith("_")},

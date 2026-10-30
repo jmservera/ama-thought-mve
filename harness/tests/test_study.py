@@ -21,7 +21,9 @@ def study(monkeypatch):
 
 @pytest.fixture
 def config():
-    return json.loads((ROOT / "harness/study-config.json").read_text())
+    """Synthetic known-prior fixture without the real historical provision."""
+    return dict(json.loads((ROOT / "harness/study-config.json").read_text()),
+                prior_credits=14.54324, historical_credit_provisions=[])
 
 
 def controller(study, config, path):
@@ -61,7 +63,74 @@ def test_unknown_usage_holds_reservation_and_blocks(study, usage):
         study.reserve(ledger, "next", 0)
 
 
+@pytest.mark.parametrize("provision_count", [1, 2, 3])
+def test_historical_hold_counts_against_admission_but_future_unknown_still_stops(study, tmp_path, provision_count):
+    cfg = study.read_json(ROOT / "harness/study-config.json")
+    cfg["historical_credit_provisions"] = cfg["historical_credit_provisions"][:provision_count]
+    study.validate_config(cfg, smoke=False)
+    current = study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="historical-hold")
+    ledger = current.state["ledger"]
+    provisions = ledger["historical_credit_provisions"]
+    assert ledger["prior_nano"] == study.credits("17.59833")
+    assert all(item["actual_nano"] is None and item["status"] == "unknown" for item in provisions)
+    room = ledger["ceiling_nano"] - ledger["prior_nano"] - sum(item["reserved_nano"] for item in provisions)
+    assert room == study.credits({1: "269682.40167", 2: "269382.40167", 3: "269082.40167"}[provision_count])
+    study.reserve(ledger, "new", room)
+    with pytest.raises(study.StudyError, match="ceiling"):
+        study.reserve(ledger, "extra", 1)
+    study.reconcile(ledger, "new", None)
+    with pytest.raises(study.StudyError, match="Unknown usage"):
+        study.reserve(ledger, "after-unknown", 0)
+    assert all(item["actual_nano"] is None and item["reserved_nano"] == 300 * study.NANO for item in provisions)
+
+
+def test_historical_hold_cannot_be_forged_or_reused(study, tmp_path):
+    cfg = study.read_json(ROOT / "harness/study-config.json")
+    originals = cfg["historical_credit_provisions"]
+    for index, original in enumerate(originals):
+        for field, value in (("reserved_credits", 299), ("actual_credits", 0),
+                             ("attempt_id", "future-failure"), ("source_commit", "0" * 40),
+                             ("evidence_sha256", "0" * 64), ("approval", "")):
+            altered = originals.copy()
+            altered[index] = dict(original, **{field: value})
+            forged = dict(cfg, historical_credit_provisions=altered)
+            with pytest.raises(study.StudyError, match="exact owner-approved"):
+                study.validate_config(forged, smoke=False)
+    for invalid in ([originals[0], originals[0]], [*originals, originals[1]],
+                    originals[1:], originals[::-1], [originals[-1]],
+                    [originals[0], originals[-1]]):
+        with pytest.raises(study.StudyError, match="exact owner-approved"):
+            study.validate_config(dict(cfg, historical_credit_provisions=invalid), smoke=False)
+    current = study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="no-reuse")
+    for original in originals:
+        with pytest.raises(study.StudyError, match="cannot be reused"):
+            study.reserve(current.state["ledger"], original["attempt_id"], 0)
+
+
+@pytest.mark.parametrize("hold_index", [0, 1, 2])
+def test_historical_hold_is_bound_to_resume_state(study, tmp_path, hold_index):
+    cfg = study.read_json(ROOT / "harness/study-config.json")
+    current = study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="resume-hold")
+    current.state["ledger"]["historical_credit_provisions"][hold_index]["reserved_nano"] = 0
+    current.save()
+    with pytest.raises(study.StudyError, match="Stored budget"):
+        study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="resume-hold")
+    with pytest.raises(study.StudyError, match="Resume inputs"):
+        study.Controller(tmp_path, dict(cfg, historical_credit_provisions=[]),
+                         smoke=False, phase="pilot-estimation", study_id="resume-hold")
+
+
+@pytest.mark.parametrize("prior", [0, 14.54324, "17.598329999"])
+def test_historical_hold_requires_known_prior_and_remaining_budget(study, prior):
+    cfg = study.read_json(ROOT / "harness/study-config.json")
+    with pytest.raises(study.StudyError, match="confirmed known prior"):
+        study.validate_config(dict(cfg, prior_credits=prior), smoke=False)
+    with pytest.raises(study.StudyError, match="historical provisions exceed"):
+        study.validate_config(dict(cfg, ceiling_credits=917.59832), smoke=False)
+
+
 def test_ceiling_cannot_be_raised_or_prior_spend_assumed(study, config):
+    config["prior_credits"] = None
     with pytest.raises(study.StudyError, match="explicit"):
         study.validate_config(config, smoke=False)
     config["prior_credits"] = 0
@@ -87,7 +156,7 @@ def test_interrupted_repository_setup_preserves_zero_step_metadata(study, config
     summary = study.read_json(tmp_path / "results/summary.json")
     assert len(summary["runs"]) == 3 and all(run["end"] is None for run in summary["runs"])
 
-def test_complete_nominal_freeze_cannot_bypass_soft_billing_stop(study, config, monkeypatch):
+def test_complete_nominal_freeze_cannot_bypass_missing_runtime_evidence(study, config, monkeypatch, tmp_path):
     config["prior_credits"] = 0
     monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "synthetic-token-never-output")
     monkeypatch.setattr(study.shutil, "which", lambda tool: f"/tools/{tool}")
@@ -99,9 +168,10 @@ def test_complete_nominal_freeze_cannot_bypass_soft_billing_stop(study, config, 
             assert args == ["copilot", "--no-auto-update", "--version"]
         return versions.get(args[0], "")
     monkeypatch.setattr(study, "command", version_output)
-    errors = study.preflight(config, smoke=False)
+    errors = study.preflight(config, smoke=False, root=tmp_path)
     assert len(errors) == 1
-    assert "provider-enforced hard billing" in errors[0]
+    assert "isolated live backend" in errors[0]
+    assert "provider-enforced hard billing" not in errors[0]
     assert "synthetic-token" not in str(errors)
 
 
@@ -117,16 +187,16 @@ def test_complete_nominal_freeze_cannot_bypass_soft_billing_stop(study, config, 
     ("", False),
 ])
 def test_cli_version_requires_exact_release_and_retains_paid_stop(
-        study, config, monkeypatch, output, accepted):
+        study, config, monkeypatch, tmp_path, output, accepted):
     config["prior_credits"] = 0
     monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "synthetic-token-never-output")
     monkeypatch.setattr(study.shutil, "which", lambda tool: f"/tools/{tool}")
     monkeypatch.setattr(study, "freeze_errors", lambda *args: [])
     versions = {"copilot": output, "ruff": "0.17.3", "lizard": "1.24.3", "jscpd": "5.4.1"}
     monkeypatch.setattr(study, "command", lambda args, **kwargs: versions.get(args[0], ""))
-    errors = study.preflight(config, smoke=False)
+    errors = study.preflight(config, smoke=False, root=tmp_path)
     assert ("copilot must be pinned to 1.0.105" not in errors) is accepted
-    assert any("provider-enforced hard billing" in error for error in errors)
+    assert any("isolated live backend" in error for error in errors)
 
 
 def test_missing_freeze_and_legacy_tag_are_not_authorisation(study, config, tmp_path):
@@ -291,6 +361,7 @@ def test_measured_non_delivery_is_retained_and_not_retried(study, config, tmp_pa
     monkeypatch.setattr(study.StudyRun, "run_agent", no_work)
     current = controller(study, config, tmp_path)
     assert current.go()
+    assert sum(cell["completed_steps"] for cell in current.state["cells"]) == 5
     records = [json.loads(line) for path in (tmp_path / "runs").glob("*/steps.jsonl")
                for line in path.read_text().splitlines()]
     assert sum(len(cell["attempts"]) for cell in current.state["cells"]) == 5
@@ -315,8 +386,19 @@ def test_recorded_step_survives_crash_before_controller_checkpoint_clear(study, 
     monkeypatch.setattr(study.StudyRun, "record", original)
     resumed = controller(study, config, tmp_path)
     assert resumed.go()
+    assert sum(cell["completed_steps"] for cell in resumed.state["cells"]) == 5
     assert sum(len(cell["attempts"]) for cell in resumed.state["cells"]) == 5
     assert sum(len(path.read_text().splitlines()) for path in (tmp_path / "runs").glob("*/steps.jsonl")) == 5
+
+
+def test_one_line_launcher_previews_from_any_directory_without_model_calls(tmp_path):
+    result = subprocess.run(
+        [str(ROOT / "run-experiment.sh"), "--smoke", "--dry-run"], cwd=tmp_path,
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    preview = json.loads(result.stdout)
+    assert preview["mode"] == "stub-smoke" and preview["errors"] == []
 
 
 def test_docker_has_only_repo_and_session_mounts_and_no_token_argument(study, tmp_path):
@@ -327,6 +409,8 @@ def test_docker_has_only_repo_and_session_mounts_and_no_token_argument(study, tm
     assert "--no-ask-user" in args and "--no-auto-update" in args and "-p" in args
     assert "COPILOT_GITHUB_TOKEN" in args and not any(arg.startswith("COPILOT_GITHUB_TOKEN=") for arg in args)
     assert "--read-only" in args and "--security-opt=no-new-privileges" in args
+    assert "--allow-all-tools" not in args and "--allow-all-paths" not in args
+    assert "--yolo" not in args and "--allow-all" not in args
     with pytest.raises(study.StudyError, match="immutable"):
         study.docker_command(tmp_path, tmp_path, "mutable:latest", "", 300, "mve-test")
 
@@ -372,7 +456,11 @@ def test_interrupted_unmeasured_attempt_retries_without_adding_replicates(study,
     assert sum(len(record["attempts"]) for record in records) == 5
 
 
-def test_dry_run_is_read_only_and_live_refusal_never_calls_agent(study, monkeypatch, capsys):
+def test_dry_run_is_read_only_and_live_refusal_never_calls_agent(study, monkeypatch, capsys, tmp_path):
+    import isolated_runtime
+
+    check_runtime = isolated_runtime.runtime_errors
+    monkeypatch.setattr(isolated_runtime, "runtime_errors", lambda cfg, root: check_runtime(cfg, tmp_path))
     monkeypatch.setattr(sys, "argv", ["study", "--smoke", "--dry-run"])
     monkeypatch.setattr(study.Controller, "__init__", lambda *args, **kwargs: pytest.fail("Dry-run wrote state"))
     assert study.main() == 0
@@ -380,7 +468,15 @@ def test_dry_run_is_read_only_and_live_refusal_never_calls_agent(study, monkeypa
     assert len(preview["schedule"]) == 3 and not preview["hard_billing_supported"]
     monkeypatch.setattr(sys, "argv", ["study", "--dry-run"])
     assert study.main() == 2
-    assert "soft credit caps" in capsys.readouterr().out
+    preview = json.loads(capsys.readouterr().out)
+    assert any("isolated live backend" in error for error in preview["errors"])
+    assert "Credit amounts must be explicit nonnegative numbers" not in preview["errors"]
+    assert preview["budget_policy"]["historical_usage_complete"] is False
+    assert preview["budget_policy"]["historical_credit_provisions"][0]["actual_credits"] is None
+    assert preview["budget_policy"]["session_soft_limit_credits"] == 270
+    assert preview["budget_policy"]["local_admission_ceiling_credits"] == 270000
+    assert preview["budget_policy"]["hard_billing_guarantee"] is False
+    assert preview["budget_policy"]["study_specific_provider_hard_cap_required"] is False
 
 
 def test_recorded_overrun_blocks_admission_even_with_aggregate_room(study):
@@ -522,17 +618,59 @@ def test_agent_retry_uses_remaining_original_time_and_credits(study, config, tmp
     run.setup()
     previous = current.new_attempt(run.cell, run.current_step)
     previous.update(seconds=40, usage={"totalNanoAiu": 200 * study.NANO, "credits_complete": True})
-    seen = []
+    seen, reservations = [], []
+    new_attempt = current.new_attempt
+
+    def recorded_attempt(cell, step, allowance):
+        reservations.append(allowance)
+        return new_attempt(cell, step, allowance)
 
     def bounded(args, cwd, env, out, err, timeout):
         seen.append(timeout)
         return 0, False, 0.1
 
     monkeypatch.setattr(run, "bounded_process", bounded)
+    monkeypatch.setattr(current, "new_attempt", recorded_attempt)
     run.run_agent("synthetic", str(tmp_path / "session"), 120)
     assert seen == [80]
-    assert run.cell["attempts"][-1]["credit_limit_nano"] == 100 * study.NANO
+    assert reservations == [100 * study.NANO]
+    assert run.cell["attempts"][-1]["credit_limit_nano"] == 70 * study.NANO
     assert len(run.cell["attempts"]) == 2
+
+
+@pytest.mark.parametrize("cap", [None, True, 29, 301, 270.5])
+def test_soft_cap_rejects_unknown_subminimum_or_overlarge_settings(study, config, cap):
+    config["session_soft_limit_credits"] = cap
+    with pytest.raises(study.StudyError, match="soft limit"):
+        study.validate_config(config, smoke=False)
+
+
+@pytest.mark.parametrize(("spent", "remaining"), [(240, 30), (241, None), (270, None)])
+def test_live_retry_never_tops_up_remaining_soft_cap(study, config, tmp_path, spent, remaining):
+    current = study.Controller(tmp_path, config, smoke=False, phase="first", study_id="planned")
+    run = study_run(study, current)
+    previous = current.new_attempt(run.cell, run.current_step)
+    previous.update(seconds=1, usage={"totalNanoAiu": spent * study.NANO, "credits_complete": True})
+    if remaining is None:
+        with pytest.raises(study.StudyError, match="minimum|exhausted"):
+            run.remaining_allowance(120)
+    else:
+        assert run.remaining_allowance(120) == (119, remaining * study.NANO)
+    assert len(run.cell["attempts"]) == 1
+
+
+def test_buffered_aggregate_admission_counts_prior_and_preserves_overshoot(study, config):
+    ledger = {"ceiling_nano": study.credits(config["ceiling_credits"]),
+              "prior_nano": study.credits(config["prior_credits"]), "entries": {}}
+    room = ledger["ceiling_nano"] - ledger["prior_nano"]
+    study.reserve(ledger, "last-allowed", room)
+    with pytest.raises(study.StudyError, match="admission ceiling"):
+        study.reserve(ledger, "buffer-not-spendable", 1)
+    with pytest.raises(study.StudyError, match="exceeded reservation"):
+        study.reconcile(ledger, "last-allowed",
+                        {"totalNanoAiu": room + 1, "credits_complete": True})
+    assert ledger["entries"]["last-allowed"]["actual_nano"] == room + 1
+    assert ledger["ceiling_nano"] == 270000 * study.NANO < study.MAX_CREDITS
 
 
 def test_unknown_duration_never_becomes_a_free_retry(study, config, tmp_path, monkeypatch):
@@ -582,19 +720,26 @@ def test_measurement_exhaustion_is_durable_and_never_replays_agent(study, config
     resumed = study_run(study, controller(study, config, tmp_path))
     with pytest.raises(study.StudyError, match="retry limit"):
         resumed.measure(1, "unused", "")
-    for status in ("pending", "running", "infrastructure_failure", "complete", "exhausted", "snapshot_changed"):
+    for status in ("pending", "running", "infrastructure_failure", "complete", "exhausted",
+                   "snapshot_changed", "invalid_result"):
         resumed.cell["attempts"][0]["measurement"]["status"] = status
         with pytest.raises(study.StudyError, match="replay"):
             resumed.run_agent("synthetic", "unused", 120)
     assert len(seen) == 2 and len(resumed.cell["attempts"]) == 1
 
 
-def test_evaluator_snapshot_mismatch_halts_future_collection(study, config, tmp_path, monkeypatch):
+@pytest.mark.parametrize("failure", ["wrong_head", "invalid_schema"])
+def test_evaluator_snapshot_mismatch_halts_future_collection(study, config, tmp_path, monkeypatch, failure):
     current = controller(study, config, tmp_path)
     run = study_run(study, current)
     run.setup()
     current.new_attempt(run.cell, run.current_step)
-    monkeypatch.setattr(run, "_measure_once", lambda *_: {"head": "wrong-snapshot"})
+    def invalid_result(*args):
+        if failure == "invalid_schema":
+            raise study.StudyError("Synthetic invalid snapshot result schema")
+        return {"head": "wrong-snapshot"}
+
+    monkeypatch.setattr(run, "_measure_once", invalid_result)
     with pytest.raises(study.StudyError, match="snapshot"):
         run.measure(1, "unused", "")
     assert current.state["oracle_halt"] is True

@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "decision_date": "2026-10-30",
+  "review_capacity": "study-owner",
+  "reviewed_source_commit": "90e393ee1a27e845c4ee73ee3dd481d1bb33d0b8",
+  "reviewed_inputs_sha256": "f2d6502a3e307e2d2fb1c6ca07a2b2cc90a40b2866a30968771dbacf3bd35a60",
+  "method": "Six separately explained questions, each explicitly accepted by the owner in interactive conversation; not a claim that the owner performed an independent code audit.",
+  "independent_scientific_review_performed": false,
+  "policy_change": {
+    "mode": "owner-reviewed-exploratory-pilot",
+    "independent_review_required_before_collection": false,
+    "owner_direction": "I approve as owner. We will not have an independent acceptance by now.",
+    "limitation": "This first exploratory paper uses owner scientific review supported by AI technical assessments and offline validation. Independent scientific review is deferred, not completed.",
+    "separate_operator": "A separate experiment operator can provide operational separation, not independent validation of the suite, panel, estimands or conclusions.",
+    "prospective_osf_recording_required": true,
+    "original_registration_modified": false
+  },
+  "decisions": {
+    "independent_suite_review": {
+      "decision": "accepted-by-owner",
+      "scope": "Finite ten-feature and final-CR1 workload adequate for bounded exploratory pilot; imperfect coverage and small samples acknowledged. A lacks the scheduled extra post-step time given to B/C, so comparisons are workflow comparisons, not equal-time interventions."
+    },
+    "contract_panel_review": {
+      "decision": "accepted-by-owner",
+      "scope": "Fixed127feature+15CR1test mapping and eligibility; test-weighted coverage, shared prerequisites and correlated tests, not142independent capabilities."
+    },
+    "contract_panel_independent_acceptance": {
+      "decision": "accepted-by-owner",
+      "independent_acceptance": false,
+      "scope": "Explicit acceptance of the exact reviewed panel/source. Legacy scope name retained for traceability; independent acceptance is not claimed or required under the prospective owner-reviewed policy."
+    },
+    "analysis_and_reference_metrics_acceptance": {
+      "decision": "accepted-by-owner",
+      "scope": "H1finalP10 acquisition/retention/repair, H2previously passing eligible contracts and final open losses, CR1plus preCR1passing-feature retention; unknowns retained, CSV/plot gaps, model-specific exploratory estimates, all-attempt costs, structural-metric proxy limits; HIR/IDR and comprehension excluded."
+    },
+    "multi_model_harness_alignment": {
+      "decision": "accepted-by-owner",
+      "scope": "Three models, medium reasoning,18pilot trajectories/318sessions and9excluded calibration trajectories/150sessions; assigned-model resume, bounded infrastructure retries sharing original resources, hidden/reference/CR1boundaries, assistance logging and model-specific reporting."
+    },
+    "oracle_stability": {
+      "decision": "accepted-by-owner",
+      "scope": "All11reference stages evaluated three times using production protected evaluator; exact all-expected-pass vectors agree. Finite-reference limitations retained; contradictory valid same-snapshot outcomes halt collection rather than rerun until green."
+    }
+  },
+  "supporting_validation": {
+    "focused_python_cases_passed": 689,
+    "containment_canaries_passed": 25,
+    "protected_reference_evaluations_passed": 33,
+    "f10_feature_tests_passed": 127,
+    "cr1_combined_tests_passed": 142,
+    "oracle_matrix_sha256": "f7cb7acfe2a9efecbc9a652f497ab686af14c74c2fa005bd1f7ecfd2bc4440f7",
+    "runtime_receipt_sha256": "929af2cbdcf14814bced03866556e7dacc4b19986180dab6d4831ad496100692",
+    "scope": "Existing90e393e evidence, not newly executed checks or approval of a later runtime fingerprint."
+  },
+  "reviewed_scientific_sources_sha256": {
+    "harness/failure_attribution.py": "9b708afb38f53566007de81ab7771442e3f9013b9f76e89b212212c1345c9546",
+    "harness/measure.py": "3677a98d5aea9e016efe189237cd05a475af28cc5fa650fb0eb3936a42b4af66",
+    "harness/stdlib_tests.py": "68141d45163debd5b9d4cd84dd6e38018beac87b77a5e9b125427840f021b652",
+    "harness/analyze.py": "75005f188ef7dd3ecaf0d4a469a1cdbb4cb32ff3c98529e8a22992ae1f5ff707",
+    "harness/pilot_analysis.py": "2f7d7ec5eba031e6e4dbf117337ce7d8b3863e93db4a993d59163de2b04d2b69",
+    "harness/study_report.py": "3601c19b06814b2428ed502ea186328b3dc30a223a2e91ce297151145fd2c900",
+    "harness/study.py": "d02fff136ef75faa1ea2020f2d24531016a1c50f0d6409cd4b39eab6c8a52a8f",
+    "harness/isolated_runtime.py": "3aa767eee8542e8e8ab15156c4ea760b95bd811da3273676e11f4c97e231bd3a",
+    "harness/contract_panel.py": "5d1d755274c98554c0426edb745e93c448a3e953da49b09657da38162769da1a",
+    "harness/validate_suite.py": "b94812b7f3944b581d62fb501c2f6d4c9dba1dc74bb4e482af779c49240536f2"
+  },
+  "panel_content_sha256_excluding_review_and_status": "186fbc513eccb47248c21decf4ddac4ad8f01d6d756c2938a31a4aa57a3bb088",
+  "acceptance_boundary": "Scientific implementation at the named source, plus this prospective review-policy/evidence bookkeeping; not blanket acceptance of later scientific changes. No runtime, freeze or registration approval is inferred.",
+  "runtime_acceptance": false,
+  "paid_calls_authorized": false,
+  "freeze_authorized": false,
+  "collection_authorized": false,
+  "osf_update_performed": false
+}

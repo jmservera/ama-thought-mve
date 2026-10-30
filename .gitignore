@@ -9,3 +9,4 @@ probe-transcript.md
 .study/
 .env
 .env.*
+/harness/copilot-sdk/node_modules/

@@ -20,6 +20,9 @@ SUBMISSION_FILES = (
     "protocol/readiness-handoff.md",
     "protocol/prior-data-disclosure.md",
     "protocol/osf-submission-checklist.md",
+    "protocol/prospective-corrections-2026-10-28.md",
+    "protocol/scientific-acceptance-2026-10-30.json",
+    "protocol/runtime-acceptance-2026-10-30.json",
     "harness/prompts/feature-step.prompt.md", "harness/prompts/consolidation-step.prompt.md",
     "harness/prompts/review-only-step.prompt.md", "harness/prompts/change-request.prompt.md",
 )
@@ -50,6 +53,32 @@ def resolved(value) -> bool:
 def readiness(config: dict, panel: dict) -> dict:
     if set(config["owner_decisions"]) != DECISIONS or set(config["required_evidence"]) != EVIDENCE:
         raise StudyError("Decision/evidence ledger fields changed or missing; reconcile the protocol schema")
+    review_policy = config.get("scientific_review_policy", {})
+    if not isinstance(review_policy, dict):
+        raise StudyError("Scientific review policy must be an explicit supported decision record")
+    mode = review_policy.get("mode", "independent-review")
+    if mode not in ("independent-review", "owner-reviewed-exploratory-pilot"):
+        raise StudyError("Unsupported scientific review policy")
+    owner_review = mode == "owner-reviewed-exploratory-pilot"
+    if owner_review and not (
+        resolved(review_policy.get("decision_date")) and resolved(review_policy.get("evidence"))
+        and review_policy.get("independent_review_required_before_collection") is False
+        and review_policy.get("independent_review_completed") is False
+    ):
+        raise StudyError("Owner scientific review requires explicit provenance and no independence claim")
+    runtime_policy = config.get("runtime_access_review_policy", {})
+    if not isinstance(runtime_policy, dict):
+        raise StudyError("Runtime/access review policy must be an explicit supported decision record")
+    runtime_mode = runtime_policy.get("mode", "independent-review")
+    if runtime_mode not in ("independent-review", "owner-reviewed-runtime-access"):
+        raise StudyError("Unsupported runtime/access review policy")
+    owner_runtime_review = runtime_mode == "owner-reviewed-runtime-access"
+    if owner_runtime_review and not (
+        resolved(runtime_policy.get("decision_date")) and resolved(runtime_policy.get("evidence"))
+        and runtime_policy.get("independent_review_required_before_collection") is False
+        and runtime_policy.get("independent_review_completed") is False
+    ):
+        raise StudyError("Owner runtime/access review requires explicit provenance and no independence claim")
     study = config["study"]
     resources = config["resources"]
     models = study.get("model_roster")
@@ -79,21 +108,31 @@ def readiness(config: dict, panel: dict) -> dict:
         submission_unresolved.append("owner_approval")
         collection_unresolved.append("owner_approval")
     if not accepted(panel):
+        collection_unresolved.append("contract_panel_acceptance" if owner_review
+                                     else "contract_panel_independent_acceptance")
+    elif not owner_review and (panel.get("review") or {}).get("independent") is False:
         collection_unresolved.append("contract_panel_independent_acceptance")
     registration = config["registration"]
     registered = (registration["submitted"] is True and isinstance(registration["url"], str)
                   and re.fullmatch(r"https://osf\.io/[A-Za-z0-9/]+", registration["url"]) is not None
                   and resolved(registration["date"]))
+    execution_blockers = [
+        "Actual source-bound freeze, accounting and prospective OSF evidence must be verified"]
+    if any(not resolved(config["required_evidence"][key])
+           for key in ("local_runtime_evidence", "access_probe_including_cr1_text")):
+        execution_blockers.insert(0, "Isolated live backend runtime/access evidence require separate acceptance")
     return {"draft_complete": design, "author_submission_ready": design and not submission_unresolved,
             "unresolved": submission_unresolved, "submission_unresolved": submission_unresolved,
             "collection_unresolved": collection_unresolved,
             "independent_review_required_for_submission": False,
-            "independent_review_required_before_collection": True,
+            "independent_review_required_before_collection": not owner_review,
+            "scientific_review_mode": mode,
+            "runtime_access_review_mode": runtime_mode,
+            "independent_runtime_access_review_required_before_collection": not owner_runtime_review,
+            "independent_runtime_access_review_completed": runtime_policy.get("independent_review_completed", False),
             "registration_recorded": registered,
             "registration_independently_verified": False, "execution_ready": False,
-            "execution_blockers": ["Provider-enforced hard billing backend absent; paid execution disabled",
-                                   "Model-aware scheduler/analysis and operational-rule alignment need acceptance",
-                                   "Actual approved freeze/runtime/access/budget evidence must be verified"],
+            "execution_blockers": execution_blockers,
             "no_registration_required_to_prepare_draft": True,
             "registered_or_approved_by_tool": False}
 

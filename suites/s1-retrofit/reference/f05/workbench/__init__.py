@@ -1,5 +1,6 @@
 """Reference implementation of suite S1 at snapshot f05. Generated from source.py; never shown to agents."""
 import csv
+
 import datetime
 import hashlib
 import io
@@ -133,10 +134,10 @@ class Workbench:
     def move(self, case_id, to, by):
         case = self.get_case(case_id)
         _text(by, "by")
-        if to not in STAGES:
-            raise ValidationError("unknown stage")
         if case.on_hold:
             raise OnHold(case_id)
+        if to not in STAGES:
+            raise ValidationError("unknown stage")
         if STAGES.index(to) != STAGES.index(case.stage) + 1:
             raise InvalidTransition(f"{case.stage} -> {to}")
         self._history[case_id].append((case.stage, to, by))

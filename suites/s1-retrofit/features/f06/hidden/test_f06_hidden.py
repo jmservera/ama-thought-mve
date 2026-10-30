@@ -78,6 +78,7 @@ def test_h06_a_paused_case_cannot_move():
     wb.withdraw_consent(cid, by="ola", reason="resident away")
     assert raises(Paused, wb.move, cid, "designed", by="ana")
     assert raises(Paused, wb.move, cid, "ready", by="ana")
+    assert raises(Paused, wb.move, cid, "not-a-stage", by="ana")
     assert wb.get_case(cid).stage == "surveyed"
 
 
@@ -87,6 +88,7 @@ def test_h06_hold_takes_precedence_over_pause():
     wb.withdraw_consent(cid, by="ola", reason="away")
     wb.place_hold(cid, reason="hazard", by="bea")
     assert raises(OnHold, wb.move, cid, "surveyed", by="ana")
+    assert raises(OnHold, wb.move, cid, "not-a-stage", by="ana")
 
 
 def test_h06_returns_and_handoffs_allowed_while_paused():

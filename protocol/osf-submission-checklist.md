@@ -1,18 +1,28 @@
 # OSF preregistration submission checklist
 
-**OWNER-APPROVED FOR SUBMISSION, 28 October 2026. Not submitted or registered;
-not independently reviewed or authorised for collection.**
+**Original registration: owner-confirmed approved following submission on
+28 October 2026, https://osf.io/ywsrv/overview.**
+The original 763945b attachment is immutable. The checklist below documents its
+submission procedure; do not treat its historical approval as approval of the
+subsequent corrected source. Record
+[the prospective clarification](prospective-corrections-2026-10-28.md)
+and obtain exact candidate acceptance before collection. No collection
+permission or independent runtime acceptance is implied.
 Use the ordinary **OSF Preregistration** template, not Registered Reports.
 Independent scientific review is not an OSF requirement for this submission.
-The project retains it as a prerequisite before collecting calibration/pilot data.
+On 30 October the owner superseded independent-review sign-off prerequisites
+for this first study with disclosed owner scientific and runtime/access review.
+The separate executor provides operational separation, not independent review.
+All actual runtime safeguards and final freeze/OSF requirements remain.
 
 ## What is ready and what remains
 
 The design, analysis, operational choices, secondary scope and prior-data
-disclosure are specified in the attached protocol. Independent suite/panel,
-analysis/reference and multi-model alignment acceptance are pending. Runtime
-entitlement/effort/accounting and actual information-boundary checks remain
-unverified. Do not describe the candidate as independently validated.
+disclosure are specified in the attached protocol. The six scientific scopes
+and corrected `1120002` runtime/access evidence are owner-accepted, not
+independently validated. See the [runtime decision record](runtime-acceptance-2026-10-30.json).
+Final source-bound owner approval/freeze, prospective OSF recording and launch
+authorization remain; finite diagnostics do not guarantee future entitlement.
 
 `readiness.json` reports `submission_unresolved` separately from
 `collection_unresolved`. `unresolved` is an alias for submission blockers.
@@ -62,16 +72,16 @@ Generate a fresh private package after committing the final candidate:
 ```
 
 The package contains the explicit protocol/checklist/ledger/prompt files,
-candidate **unreviewed** contract panel, source/package hashes and readiness
+owner-reviewed contract panel, scientific/runtime decision records, source/package hashes and readiness
 report. Consult its manifest for the exact snapshot and file inventory.
-These are appropriate review inputs, not evidence that checks were accepted.
-References to earlier raw engineering diagnostics do not imply their approval.
+The decision records identify actual owner acceptance and its limited scope;
+package generation itself never approves checks or a later behavioral change.
 
 Do not upload the separate private reviewer bundle, `.study` wholesale, raw
 session logs, credentials, hidden test source or reference implementations.
 The contract panel reveals evaluator identities: choose access/embargo settings
 deliberately and never expose the panel or other held-out material to a study
-agent. Actual containment remains an unresolved precollection requirement.
+agent. Final containment provenance must match the source-bound owner freeze.
 Retain an owner-controlled backup of the exact submitted package and checksums.
 
 ## Verify the approved package and submit
@@ -89,9 +99,13 @@ real registration URL/date only once completion is confirmed; do not invent them
 
 ## Before any collection
 
-Complete the retained independent reviews, oracle/reference acceptance,
-model-aware alignment, runtime/access checks, assistance/usage coverage,
-known prior spending, owner-authorised freeze and provider-enforced hard billing.
+Record the 30 October owner-reviewed scientific policy and six individually
+accepted scopes plus corrected runtime/access acceptance, explicitly disclosing
+no independent scientific or access/security review. Preserve assistance/usage coverage,
+known prior spending and owner-authorised freeze. The 29 October owner-accepted
+soft-limit policy uses 270/session and 270,000 local admission buffers, not a
+guaranteed provider stop. Record it prospectively; a separate study hard cap
+is no longer required. See [CONTRIBUTOR.md](../CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk).
 The current paid backend remains disabled even with complete registration.
 If review requires substantive changes, document them prospectively in OSF and
 version the affected source/panel/analysis before collecting affected data.

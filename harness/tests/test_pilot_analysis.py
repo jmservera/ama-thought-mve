@@ -244,6 +244,83 @@ def test_missing_feature_plan_and_oracle_errors_are_unknown_not_failure(pilot, p
     assert pilot.summarise_pilot(run, panel)["end"]["pass_rate"] is None
 
 
+@pytest.mark.parametrize("outcome", ["error", "skipped", "timeout"])
+def test_unknown_p10_coverage_stays_unavailable_in_series_and_primary_endpoints(pilot, panel, outcome):
+    run = cohort()[4]
+    run["recs"][-4] = rec("consolidation", 9, x="failed")
+    run["recs"][-2] = rec("consolidation", 10, y=outcome)
+
+    summary = pilot.summarise_pilot(run, panel)
+
+    assert summary["sequence_complete"] and len(summary["series"]) == 10
+    assert summary["series"][-2]["pass_rate"] == 50
+    assert summary["series"][-1]["pass_rate"] is None
+    assert summary["end"]["pass_rate"] is None
+    assert summary["last_observed"]["pass_rate"] is None
+    assert summary["cr_success"] is None
+    assert summary["retention"]["rows"][-1]["open_losses"] is None
+    assert summary["regression_auc"] is None
+    assert run["recs"][-2]["measure"]["hidden"]["test_f02::test_y"] == outcome
+    assert run["recs"][-2]["measure"]["hidden_total"] == 2
+
+
+@pytest.mark.parametrize("runner", ["pytest", "stdlib"])
+@pytest.mark.parametrize("fault", ["missing_export", "product_exception", "infrastructure"])
+def test_actual_measurements_distinguish_h1_h2_and_cr_nonpasses_from_unknown(
+    pilot, panel, tmp_path, runner, fault
+):
+    measure = importlib.import_module("measure")
+    repo, suite = tmp_path / "candidate", tmp_path / "suite"
+    (repo / "src").mkdir(parents=True)
+    suite.mkdir()
+    suite.joinpath("suite.json").write_text(json.dumps({
+        "package": "workbench",
+        "features": [{"id": name, "api": ["Workbench() keeps state.", "OnHold importable from workbench."]}
+                     for name in ("f01", "f02")],
+        "change_request": {"id": "cr1", "api": []},
+    }), encoding="utf-8")
+    for feature, function in (("f01", "x"), ("f02", "y"), ("cr1", "cr")):
+        folder = suite / ("" if feature == "cr1" else "features") / feature / "hidden"
+        folder.mkdir(parents=True)
+        code = (f"def test_{function}():\n    assert True\n" if feature == "f02" else
+                f"from workbench import OnHold, Workbench\n\ndef test_{function}():\n    Workbench().exercise()\n")
+        folder.joinpath(f"test_{feature}.py").write_text(code, encoding="utf-8")
+    product = repo / "src" / "workbench.py"
+    product.write_text("OnHold = object\nclass Workbench:\n    def exercise(self):\n        return True\n",
+                       encoding="utf-8")
+    initial = measure.run_hidden(str(repo), str(suite), ["f01", "f02"], runner)
+    assert set(initial.values()) == {"passed"}
+    product.write_text(
+        ("" if fault == "missing_export" else "OnHold = object\n")
+        + "class Workbench:\n    def exercise(self):\n        "
+        + ("return True\n" if fault == "missing_export" else
+           f"raise {'OSError' if fault == 'infrastructure' else 'TypeError'}('synthetic fault')\n"),
+        encoding="utf-8",
+    )
+    final = measure.run_hidden(str(repo), str(suite), ["f01", "f02"], runner)
+    changed = measure.run_hidden(str(repo), str(suite), ["f01", "f02", "cr1"], runner)
+    run = next(run for run in cohort() if run["meta"]["arm"] == "B")
+    for record in run["recs"][-3:]:
+        hidden = changed if record["kind"] == "change_request" else final
+        record["measure"] = {
+            "hidden": dict(hidden), "hidden_total": len(hidden),
+            "hidden_passed": sum(value == "passed" for value in hidden.values()),
+            "hidden_provenance": hidden.provenance,
+        }
+
+    summary = pilot.summarise_pilot(run, panel)
+
+    unknown = fault == "infrastructure"
+    assert summary["end"]["pass_rate"] == (None if unknown else 50)
+    assert summary["end"]["open_regressions"] == (None if unknown else 1)
+    assert summary["cr_success"] is (None if unknown else False)
+    assert summary["retention"]["history_complete"] is not unknown
+    assert summary["retention"]["post_loss_test_cycles"] == (None if unknown else 1)
+    assert bool(summary["retention"]["episodes"]) is not unknown
+    assert final.provenance["test_f01::test_x"]["raw_outcome"] in ("failed", "error")
+    assert final.provenance["test_f01::test_x"]["diagnostic"]
+
+
 def test_default_cli_writes_estimates_and_paired_exports(pilot, panel, monkeypatch, tmp_path):
     analysis = importlib.import_module("analyze")
     importlib.import_module("study_report")

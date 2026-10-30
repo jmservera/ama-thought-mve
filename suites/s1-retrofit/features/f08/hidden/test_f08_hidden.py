@@ -105,6 +105,21 @@ def test_h08_every_write_is_refused_on_a_view():
     assert raises(NotAllowed, lambda: view.open_case("1", "solar pv"))
     assert wb.get_case(a).owner is None and wb.get_home("1").vulnerability is None
     assert len(wb.list_cases()) == 2
+    for role in ("officer", "contractor", "building_safety", "manager"):
+        view = wb.view_as(role)
+        history = wb.history(a)
+        for case in (view.get_case(a), view.list_cases()[0]):
+            for name, value in (("stage", "installed"), ("owner", "intruder")):
+                try:
+                    setattr(case, name, value)
+                except (AttributeError, TypeError, NotAllowed):
+                    pass
+        assert wb.get_case(a).stage == "candidate" and wb.get_case(a).owner is None
+        assert view.get_case(a).stage == "candidate" and view.list_cases()[0].owner is None
+        assert wb.history(a) == history
+        wb.move(a, "surveyed", by="ana")
+        assert view.get_case(a).stage == "surveyed" and view.list_cases()[0].stage == "surveyed"
+        wb.return_to(a, "candidate", reason="repeat read check", by="ana")
 
 
 def test_h08_unknown_ids_on_views():

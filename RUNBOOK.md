@@ -5,29 +5,44 @@ description: "Runbook for the feature-consolidation MVE with D1-D12 settled on 2
 
 The active scientific authority is [protocol/pilot-estimation.md](protocol/pilot-estimation.md).
 Prepare [the OSF draft](protocol/osf-preregistration.md), resolve the decision
-ledger and approve the exact submission candidate. Independent acceptance is
-a project prerequisite before collection, not before ordinary OSF registration.
-Use [the OSF checklist](protocol/osf-submission-checklist.md) and disclose
-independent reviews and runtime/access checks as pending.
+ledger and approve the exact submission candidate. On 30 October the owner
+accepted scientific and corrected runtime/access evidence under disclosed
+owner review, with no independent reviewers for this first study beyond the
+separate executor. That executor provides operational separation, not independent
+validation. Use [the OSF checklist](protocol/osf-submission-checklist.md) and
+[runtime decision record](protocol/runtime-acceptance-2026-10-30.json).
 Owner submission approval is now recorded for 235489c content plus selected
 metadata/approval updates: CC BY-NC-ND 4.0 for submission documents and embargo
 through 2026-12-31. Enter settled contributor/affiliation details directly in
-OSF. No completed registration, independent acceptance or collection permission
+OSF. The owner subsequently confirmed submission and approval of the unchanged
+original 763945b package: https://osf.io/ywsrv/overview.
+The later corrected candidate needs
+[prospective recording](protocol/prospective-corrections-2026-10-28.md) and
+source-bound approval. No independent acceptance or collection permission
 is implied; all execution gates below remain in force.
+See [CONTRIBUTOR.md](CONTRIBUTOR.md) for the complete separate source bundle,
+accepted soft-limit policy, optional budget audit and retained final freeze requirements.
 The owner-amended first pass is an estimation pilot, not confirmatory testing:
 GPT 6.1 Sol, Sonnet 5.5 and Gemini 4 Argon, each with two trajectories per A/B/C
 arm (18 pilot, plus nine excluded calibration). There are 318 pilot and 150
 calibration sessions, at most 193.5 combined agent-hours. The current total
-ceiling is **300,000 AI Credits**, prior spend/calibration included, with
-300-credit/session soft caps. The approximately $3,000 equivalent is unverified;
+registered envelope is **300,000 AI Credits**, prior spend/calibration included.
+The owner accepted soft-limit overshoot risk on 29 October: supplied operational
+settings are **270 credits/session** and a **270,000-credit local admission stop**,
+10% below the nominal 300/session and 300,000 study envelope. In-flight responses
+can exceed CLI soft limits; neither buffer guarantees final billed consumption.
+The company hard limit of 1,000,000 credits/collaborator is owner-reported,
+not independently verified or a study-specific stop. A separate provider study
+hard cap is no longer required. The approximately $3,000 equivalent is unverified;
 the earlier $500 limit and intermediate $6,000 proposal are superseded.
 
 The controller implements the model matrix, immutable model/replicate identity,
-300,000-credit admission ceiling and bounded infrastructure retries; analysis
+270,000-credit local admission stop and bounded infrastructure retries; analysis
 exports separate primary estimates per model. Before collection, require
 independent `multi_model_harness_alignment` evidence covering scheduling,
-model-specific inference, budgets and selected operational rules. Actual model access/runtime,
-independent acceptance and provider-enforced hard billing remain unverified.
+model-specific inference, budgets and selected operational rules. The isolated
+backend is implemented as a candidate; actual live model/accounting evidence
+and independent/source-bound owner acceptance remain unresolved.
 
 > [!IMPORTANT]
 > D1-D12 from 25 October remain historical decisions where compatible with the
@@ -50,8 +65,8 @@ Tool facts were checked on 24 October 2026 against GitHub Copilot CLI 1.0.95 hel
 
 The 26 October controller adds a single command, not permission to run the
 study. The older manual procedures below are historical operator instructions,
-**not a way around its safety gates**. No paid session is launched by this
-revision; there is no implemented provider-enforced hard billing backend.
+**not a way around its safety gates**. The current isolated-backend candidate
+does not authorize a paid study merely by being installed.
 
 ```bash
 ./run-study.sh --smoke
@@ -82,29 +97,56 @@ No unattended main-study mode is authorised.
 
 ### Configuration and real execution gates
 
+The operator entry point is `./run-experiment.sh` on the prepared and accepted VM.
+It selects the local environment, verifies the signed-in host Copilot user before
+credit reservation, shows completed/remaining steps and creates a derived-only
+results ZIP. `--status` and `--share` read saved work without model calls or
+authentication. No credentials enter Docker and no results upload is automatic.
+See [one-command instructions](CONTRIBUTOR.md#run-and-share-in-one-command).
+The existing readiness/freeze/registration gates still apply.
+
 The controller reads `harness/study-config.json`; `--config PATH` selects a
 different JSON object. Its settings are seed, ceiling (positive, never >300,000 AI
-credits), prior pilot spending, per-session reservation, maximum attempts,
-absolute study allowance and minimum disk space. The supplied `prior_credits`
-is **null**, not a claim of zero earlier spending. Live preflight rejects it.
+credits; supplied 270,000), prior spending, per-session reservation, separate
+integer CLI soft limit (30 through 300; supplied 270), maximum attempts,
+absolute study allowance and minimum disk space. Historical owner-confirmed
+smoke usage is **14.54324**; three later successful excluded backend checks add
+**3.05509**, making known prior usage **17.59833**. Three earlier excluded
+runtime checks still have unknown usage. The
+owner separately approved each full **300-credit** reservation as a historical
+budget provision on 29 October. `prior_credits` records only known usage;
+`historical_credit_provisions` binds each hold to its exact approved
+attempt/source/ledger digest. Admission counts known usage plus **900 held**,
+leaving **269082.40167**
+before new reservations. Actual historical total remains unknown; reports
+explicitly disclose that incompleteness. All three original private ledgers are unchanged.
+Do not infer zero, call the provision actual spending, or apply this exception
+to future failures. Future incomplete usage and overruns still stop admission.
+Live checks and collection still require separate acceptance. See the prior-data disclosure and
+[collaborator hold instructions](CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk).
 Smoke explicitly has zero paid usage and does not consume a live allocation.
-No config field contains a token; set `COPILOT_GITHUB_TOKEN` only in the
-environment. Presence is checked without printing its value. `.env` is ignored,
-never loaded by the controller and never eligible for publication.
+No config field contains a token. The live SDK uses approved interactive user
+authentication on the trusted host; an environment token is not required.
+The optional billing audit has a separate credential requirement. `.env` is
+ignored, never loaded by the controller and never eligible for publication.
 
-The supplied finite study deadline is 14 days. Each original step keeps its
-30/15/45-minute allowance and fixed 300-credit soft reservation across at most
-two agent attempts. Unknown or exhausted prior time/usage blocks a retry.
+The supplied finite study deadline is 14 days. Each original study step keeps its
+30/15/45-minute allowance and original 270-credit soft allowance across at most
+two agent attempts. The nominal initial reservation stays 300, allowing 30
+credits of headroom. Later attempts reserve the remaining original allowance
+plus that headroom, not a fresh 300. Unknown/exhausted time or usage blocks a
+retry; below the CLI's 30-credit minimum, stop rather than top up.
 Measurement infrastructure may be retried once on the same retained snapshot,
 without replaying agent work; exhausted evaluation retries remain exhausted on
 resume. A snapshot inconsistency halts collection rather than rerunning until green.
 
-Live checks include Python, git/make, Copilot **1.0.105**,
-gh, ruff **0.17.3**, lizard **1.24.3**, jscpd **5.4.1**, free disk, clean git,
-known prior spending and owner freeze provenance. No model calls are used to
-check versions. The existing image recipe and legacy configs are not evidence
-of pinned execution; the selected local design needs verified runtime/tool
-evidence and access probes, not a fictional approved Docker amendment.
+Live host checks include Python, git, Node, Docker, Copilot **1.0.105**, the
+repository-local SDK **1.0.28**, free disk, clean Git, known prior spending and
+owner freeze provenance. No model calls are used to check versions.
+The isolated image contains Ruff **0.17.3**, Lizard **1.24.3** and jscpd **5.4.1**;
+its actual toolchain/profile is checked by offline canaries. Host `gh` is needed
+only for explicit publication, not model transport. Legacy image recipes and
+direct local command templates are not the selected runtime.
 
 For the owner's 28 October prospective toolchain amendment, use the pinned
 Python requirements and a repository-local duplication tool, without changing
@@ -123,6 +165,27 @@ superseded for changed inputs, not overwritten; use a fresh candidate and
 [the consolidated reviewer assignment](protocol/readiness-handoff.md).
 The owner excluded HIR/IDR outcomes; assistance/usage coverage remains mandatory.
 
+Install and check the local SDK as described in
+[CONTRIBUTOR.md](CONTRIBUTOR.md#repository-local-copilot-sdk). Build a separately
+named image from the **harness** build context, then verify actual offline
+containment and frozen-reference evaluation without a model session:
+
+```bash
+docker build --quiet -f harness/Dockerfile.isolated -t mve-isolated:CANDIDATE harness
+image="$(docker image inspect --format '{{.Id}}' mve-isolated:CANDIDATE)"
+.venv/bin/python -B harness/isolation_canary.py --image "$image" --out .study/runtime-canary.json
+MVE_TEST_ISOLATED_IMAGE="$image" .venv/bin/python -B -m pytest -p no:cacheprovider \
+  harness/tests/test_isolated_runtime.py -q
+```
+
+Replace `CANDIDATE` with a fresh operator-owned tag; do not overwrite unrelated
+images. Record the immutable content ID, not merely the tag. Base and primary
+tools are pinned, but transitive registry/apt inputs are not a fully locked
+reproducible build: a different rebuilt image requires fresh canaries and
+source-bound acceptance. Do not rebuild or switch images during collection.
+Regenerate canary evidence after execution inputs change. The receipt is
+private offline evidence, not scientific acceptance or a freeze authorization.
+
 The owner must separately supply `protocol/freeze.json`, containing:
 `commit` (full frozen source SHA), a new authorised versioned `tag`, `inputs_sha256`
 (the controller's complete protocol/harness/skeleton/suite digest),
@@ -135,22 +198,33 @@ evidence references for each gate: `independent_suite_review`, `access_probe`,
 `budget_calibration`, `multi_model_harness_alignment`. A file is a machine-checkable provenance record, not
 independent proof that its claims are true. No such file or tag is created here.
 The historical `protocol-frozen` tag alone is rejected. Formal H4/H7 definitions
-and an image digest are not requirements of this local estimation pilot.
+remain deferred. The selected isolated backend additionally requires
+`runtime_image` (immutable `sha256:...` image ID) and `runtime_canary_sha256`
+(SHA-256 of `.study/runtime-canary.json`) in the owner freeze. The legacy gate
+name `local_runtime_evidence` now covers the exact host SDK/container runtime,
+not acceptance of the old local-shell mode.
 The manifest itself is excluded from the input digest. HEAD must match the
 frozen source or differ only by a subsequent manifest-only commit, avoiding
 an impossible self-referential commit hash.
 Dry-run prints `inputs_sha256`; the digest includes the launcher/bootstrap
 scripts and executable bits as well as protocol, harness, skeleton and suites.
 
-Even complete freeze evidence cannot enable paid execution: the inspected CLI
-exposes only a soft session cap and final usage. The ledger atomically reserves
+Freeze evidence is necessary but is not independent proof of its claims.
+The SDK adapter must additionally validate actual model/effort/routing and
+complete explicit final usage; requested model names or a terminal summary
+alone are not billing evidence. The owner accepts residual soft-limit financial
+risk, not missing isolation or unknown accounting.
+`harness/billing_check.py` optionally audits a stronger provider budget read-only;
+it never modifies billing or enables dispatch. The ledger atomically reserves
 before launch; reconciled spending plus every outstanding reservation and
 earlier pilot spending must fit the immutable ceiling. Missing/partial usage
 holds its reservation and blocks new work; an overrun is retained and stops
 admission. This is a **hard launch-admission check**, not hard actual billing.
-No timeout or guessed overshoot buffer can guarantee the latter. Integrating
-an actually hard-bounded provider/billing service is prerequisite future work.
-The Docker command builder is preparation only, not a wired paid backend.
+No timeout or overshoot buffer guarantees the latter. Monitor/reconcile actual
+usage, preserve prior spend across billing-cycle resets, and never describe the
+reported company hard limit as verified study enforcement.
+The old Docker command builder remains historical; the non-smoke controller
+uses the restricted SDK bridge and isolated state broker instead.
 
 ### State and recovery
 
@@ -176,10 +250,16 @@ The absolute study deadline persists across restarts. Work after expiry is
 unattempted, not silently excluded. Each cell's metadata is created before any
 session, so even zero-step cells enter reporting. Normal smoke runs use separate
 disposable repositories and credential-minimal fake-agent environments, **not
-OS isolation**. The proposed Docker builder mounts only a run repository and a
-fresh attempt directory, not suites, references, evaluator outputs or the host
-Docker socket. Root filesystem/resource restrictions are not proof of network
-containment. Switching from D11's local choice still requires owner approval.
+OS isolation**. The new live tool containers have no network or writable host
+mounts; evaluators receive only selected read-only snapshots/kit/suites.
+Opaque worktree state is restored only in containers. Fresh tool calls preserve
+files, not running daemons or sockets. Trusted host checkpoints retain regular
+committed content and safe trajectory refs, not arbitrary candidate Git metadata.
+C alone retains an uncommitted regular REVIEW file. These prospective runtime
+differences supersede D11's old local implementation, not scientific or launch
+acceptance. A container identity/containment failure globally halts admissions:
+inspect only exact recorded IDs/names and verified ownership/image; never prune
+or kill unrelated resources. Do not remove pending intents to force a restart.
 
 ### Paper outputs and result-only publication
 

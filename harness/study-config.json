@@ -1,8 +1,35 @@
 {
   "seed": 2027,
-  "ceiling_credits": 300000,
-  "prior_credits": null,
+  "ceiling_credits": 270000,
+  "prior_credits": 17.59833,
+  "historical_credit_provisions": [
+    {
+      "attempt_id": "gpt-6.1-sol-nonstudy-1",
+      "reserved_credits": 300,
+      "actual_credits": null,
+      "source_commit": "44ec37d9bb470521b2efd396a71ce23deb2f8ebf",
+      "evidence_sha256": "82ac0a3c7b6f4c54a2fb65d6cc43a5031ee1c197aa10ece8ba4f492ed7568d22",
+      "approval": "owner-approved-carry-forward-2026-10-29"
+    },
+    {
+      "attempt_id": "gpt-6.1-sol-authorized-check-20261029-1",
+      "reserved_credits": 300,
+      "actual_credits": null,
+      "source_commit": "cb1955957e7950a520b9a75d07bb3486616c5bbf",
+      "evidence_sha256": "2d42df9f95198e97944f23aa67bfff9a41097463ebf0ea877c37928e3f561cf6",
+      "approval": "owner-approved-startup-carry-forward-2026-10-29"
+    },
+    {
+      "attempt_id": "gpt-6.1-sol-authorized-check-20261029-5585ed1-1",
+      "reserved_credits": 300,
+      "actual_credits": null,
+      "source_commit": "5585ed1cf8fa27b253c42b40325aa54cc3ab25bd",
+      "evidence_sha256": "63804ae9c968423a651b1afe626aa849ce7178c0f06e379a3a5c18a0592ddf25",
+      "approval": "owner-approved-renewed-check-carry-forward-2026-10-29"
+    }
+  ],
   "session_reserve_credits": 300,
+  "session_soft_limit_credits": 270,
   "max_attempts": 2,
   "study_timeout_seconds": 1209600,
   "min_disk_gib": 10,

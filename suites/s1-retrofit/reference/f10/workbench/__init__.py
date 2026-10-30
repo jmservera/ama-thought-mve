@@ -1,5 +1,8 @@
 """Reference implementation of suite S1 at snapshot f10. Generated from source.py; never shown to agents."""
 import csv
+
+import dataclasses
+
 import datetime
 import hashlib
 import io
@@ -161,12 +164,12 @@ class Workbench:
     def move(self, case_id, to, by):
         case = self.get_case(case_id)
         _text(by, "by")
-        if to not in STAGES:
-            raise ValidationError("unknown stage")
         if case.on_hold:
             raise OnHold(case_id)
         if case.paused:
             raise Paused(case_id)
+        if to not in STAGES:
+            raise ValidationError("unknown stage")
         if STAGES.index(to) != STAGES.index(case.stage) + 1:
             raise InvalidTransition(f"{case.stage} -> {to}")
         if to == "installed" and case.consent == "required":
@@ -531,10 +534,10 @@ class _View:
         return Home(home.uprn, home.address, home.postcode, v["vulnerability"], v["contact"])
 
     def get_case(self, case_id):
-        return self._case(case_id)
+        return dataclasses.replace(self._case(case_id))
 
     def list_cases(self, **filters):
-        return [c for c in self._wb.list_cases(**filters) if self._in_scope(c.uprn)]
+        return [dataclasses.replace(c) for c in self._wb.list_cases(**filters) if self._in_scope(c.uprn)]
 
     def case_details(self, case_id):
         self._case(case_id)

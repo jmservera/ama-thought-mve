@@ -34,7 +34,12 @@ def sh(args, cwd, check=True, env=None):
 
 
 def git(repo, *args, check=True):
-    return sh(["git", *args], repo, check=check)
+    env = {"PATH": os.environ.get("PATH", os.defpath), "LC_ALL": "C",
+           "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
+           "GIT_TERMINAL_PROMPT": "0"}
+    return sh(["git", "-c", "core.hooksPath=" + os.devnull,
+               "-c", "core.fsmonitor=false", "-c", "core.attributesFile=" + os.devnull,
+               "-c", "protocol.allow=never", *args], repo, check=check, env=env)
 
 
 def head(repo):
@@ -101,7 +106,8 @@ class Run:
                 and not os.path.exists(self.repo)):
             sys.exit(f"Run directory exists: {self.dir}")
         os.makedirs(self.dir, exist_ok=existing_metadata)
-        shutil.copytree(os.path.join(KIT, "skeleton"), self.repo)
+        shutil.copytree(os.path.join(KIT, "skeleton"), self.repo,
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"))
         tcr = os.path.join(self.repo, "tcr")
         os.chmod(tcr, 0o755)  # zip files and synced folders often drop the executable bit
         git(self.repo, "init", "-q", "-b", "main")

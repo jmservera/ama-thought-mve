@@ -8,5 +8,5 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 RUN pip3 install --no-cache-dir --break-system-packages pytest pytest-timeout lizard==1.24.3 radon ruff==0.17.3
 RUN npm install -g @github/copilot@1.0.105 jscpd@5.4.1 && npm cache clean --force
-RUN git config --system --add safe.directory '*'
+RUN git config --system --add safe.directory /work
 WORKDIR /work

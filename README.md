@@ -15,15 +15,31 @@ trajectories per arm/model; nine excluded calibration trajectories.
 The total ceiling is **300,000 AI Credits**, including prior spend/calibration,
 with fixed 300-credit/session soft caps. Owner approval for preregistration
 submission is recorded on 28 October 2026: document licence CC BY-NC-ND 4.0
-and embargo through 2026-12-31. Independent acceptance, actual registration
-and execution readiness remain open.
+and embargo through 2026-12-31. The original registration is now
+[owner-confirmed approved](https://osf.io/ywsrv/overview).
+Subsequent approved corrections await
+[prospective OSF recording](protocol/prospective-corrections-2026-10-28.md);
+final source-bound freeze and execution readiness remain open.
+On 30 October the owner individually accepted the six scientific scopes for
+`90e393e` and selected an explicitly **owner-reviewed exploratory pilot**, without
+independent scientific acceptance. This limitation and policy change must be
+recorded prospectively in OSF; no independent review is claimed. See
+[the decision record](protocol/scientific-acceptance-2026-10-30.json).
+The owner also accepted corrected `1120002` runtime/access evidence under
+explicit owner review, without independent reviewers for this first study.
+The separate executor provides operational separation, not independent review.
+See [the runtime decision record](protocol/runtime-acceptance-2026-10-30.json).
+All permission, isolation, accounting and final freeze safeguards remain.
+
+[CONTRIBUTOR.md](CONTRIBUTOR.md) documents the separate complete source/setup
+bundle, offline checks, read-only user-budget audit and actual launch blockers.
 
 The controller schedules the model-aware allocation, preserves model/replicate
 identity on resume and exports separate primary estimates per model, never a
 pooled primary result. Infrastructure retries share the original step allowances;
-measurement retries do not replay agent work. Independent
-`multi_model_harness_alignment` acceptance is still required before collection;
-implemented engineering is not study approval.
+measurement retries do not replay agent work. Owner scientific alignment
+and runtime/access acceptance are recorded for their named sources; the final
+source-bound freeze/OSF steps and launch authorization remain before collection.
 
 ## One-command quick start
 
@@ -52,13 +68,63 @@ It uses a separate `results/<study-id>` branch, never pushes raw logs or changes
 your source branch, and creates/updates a PR against that source branch.
 Files are allowlisted, credential-checked and capped at 512 KiB each / 4 MiB total.
 
-**Paid execution is deliberately unavailable.** Copilot CLI 1.0.103's credit
-limit is soft, not a hard spending boundary. The runner enforces a <=300,000-credit
-aggregate *admission* ledger with explicit prior spending and unknown-usage
-stops, but refuses all real sessions until a provider-enforced hard billing
-backend exists. A nominal CLI cap, a freeze file or a container cannot bypass
-this stop. No protocol has been frozen or registered by this work. Owner freeze,
-secondary-scope decisions, independent reviews and other method gates also remain open.
+### Run the accepted experiment
+
+After one-time VM preparation, source/runtime acceptance, the prospective OSF
+update and owner launch authorization, run:
+
+```bash
+./run-experiment.sh
+```
+
+It uses the **Copilot user already signed in on the host**; no identity or
+credentials are copied into Docker. The local Python environment is selected
+automatically. Progress shows completed/total steps, remaining steps and the
+current model/arm. The default pilot has 318 planned steps.
+Rerun the same command for permitted durable recovery; `--status` shows saved
+progress without model calls.
+
+A shareable, credential-checked ZIP is generated automatically at
+`.study/pilot-estimation/pilot-estimation-results.zip`, alongside the readable
+`results/report.md`. `./run-experiment.sh --share` recreates that ZIP without
+running models or uploading anything. See the
+[operator instructions](CONTRIBUTOR.md#run-and-share-in-one-command).
+**The convenience launcher does not bypass the currently pending readiness gates.**
+
+**Credit limits are soft; the owner accepts the residual financial risk.**
+The supplied settings use a 10% buffer: **270 AI Credits per original session**
+(shared across any infrastructure retry), below the registered 300, and a
+**270,000-credit local study admission stop**, below the unchanged registered
+300,000-credit envelope. Known prior **17.59833 credits**, calibration, probes and
+every attempt count. [CLI session limits](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/set-session-limit)
+allow an in-flight response to finish **over** the limit; the buffer reduces risk
+but guarantees neither per-session nor total billed consumption. The company
+hard limit is **1,000,000 credits per collaborator**, as reported by the owner,
+not independently verified or a study-specific stop. A separate provider-enforced
+study hard cap is no longer required; the read-only budget audit is optional.
+See [CONTRIBUTOR.md](CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk)
+for monitoring, reset and overrun instructions.
+
+**Historical budget provisions:** three excluded empty-workspace runtime checks
+failed, first during SDK setup and then twice on unexpected built-in MCP startup.
+None produced tool calls or complete usage evidence. On 29 October the owner
+separately approved retaining each 300-credit reservation as an exact
+source/evidence-bound unknown provision. Known usage is now **17.59833**,
+including **3.05509** from three subsequent successful excluded backend checks
+at `eff4d09` (see [prior-data disclosure](protocol/prior-data-disclosure.md));
+**900 credits** are held separately, not booked as spending or certified zero.
+Known usage plus held budget is **917.59833**, leaving **269082.40167** within
+the 270000 local admission threshold. Total actual prior usage remains unknown.
+These provisions are not guaranteed billing bounds. Future
+unknown usage still stops new work; live verification and collection gates remain.
+
+**The isolated live backend is a candidate implementation, not collection
+approval.** It uses repository-local Copilot SDK **1.0.28** with CLI **1.0.105**:
+authentication stays on the trusted host; the model receives only a restricted
+container tool. Scientific/source acceptance, actual live usage/model evidence,
+source-bound runtime canaries, owner freeze and the prospective OSF update remain
+separate gates. No protocol has been frozen or registered by this tool.
+See [CONTRIBUTOR.md](CONTRIBUTOR.md#isolated-live-backend-acceptance-pending).
 See [RUNBOOK.md](RUNBOOK.md#unattended-controller) for state, recovery and gates.
 
 ## Integrity correction status
@@ -69,11 +135,12 @@ register or approve a study. The existing `protocol-frozen` tag and earlier
 runs/results are preserved; these code and method changes need reconciliation
 with a new authorised snapshot before registration and fresh pilot collection.
 
-Evaluator, metric and test subprocesses use an allowlisted environment and
-temporary home/cache directories, but this is not an OS or network sandbox.
-Direct CLI callers retain their own process environment. Generated code can still
-reach host files and hidden/reference assets subject to host permissions.
-No access-probe acceptance or containment is established by these fixes.
+Lower-level offline evaluator commands use an allowlisted environment and
+temporary home/cache directories, not an OS or network sandbox. They are not
+the new non-smoke controller path: that path runs candidate tools, visible tests,
+hidden imports and metrics in separate disposable containers. Do not use legacy
+direct-runner configurations to execute generated code on the operator host.
+Offline test success does not establish live model/access or scientific acceptance.
 
 Default analysis estimates H1 coverage, H2 retained-contract losses and H6 CR1
 with missingness and all-attempt costs; it issues no hypothesis verdicts.
@@ -111,7 +178,8 @@ python3 analyze.py --runs ../runs-dry --phase dry --out ../results-dry --cost-un
 
 The stand-in agent applies the reference solution; it checks pipeline mechanics,
 not agent performance. Historical local/Docker configurations are not launch
-authorisation. The unattended paid backend remains disabled.
+authorisation. The unattended live backend remains gated on exact-source evidence
+and owner acceptance.
 
 ## Prepare an offline OSF draft
 
@@ -123,9 +191,10 @@ authorisation. The unattended paid backend remains disabled.
 The package refuses overwrites and contains only explicit submission inputs,
 source hashes and readiness checks, not raw logs. It neither contacts OSF nor
 registers or authorises a run. Owner choices are recorded in
-`protocol/pilot-estimation.json`. Model-aware harness acceptance
-and independent reviews remain pending **before collection**, not prerequisites
-to submit the plan. Follow [the OSF checklist](protocol/osf-submission-checklist.md):
+`protocol/pilot-estimation.json`. The six scientific scopes are owner-accepted
+under the prospectively disclosed owner-review policy; independent scientific
+review is deferred. Runtime/access and freeze/OSF requirements remain
+**before collection**. Follow [the OSF checklist](protocol/osf-submission-checklist.md):
 confirm owner choices, secondary scope and prior-data disclosure, disclose the
 unreviewed/unverified status, and approve the exact snapshot before submitting
 through OSF. Readiness reports separate `submission_unresolved` from
@@ -137,6 +206,19 @@ The controller's `calibration` (legacy `pilot`) proposes nine excluded
 ten-feature runs without CR1; `pilot-estimation` (legacy `first`) proposes
 eighteen with CR1. Never pool stages or turn
 historical development smoke into registered pilot data.
+
+After committing a corrected delivery candidate, prepare the separate private
+operator source package (not another OSF submission attachment):
+
+```bash
+.venv/bin/python -B harness/prepare_contributor.py --out .study/contributor-CANDIDATE
+.venv/bin/python -B harness/prepare_contributor.py --verify .study/contributor-CANDIDATE.tar.gz
+```
+
+It includes runnable source and a shallow exact-commit Git checkout, excludes
+private study data, refuses overwrites and verifies file hashes/private modes.
+It contains held-out evaluator/reference material: trusted operator only,
+never a model-visible workspace. Paid execution remains disabled.
 
 For standalone analysis of controller runs, supply its explicit journal:
 

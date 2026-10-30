@@ -1,7 +1,10 @@
 # Prospective S1 pilot / estimation protocol
 
-**Status: owner-approved for submission on 28 October 2026, not registered;
-study not authorised to run.** This is the
+**Status: original registration owner-confirmed approved on 28 October 2026;
+subsequent corrected candidate awaits prospective OSF recording and exact
+source-bound approval. Study not authorised to run.** See
+[the prospective clarification](prospective-corrections-2026-10-28.md).
+This is the
 active protocol for the owner's three-model amendment to the paper. It supersedes the
 seven-hypothesis proposals preserved in the other historical protocol notes.
 It is not a retrospective amendment to earlier data or `protocol-frozen`.
@@ -59,28 +62,55 @@ model entitlement or actual effort behavior. Verify exact availability, compatib
 reasoning settings and one frozen runtime before collection. AI credits are primary;
 tokens, elapsed seconds and currency are separate. The combined prospective
 calibration/pilot ceiling is **300,000 AI Credits**, including prior spending.
-300 credits/session is a fixed **soft** cap for calibration and estimation,
-not guaranteed billing control. The owner's approximately $3,000 equivalent is
+The original registered nominal allowance is 300/session, not guaranteed billing
+control. On 29 October the owner accepted residual soft-limit overshoot risk.
+The supplied operational settings use a uniform **10% buffer: 270 credits per
+original session** (including any infrastructure retry) and **270,000 local
+study admission**, leaving 30,000 below the unchanged registered envelope.
+An in-flight response can finish over the CLI limit; neither buffer guarantees
+actual billed consumption. The company hard limit of 1,000,000/collaborator is
+owner-reported, not independently verified or a study-specific stop. A separate
+provider study hard cap is no longer required. Known prior 17.59833 (historical
+smoke 14.54324 plus excluded backend checks 3.05509), calibration,
+probes and all attempts count; billing-cycle resets do not reset study spending.
+Record [the prospective addendum](prospective-corrections-2026-10-28.md) before
+affected collection. Financial-risk acceptance waives no runtime/access,
+agent safeguard, runtime/access acceptance or freeze gate.
+The owner's approximately $3,000 equivalent is
 unverified; it is not a conversion or separate precise monetary ceiling.
 After calibration, require a cost-only affordability check of the full unchanged
 design; halt and amend if unaffordable rather than silently shrink the sample.
 No paid backend is enabled by this protocol or by a completed registration.
+On 30 October the owner accepted corrected `1120002` runtime/access evidence,
+including bounded historical paid support, 25 renewed containment canaries,
+123 affected tests and controlled CR1/access diagnostics. The owner explicitly
+selected no independent reviewers for this first study; separate execution is
+operational separation only. No independent audit is claimed. See
+[the source-bound decision record](runtime-acceptance-2026-10-30.json).
+Review sign-off policy changes require prospective OSF recording; actual
+permission/isolation/accounting safeguards and final source-bound freeze remain.
 
 The controller implements the model matrix, immutable assigned-model/replicate
-identity, 300,000-credit admission ceiling and bounded infrastructure retries;
+identity, 270,000-credit local admission stop and bounded infrastructure retries;
 analysis exports primary estimates separately per model. The default finite
 study deadline is 14 days, not a change to the original agent-step allowances.
-`required_evidence.multi_model_harness_alignment` remains unresolved pending
-independent acceptance of engineering and operational alignment. Passing
-offline tests is neither scientific acceptance nor submission approval.
+`required_evidence.multi_model_harness_alignment` was explicitly owner-accepted
+for `90e393e` on 30 October, together with the other five scientific scopes.
+Passing offline tests alone is not that acceptance or submission approval.
 
 ## Preregistration versus collection readiness
 
 On 28 October 2026 the owner authorised separating ordinary OSF submission
 from permission to collect data. Independent review is **not required by OSF**
-for this preregistration; it remains a project methodological requirement
-before calibration or pilot collection, not a prerequisite to record the plan.
-Reviews and runtime/access acceptance are pending and will be disclosed as such.
+for this preregistration. On 30 October the owner prospectively replaced the
+project's independent scientific acceptance prerequisite with documented owner
+review for this initial exploratory pilot. All six scientific scopes were
+individually accepted for `90e393e`; independent review is deferred and must
+be disclosed as absent, not completed. A separate experiment operator offers
+operational separation, not independent scientific validation. See
+[the acceptance record](scientific-acceptance-2026-10-30.json).
+Runtime/access acceptance remains pending. Record this policy change in the
+existing registration before affected collection; do not alter original assets.
 
 Submission requires a complete consistent plan, recorded owner choices,
 secondary scope, prior-data disclosure and actual final source-bound owner
@@ -109,6 +139,16 @@ CR1 text and tests must be withheld until its dedicated session. Actual local
 hidden/reference/CR1 access and subsequent evaluator-score/message visibility
 must be independently checked; temporary environments are not OS isolation.
 
+The prospective isolated-backend candidate uses repository-local Copilot SDK
+1.0.28 with explicit CLI1.0.105/protocol3 on the trusted host and only a restricted
+no-network container tool. Candidate tests and hidden/metric evaluation run in
+separate containers, not host subprocesses. See
+[the runtime clarification](prospective-corrections-2026-10-28.md#29-october-runtime-implementation-isolated-sdk-candidate)
+for canonical committed checkpoints, C's REVIEW exception, resource/process-state
+differences and protected-supervisor/oracle limitations. Exact-source offline
+evidence does not replace actual model/effort/routing/usage validation,
+owner scientific acceptance or owner freeze/launch authorization.
+
 The owner selected continuation: after an unsuccessful feature attempt, B/C
 still receive their scheduled post-step on the retained green state without
 replaying the discarded feature request. Continue later features and CR1;
@@ -127,6 +167,15 @@ fixes, hints or design advice. Flag/retain any content-assisted trajectory and
 costs; never silently replace it or use a reduced complete-case primary frame.
 Only documented terminal agent-caused inability makes an unattempted CR1
 unsuccessful; infrastructure/uncertain absence remains missing with bounds.
+
+The owner-approved subsequent correction distinguishes positively established
+candidate-caused nonpasses from unavailable measurement. Declared missing
+candidate APIs/imports, source-loader-bound syntax failures and established
+product exceptions are failed outcomes with raw private provenance retained.
+Infrastructure/oracle/unclassified causes remain unknown, not automatic
+nonpasses. The exact shared runner policy and its prospective-recording status
+are specified in [the correction notice](prospective-corrections-2026-10-28.md).
+This preserves the fixed denominator and existing genuine-missingness rules.
 
 ## Endpoint hierarchy and estimands
 
@@ -198,13 +247,14 @@ See [readiness-handoff.md](readiness-handoff.md) for the recorded scope decision
 and remaining reviewer/operator evidence.
 
 Structural metrics use frozen lizard/ruff/jscpd settings and raw trajectories.
-Reference gaps require independently accepted cumulative reference versions,
+Reference gaps require accepted cumulative reference versions under the
+disclosed owner-review policy,
 matching metric backends/settings and compatible complete feature coverage.
 Unavailable/mismatched reference evidence cannot yield a gap or a composite score.
 Require three unchanged reference executions at every feature stage and CR1,
 with exact outcome agreement and all expected tests passing. Discrepancy blocks
 fresh collection until investigated, versioned and revalidated, not rerun until
-green. This does not substitute for independent suite/panel acceptance.
+green. This alone does not substitute for explicit owner suite/panel acceptance.
 
 Offline diagnostics can be reproduced without collecting trajectories:
 
@@ -266,7 +316,8 @@ genuine evidence. Upload only the approved submission inputs and complete the
 actual OSF contributor-approval/submission workflow. Record its real URL/date
 afterward. Independent suite/panel, oracle/reference and multi-model alignment
 acceptance remain required before collection, together with runtime/access,
-budgets/telemetry, approved freeze and a provider-enforced hard billing boundary.
+budgets/telemetry, approved freeze and the accepted buffered soft-limit policy
+above. A separate study-specific provider hard cap is no longer required.
 If review changes substantive methods, document the amendment prospectively in
 OSF and version affected inputs before collecting affected data. None of these
 approvals or controls is fabricated by offline tools.

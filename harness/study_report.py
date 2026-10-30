@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import zipfile
 from pathlib import Path
 
 from analyze import (
@@ -21,8 +22,8 @@ from analyze import (
     step_usage,
     summarise_run,
 )
-from study_io import ROOT, StudyError, atomic_json, command, read_json
 from pilot_analysis import analyze_pilot
+from study_io import ROOT, StudyError, atomic_json, command, read_json
 
 EXPORTS = (
     "summary.json", "summary.md", "series.csv", "hypotheses.csv", "intervals.csv",
@@ -37,7 +38,8 @@ UNAVAILABLE = {
     "decay_amendment": "F/P diagnostics implemented; independent panel/oracle acceptance still required.",
     "mixed_effects": "Not claimed for this estimation pilot.",
     "currency": "No verified AI-credit-to-currency conversion.",
-    "hard_billing": "Copilot CLI credit cap is soft; paid execution remains disabled.",
+    "hard_billing": "CLI credit limits are soft; owner accepts residual overshoot risk with operational buffers. "
+                    "No study-specific provider hard cap or guaranteed billed ceiling is claimed.",
 }
 
 
@@ -129,6 +131,16 @@ def figure(runs: list[dict], out: Path, *, diagnostic: bool) -> None:
     (out / "trajectories.tex").write_text("\n".join(latex) + "\n", encoding="utf-8")
 
 
+def historical_budget_provenance(ledger: dict) -> dict:
+    """Expose the historical budget hold without claiming a measured charge."""
+    provisions = ledger.get("historical_credit_provisions", [])
+    return {
+        "historical_credit_provisions": provisions,
+        "historical_reserved_nano": sum(item["reserved_nano"] for item in provisions),
+        "historical_usage_complete": not bool(provisions),
+    }
+
+
 def legacy_export(directory: Path, state: dict, study_id: str) -> None:
     """Project scheduled cells, not attempts, into the existing corrected analyzer."""
     out = directory / "results"
@@ -150,7 +162,8 @@ def legacy_export(directory: Path, state: dict, study_id: str) -> None:
                   "registered_or_frozen_by_runner": False,
                   "inference": "stub diagnostic only" if diagnostic else "exploratory only",
                   "ceiling_nano": state["ledger"]["ceiling_nano"],
-                  "prior_nano": state["ledger"]["prior_nano"]}
+                  "prior_nano": state["ledger"]["prior_nano"],
+                  **historical_budget_provenance(state["ledger"])}
     atomic_json(out / "provenance.json", provenance)
     atomic_json(out / "availability.json", {"unavailable": UNAVAILABLE,
                                            "diagnostic_stub": diagnostic,
@@ -397,7 +410,10 @@ def export(directory: Path, state: dict, study_id: str) -> None:
                   "inputs_sha256": state["identity"]["inputs_sha256"],
                   "seed": state["identity"]["config"]["seed"], "registered_or_frozen_by_runner": False,
                   "inference": "diagnostic" if state["identity"]["smoke"] else "pilot estimates only",
-                  "ceiling_nano": state["ledger"]["ceiling_nano"], "prior_nano": state["ledger"]["prior_nano"]}
+                  "ceiling_nano": state["ledger"]["ceiling_nano"], "prior_nano": state["ledger"]["prior_nano"],
+                  **historical_budget_provenance(state["ledger"]),
+                  "session_soft_limit_credits": state["identity"]["config"].get("session_soft_limit_credits", 300),
+                  "billing_limit_kind": "local admission plus per-session soft caps; not guaranteed billed consumption"}
     write_pilot(directory / "results", result, provenance=provenance, dispositions=dispositions, attempts=attempts)
 
 
@@ -436,6 +452,31 @@ def validated_artifacts(directory: Path) -> list[Path]:
 def read_provenance(directory: Path) -> dict:
     """Require an object-shaped generated publication provenance."""
     return read_json(directory / "provenance.json")
+
+
+def package_results(directory: Path, study_id: str) -> Path:
+    """Create a deterministic, private ZIP from the existing publication allowlist."""
+    if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", study_id):
+        raise StudyError("Invalid shareable-results study ID")
+    paths = validated_artifacts(directory)
+    if read_provenance(directory).get("study_id") != study_id:
+        raise StudyError("Study ID differs from result provenance")
+    target = directory.parent / f"{study_id}-results.zip"
+    with tempfile.NamedTemporaryFile(dir=directory.parent, prefix="results-", delete=False) as stream:
+        temporary = Path(stream.name)
+        try:
+            with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                for path in paths:
+                    info = zipfile.ZipInfo(f"{study_id}/{path.name}", date_time=(1980, 1, 1, 0, 0, 0))
+                    info.compress_type = zipfile.ZIP_DEFLATED
+                    info.external_attr = 0o600 << 16
+                    archive.writestr(info, path.read_bytes())
+            stream.flush()
+            os.fsync(stream.fileno())
+            os.replace(temporary, target)
+        finally:
+            temporary.unlink(missing_ok=True)
+    return target
 
 
 def publish(directory: Path, study_id: str, root: Path = ROOT) -> str:
