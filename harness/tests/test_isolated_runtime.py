@@ -60,6 +60,35 @@ def test_safe_publish_keeps_private_git_and_roundtrips_executable_files(runtime,
     assert marker.read_text() == "trusted-only"
 
 
+def test_setup_excludes_generated_python_caches_from_trusted_seed(runtime, tmp_path, monkeypatch):
+    runner = importlib.import_module("runner")
+    skeleton = tmp_path / "kit/skeleton"
+    (skeleton / "tools/__pycache__").mkdir(parents=True)
+    (skeleton / "tcr").write_text("#!/bin/sh\n")
+    (skeleton / ".gitignore").write_text("__pycache__/\n*.pyc\n*.pyo\n")
+    (skeleton / "tools/code.py").write_text("VALUE = 1\n")
+    caches = ["tools/__pycache__/code.cpython-312.pyc", "tools/code.pyc", "old.pyo"]
+    for name in caches:
+        (skeleton / name).write_bytes(b"generated cache")
+    suite = tmp_path / "suite"
+    suite.mkdir()
+    (suite / "suite.json").write_text(json.dumps({
+        "name": "offline-fixture", "features": [{"id": "f01", "status": "ready"}]}))
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps({"runs_dir": str(tmp_path / "runs"), "budgets_seconds": {}}))
+    monkeypatch.setattr(runner, "KIT", str(skeleton.parent))
+    run = runner.Run(SimpleNamespace(
+        config=str(config), suite=str(suite), arm="A", run_id="offline-seed",
+        phase="diagnostic", features=1, no_cr=True, allow_draft=False))
+    run.setup()
+    files = {item["path"] for item in runtime.regular_files(Path(run.repo))}
+    assert files == set(runtime.git(run.repo, "ls-tree", "-r", "--name-only", "HEAD").stdout.splitlines())
+    assert "tools/code.py" in files
+    assert all(not (Path(run.repo) / name).exists() for name in caches)
+    assert all((skeleton / name).read_bytes() == b"generated cache" for name in caches)
+    assert (Path(run.repo) / "tcr").stat().st_mode & 0o111
+
+
 def test_trusted_git_ignores_personal_hooks_and_inherited_git_overrides(runtime, tmp_path, monkeypatch):
     repo, hooks = tmp_path / "repo", tmp_path / "hooks"
     repo.mkdir()

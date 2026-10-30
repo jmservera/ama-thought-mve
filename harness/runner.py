@@ -106,7 +106,8 @@ class Run:
                 and not os.path.exists(self.repo)):
             sys.exit(f"Run directory exists: {self.dir}")
         os.makedirs(self.dir, exist_ok=existing_metadata)
-        shutil.copytree(os.path.join(KIT, "skeleton"), self.repo)
+        shutil.copytree(os.path.join(KIT, "skeleton"), self.repo,
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"))
         tcr = os.path.join(self.repo, "tcr")
         os.chmod(tcr, 0o755)  # zip files and synced folders often drop the executable bit
         git(self.repo, "init", "-q", "-b", "main")
