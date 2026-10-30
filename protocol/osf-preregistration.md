@@ -83,10 +83,16 @@ and deferred independent scientific review. This is a limitation to disclose,
 not a completed independent review. A separate operator does not independently
 validate the scientific design. See
 [the decision record](scientific-acceptance-2026-10-30.json).
-This prospective change supersedes the earlier independent scientific-review
-prerequisite only, and must be recorded before affected collection.
-Model/runtime entitlement, effort/routing/accounting and actual information
-boundaries remain unverified. Ordinary OSF preregistration records the plan;
+The owner subsequently accepted corrected `1120002` runtime/access evidence
+and confirmed no independent reviewers for this first study beyond the separate
+executor. This also prospectively supersedes the independent-access-review
+sign-off prerequisite; no independent scientific or access/security review is
+claimed. The executor supplies operational separation only. See
+[the runtime decision record](runtime-acceptance-2026-10-30.json).
+Historical paid model checks retain their actual source and limited scope;
+current offline evidence is finite, not an exhaustive security proof or future
+entitlement guarantee. All permission, isolation, accounting, final freeze and
+prospective OSF requirements remain. Ordinary OSF preregistration records the plan;
 it does not require independent scientific peer review or certify validity.
 
 On 28 October the owner explicitly approved the content at source commit

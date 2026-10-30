@@ -1,6 +1,6 @@
 # Collaborator handoff
 
-**Status: isolated-backend candidate; collection acceptance is pending.**
+**Status: owner-reviewed runtime/access evidence accepted; final freeze, prospective OSF update and collection authorization remain pending.**
 The original [OSF registration](https://osf.io/ywsrv/overview) is owner-confirmed
 approved. This corrected candidate is subsequent to that registration. The
 owner must record [the prospective clarification](protocol/prospective-corrections-2026-10-28.md)
@@ -235,7 +235,14 @@ a model or authorizes execution. An unavailable/ambiguous response fails that
 optional audit, not the owner-accepted soft policy. Its supplied reset date
 still needs independent verification before claiming a provider hard boundary.
 
-## Isolated live backend: acceptance pending
+## Isolated live backend: owner-reviewed evidence accepted
+
+The owner accepted corrected `1120002` evidence on 30 October and explicitly
+selected no independent reviewers for this first study beyond the separate
+executor. That is operational separation, not an independent technical audit.
+See [the exact decision record](protocol/runtime-acceptance-2026-10-30.json).
+Final source-bound freeze, prospective OSF update and collection authorization
+remain separate. All technical safeguards described below remain unchanged.
 
 The non-smoke controller now uses `harness/isolated_runtime.py`, not the legacy
 local/Docker command templates. The trusted host runs SDK 1.0.28 and the explicit
@@ -290,7 +297,7 @@ read-only canonical snapshots. Only the applicable hidden stage is mounted;
 diagnostics and scores remain private and never return to the study agent.
 Protected supervisor framing and fixed-denominator validation are not proof
 that a fully adversarial Python implementation cannot tamper with in-process
-test observations. Keep that limitation explicit in independent review.
+test observations. Keep that limitation explicit in the owner-reviewed study.
 
 Run the image-specific offline canaries, then the coupled Docker/reference tests.
 The controller requires `.study/runtime-canary.json` to match the execution

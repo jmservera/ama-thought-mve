@@ -8,6 +8,35 @@ collection. No calibration or registered pilot was run during this preparation.
 
 ## Original registration and chronology
 
+### 30 October runtime/access acceptance and review-policy clarification
+
+After individually explained decisions, the owner accepted bounded supporting
+use of the three historical `eff4d09` paid checks and corrected `1120002`
+runtime/access evidence. The owner explicitly confirmed no independent
+reviewers for this first study beyond the separate experiment executor.
+This prospectively supersedes earlier independent-access-review sign-off
+requirements below; no independent scientific or access/security audit is
+claimed. The executor supplies operational separation only.
+
+The controlled access exercise exposed an initial-seed startup defect:
+generated ignored Python caches copied from the skeleton contradicted its
+trusted Git bundle. The minimal `1120002` fix excludes those generated caches
+during setup; strict seed matching remains unchanged. Its regression fails
+before the fix. All 123 affected tests and 25 renewed containment canaries
+pass. The access exercise checked 53 scheduled prompt/seed snapshots and 11
+real Docker boundary probes, including withholding CR1 text/examples until its
+session. No models were contacted or study observations collected.
+
+See [the runtime decision record](runtime-acceptance-2026-10-30.json) for exact
+source/component and evidence hashes, finite-check limitations and owner scope.
+Historical paid evidence is not relabelled as current-source execution.
+Recording metadata requires refreshed final-source containment evidence.
+Actual information boundaries, permissions, isolation, unknown-usage stops,
+final source-bound freeze and prospective OSF requirements remain unchanged.
+No new paid call, freeze, collection or OSF action is authorized by this decision.
+Record this policy clarification and correction in the existing registration
+last, before affected collection; preserve original attachments.
+
 ### 30 October scientific acceptance and review-policy change
 
 The owner answered six explained questions individually and accepted the

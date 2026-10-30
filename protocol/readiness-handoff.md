@@ -8,6 +8,14 @@ deferred, not required for this exploratory pilot and not claimed completed.
 The decision supersedes the earlier scientific-review prerequisite below,
 not the runtime/access, accounting, freeze or prospective OSF requirements.
 See [the exact decision record](scientific-acceptance-2026-10-30.json).
+**Current runtime/access policy, 30 October:** corrected `1120002` evidence is
+owner-accepted. The owner explicitly confirmed no independent reviewers for
+this first study beyond the separate executor, whose role is operational
+separation, not an independent technical audit. The earlier independent-access
+review prerequisite is prospectively superseded, not reported completed.
+Actual information boundaries, permissions, isolation, usage/accounting, final
+freeze and prospective OSF requirements are unchanged. See
+[the runtime decision record](runtime-acceptance-2026-10-30.json).
 Scoped AI technical reviews were subsequently received: the requested Sonnet
 5.5 readiness review supported limited static conclusions, and a focused
 construct review requested the four now-approved corrections. Neither supplies
@@ -87,12 +95,12 @@ hash manifests are not independent acceptance. The absence of independent
 scientific review and the policy change must be recorded prospectively in OSF.
 Future scientific changes require assessment of affected acceptance evidence.
 
-## Operator and owner evidence still needed
+## Owner-accepted runtime/access evidence; final freeze still needed
 
-| Pending entry | Smallest useful next evidence |
+| Accepted entry | Evidence and remaining boundary |
 |---|---|
-| `local_runtime_evidence` | Exact executable/runtime configuration, actual model entitlement/effort/routing/usage semantics and final frozen environment, accepted by owner; offline help/version checks are partial only. |
-| `access_probe_including_cr1_text` | Controlled independently reviewed filesystem/network/hidden/reference/prompt/CR1-text boundaries. Do not claim isolation for a temporary evaluator directory or expose held-out material to a study agent. |
+| `local_runtime_evidence` | Owner-accepted corrected `1120002`: 25 containment canaries, 123 affected tests, bounded historical three-model backend evidence. Final freeze must bind the actual final source/image/receipt; future entitlement is not guaranteed. |
+| `access_probe_including_cr1_text` | Owner-accepted controlled evidence: 53 prompt/seed snapshots, 11 real Docker boundary probes, CR1 release timing and protected evaluator tests. No independent access/security review is claimed. Never expose held-out material to a study agent. |
 
 The owner's disclosed-only inventory and exact repository chronology are
 recorded in [prior-data-disclosure.md](prior-data-disclosure.md). This resolves
@@ -118,7 +126,8 @@ registered nominal 300 and 300,000; they do not guarantee actual consumption.
 The reported company 1,000,000/collaborator hard limit is not independently
 verified or a study-specific stop. A separate study provider hard cap is no
 longer required. See [collaborator billing instructions](../CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk).
-The isolated live backend is now a source candidate, not runtime acceptance.
+The isolated live backend's corrected evidence is owner-accepted, not frozen or
+authorized for collection.
 Three excluded empty-workspace checks have unknown actual usage: the original
 setup failure and two later checks stopped by unexpected built-in MCP startup.
 On 29 October the owner separately approved each full 300-credit reservation
@@ -134,8 +143,9 @@ never forwarded to a provider. Only the isolated tool was offered; active MCP
 remains denied. That offline check alone establishes neither a successful paid
 roundtrip nor a new-source freeze. Subsequent GPT/Sonnet/Gemini checks did
 succeed at `eff4d09`, with complete usage and one isolated tool call each.
-They establish only those empty-workspace paths on that source; no paid
-verification on later corrected source or collection acceptance is inferred.
+They establish only those empty-workspace paths on that source. The owner
+explicitly accepted bounded supporting use with unchanged runtime dependencies;
+no paid verification on later corrected source or collection permission is inferred.
 See [prior-data disclosure](prior-data-disclosure.md) for immutable provenance.
 Financial acceptance waives no runtime/access or agent permission safeguards.
 Excluding HIR/IDR, passing offline checks

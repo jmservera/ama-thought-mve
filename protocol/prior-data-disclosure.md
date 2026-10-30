@@ -177,6 +177,20 @@ prospectively in the existing OSF registration before affected collection.
 
 ## Scope of this record
 
+On 30 October further excluded offline diagnostics checked current-source
+containment and access, with no model calls or study observations. The access
+exercise exposed a copied generated-cache seed mismatch; the minimal `1120002`
+setup correction has a regression that fails before the fix. Its 123 affected
+tests and 25 renewed containment canaries passed. A deterministic simulated-agent
+schedule checked 53 A/B/C prompt/seed snapshots and 11 real Docker boundary
+probes, including CR1 release timing. An intermediate private assertion was
+corrected to permit the pinned image's intentionally empty evaluator directories;
+failed diagnostics were preserved. These are engineering checks, not trajectories.
+The owner explicitly accepted the corrected evidence; no independent audit
+occurred. See [the decision record](runtime-acceptance-2026-10-30.json) for exact
+source/hashes and owner-review policy. Paid receipt provenance and spending
+above are unchanged. Record the updated inventory prospectively before collection.
+
 This resolves `required_evidence.prior_data_disclosure` as an explicit inventory,
 recorded repository chronology and uncertainty disclosure. It does not resolve
 independent scientific acceptance, actual runtime/access evidence, final owner

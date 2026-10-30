@@ -5,10 +5,12 @@ description: "Runbook for the feature-consolidation MVE with D1-D12 settled on 2
 
 The active scientific authority is [protocol/pilot-estimation.md](protocol/pilot-estimation.md).
 Prepare [the OSF draft](protocol/osf-preregistration.md), resolve the decision
-ledger and approve the exact submission candidate. Independent acceptance is
-a project prerequisite before collection, not before ordinary OSF registration.
-Use [the OSF checklist](protocol/osf-submission-checklist.md) and disclose
-independent reviews and runtime/access checks as pending.
+ledger and approve the exact submission candidate. On 30 October the owner
+accepted scientific and corrected runtime/access evidence under disclosed
+owner review, with no independent reviewers for this first study beyond the
+separate executor. That executor provides operational separation, not independent
+validation. Use [the OSF checklist](protocol/osf-submission-checklist.md) and
+[runtime decision record](protocol/runtime-acceptance-2026-10-30.json).
 Owner submission approval is now recorded for 235489c content plus selected
 metadata/approval updates: CC BY-NC-ND 4.0 for submission documents and embargo
 through 2026-12-31. Enter settled contributor/affiliation details directly in
@@ -19,7 +21,7 @@ The later corrected candidate needs
 source-bound approval. No independent acceptance or collection permission
 is implied; all execution gates below remain in force.
 See [CONTRIBUTOR.md](CONTRIBUTOR.md) for the complete separate source bundle,
-accepted soft-limit policy, optional budget audit and unverified live-runtime requirements.
+accepted soft-limit policy, optional budget audit and retained final freeze requirements.
 The owner-amended first pass is an estimation pilot, not confirmatory testing:
 GPT 6.1 Sol, Sonnet 5.5 and Gemini 4 Argon, each with two trajectories per A/B/C
 arm (18 pilot, plus nine excluded calibration). There are 318 pilot and 150

@@ -19,12 +19,17 @@ and embargo through 2026-12-31. The original registration is now
 [owner-confirmed approved](https://osf.io/ywsrv/overview).
 Subsequent approved corrections await
 [prospective OSF recording](protocol/prospective-corrections-2026-10-28.md);
-runtime acceptance, final source-bound freeze and execution readiness remain open.
+final source-bound freeze and execution readiness remain open.
 On 30 October the owner individually accepted the six scientific scopes for
 `90e393e` and selected an explicitly **owner-reviewed exploratory pilot**, without
 independent scientific acceptance. This limitation and policy change must be
 recorded prospectively in OSF; no independent review is claimed. See
 [the decision record](protocol/scientific-acceptance-2026-10-30.json).
+The owner also accepted corrected `1120002` runtime/access evidence under
+explicit owner review, without independent reviewers for this first study.
+The separate executor provides operational separation, not independent review.
+See [the runtime decision record](protocol/runtime-acceptance-2026-10-30.json).
+All permission, isolation, accounting and final freeze safeguards remain.
 
 [CONTRIBUTOR.md](CONTRIBUTOR.md) documents the separate complete source/setup
 bundle, offline checks, read-only user-budget audit and actual launch blockers.
@@ -33,8 +38,8 @@ The controller schedules the model-aware allocation, preserves model/replicate
 identity on resume and exports separate primary estimates per model, never a
 pooled primary result. Infrastructure retries share the original step allowances;
 measurement retries do not replay agent work. Owner scientific alignment
-acceptance is recorded; actual runtime/access acceptance and the final
-freeze/OSF steps remain separate requirements before collection.
+and runtime/access acceptance are recorded for their named sources; the final
+source-bound freeze/OSF steps and launch authorization remain before collection.
 
 ## One-command quick start
 

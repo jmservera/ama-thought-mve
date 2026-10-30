@@ -81,6 +81,14 @@ unverified; it is not a conversion or separate precise monetary ceiling.
 After calibration, require a cost-only affordability check of the full unchanged
 design; halt and amend if unaffordable rather than silently shrink the sample.
 No paid backend is enabled by this protocol or by a completed registration.
+On 30 October the owner accepted corrected `1120002` runtime/access evidence,
+including bounded historical paid support, 25 renewed containment canaries,
+123 affected tests and controlled CR1/access diagnostics. The owner explicitly
+selected no independent reviewers for this first study; separate execution is
+operational separation only. No independent audit is claimed. See
+[the source-bound decision record](runtime-acceptance-2026-10-30.json).
+Review sign-off policy changes require prospective OSF recording; actual
+permission/isolation/accounting safeguards and final source-bound freeze remain.
 
 The controller implements the model matrix, immutable assigned-model/replicate
 identity, 270,000-credit local admission stop and bounded infrastructure retries;

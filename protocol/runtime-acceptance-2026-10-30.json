@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "decision_date": "2026-10-30",
+  "review_capacity": "study-owner",
+  "reviewed_source_commit": "1120002c4d17b17bf81754689fafce659602725d",
+  "reviewed_inputs_sha256": "a7299863185d26fefdd404edc46265396b876a750219e8fa77307b142481719c",
+  "method": "Individually explained interactive owner decisions: bounded historical paid evidence, local runtime evidence, minimal cache-exclusion fix, then corrected-source runtime/access evidence. Operator-generated offline evidence supports owner review; no independent audit is claimed.",
+  "owner_final_response": "I accept as owner, as I said, for this first study we are not going to use independent reviewers other than the independent experiment executor.",
+  "review_policy": {
+    "mode": "owner-reviewed-runtime-access",
+    "independent_review_required_before_collection": false,
+    "independent_review_completed": false,
+    "separate_executor": "Planned operational separation, not independent scientific validation or access/security auditing.",
+    "prospective_osf_recording_required": true,
+    "original_registration_modified": false
+  },
+  "decisions": {
+    "historical_backend_support": {
+      "accepted_by_owner": true,
+      "actual_paid_source_commit": "eff4d092618da5e6ba294b9dba429f98cbc3ccc0",
+      "models": ["gpt-6.1-sol", "claude-sonnet-5.5", "gemini-4-argon"],
+      "reasoning_effort": "medium",
+      "known_credits": "3.05509",
+      "raw_artifact_hashes_verified": 18,
+      "ledger_sha256": "ed91207df2c50319c3af891709112636d47910a372285e4cfbf890ce312a110a",
+      "scope": "One excluded empty-workspace exact-command isolated tool call per model, with observed routing/usage/permission/cleanup. Eight selected SDK/transport/isolation dependencies remain byte-identical. Not paid execution of the later source, a full trajectory or a billing hard-stop guarantee."
+    },
+    "local_runtime_evidence": {
+      "accepted_by_owner": true,
+      "initial_source_commit": "3d2ae4e903074675eda47f0690b294ec98e785a8",
+      "corrected_source_commit": "1120002c4d17b17bf81754689fafce659602725d",
+      "scope": "Pinned host SDK/CLI and isolated container configuration; historical backend support plus corrected-source offline containment/runtime tests. Future entitlement can change. Final source/image/receipt still require owner-authorized freeze."
+    },
+    "access_probe_including_cr1_text": {
+      "accepted_by_owner": true,
+      "scope": "Controlled offline prompt/seed schedule across A/B/C, including CR1 release timing, hidden/reference exclusion, selected real Docker filesystem/Git-history/network/credential probes, and protected evaluator checks. No independent review is claimed."
+    }
+  },
+  "startup_correction": {
+    "source_commit": "1120002c4d17b17bf81754689fafce659602725d",
+    "change": "Exclude generated __pycache__, *.pyc and *.pyo during skeleton copy so ignored caches do not contradict the trusted Git bundle. Strict seed matching is unchanged.",
+    "regression_failed_before_fix": true,
+    "failed_diagnostics_preserved": true
+  },
+  "supporting_validation": {
+    "containment_canaries_passed": 25,
+    "runtime_receipt_sha256": "5dc90cc1a99f86b2bae48cbb51e230abd5112d058c1013d7b56f2a64954c4909",
+    "image": "sha256:1b7a1f1cfeae0f3bc7fed2e5d3b8a3f30930f21adc5a7f2c38a2559af83ab871",
+    "affected_python_cases_passed": 123,
+    "production_docker_evaluator_cases_included": 3,
+    "scheduled_snapshots_checked": 53,
+    "actual_docker_access_probes": 11,
+    "access_evidence_sha256": "36bae4061450fef895ed496595b7e5a274a86a5a9cbd508e08984cb4c3d3241d",
+    "new_model_calls": 0,
+    "study_observations": 0,
+    "scope": "Actual1120002 offline evidence, not relabelled as execution of a later recording source. Final administrative recording requires renewed source-bound containment evidence."
+  },
+  "reviewed_runtime_sources_sha256": {
+    "harness/runner.py": "d62f6e2d5b24ec9fba5e0fd0d20af159bbf2b91b4de030e62e1641c2467e510e",
+    "harness/copilot-sdk/package.json": "46a85a7d76a6414399720a1837c0b30d028b2b03b84b5a44d966c440adb1faf2",
+    "harness/copilot-sdk/package-lock.json": "b39091ca67d9dfd1d520983742442c18ba518e5057388879c61d41ed3148b4c7",
+    "harness/copilot-sdk/transport.mjs": "cf5010cb88938a4e26de9088aaae938bb6528b86c3a469701cd0aa3e6e44685b",
+    "harness/copilot-sdk/runtime-guard.mjs": "60fcdcd01f002266ad1c3acd74ac7be8aa43c3e441ce888ad33b31fc937f6874",
+    "harness/isolated_runtime.py": "3aa767eee8542e8e8ab15156c4ea760b95bd811da3273676e11f4c97e231bd3a",
+    "harness/isolation.py": "88a0f27ea85860a096790bde049fb58aec2816dee95c4fa7c95fd5f0cc57f808",
+    "harness/isolation_helper.py": "3e0ec7fc0a098ac4795c8eb0ef1eccc1a110376c05fb213965ba2474ab6aea9a",
+    "harness/Dockerfile.isolated": "13f1bb65f47c84c7cb2b7f94d016aa05b2add9c7e3269bbb4a2ea5401476e8fd"
+  },
+  "limitations": [
+    "Owner-reviewed exploratory study, without independent scientific or access/security review.",
+    "Finite controlled checks are not an exhaustive security proof or a hostile-code-proof Python oracle.",
+    "Schedule simulation uses a deterministic simulated agent, not a model or scientific outcomes; real evaluator tests are separate.",
+    "Soft limits and buffers do not guarantee actual billed consumption; historical unknown holds remain separate from known usage.",
+    "Relevant runtime/source/image changes require reassessment; no blanket approval of later behavioral changes."
+  ],
+  "acceptance_boundary": "Named corrected runtime/access implementation and transparent prospective review-policy/evidence recording. Final source-bound freeze, prospective existing-registration OSF update and actual collection authorization remain separate.",
+  "agent_permission_or_isolation_safeguards_changed": false,
+  "new_paid_calls_authorized": false,
+  "freeze_authorized": false,
+  "collection_authorized": false,
+  "osf_action_performed": false
+}
