@@ -1,0 +1,13 @@
+{
+  "vendor_commit": "b3ed5f8f4ce6b2ef13adeaf7494557add6546bda",
+  "vendor_archive_sha256": "89bd6da0404f427b5a9809efa979dcdbdf0a2de0d7962c8189616e01ecce518c",
+  "vendor_recipe_sha256": "af43f6de15a7de1402a4ae17ea5fc8cde5383897f1c01dfd890ad24af3b3138e",
+  "upstream_version": "2.54.0",
+  "vendor_revision": 0,
+  "local_revision": 100,
+  "changes": ["NO_EXPAT=YesPlease in persistent config.mak", "remove unused expat-dev build dependency", "post-check executable and package proof"],
+  "feature_loss": "Dumb HTTP/WebDAV push; git-http-push is not built",
+  "test_assertions_modified": false,
+  "additional_explicit_skip_flags": false,
+  "scanner_caveat": "The local revision is not an upstream fix. Assess underlying Git2.54.0 and stock-r0 using the same advisory snapshot."
+}

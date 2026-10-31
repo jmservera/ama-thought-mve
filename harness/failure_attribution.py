@@ -263,6 +263,22 @@ def pytest_plugin(src, policy, output):
         def __init__(self):
             self.records = {}
             self.views = {}
+            self.events = []
+
+        def pytest_collectreport(self, report):
+            if not report.passed:
+                key = os.path.splitext(os.path.basename(report.nodeid))[0] + "::<import>"
+                self.events.append({
+                    "id": key, "phase": "collect", "outcome": report.outcome,
+                    "diagnostic": str(report.longrepr) if report.longrepr is not None else "",
+                })
+
+        def pytest_runtest_logreport(self, report):
+            self.events.append({
+                "id": os.path.basename(report.nodeid).replace(".py::", "::", 1),
+                "phase": report.when, "outcome": report.outcome,
+                "diagnostic": str(report.longrepr) if report.longrepr is not None else "",
+            })
 
         def pytest_sessionstart(self, session):
             self.tracker = view_contracts(src, policy, self.views)
@@ -285,6 +301,7 @@ def pytest_plugin(src, policy, output):
         def pytest_sessionfinish(self, session, exitstatus):
             self.tracker.__exit__(None, None, None)
             with open(output, "w", encoding="utf-8") as report:
-                json.dump({"provenance": self.records}, report)
+                json.dump({"schema": "mve-pytest-report/v1", "events": self.events,
+                           "provenance": self.records}, report)
 
     return Provenance()

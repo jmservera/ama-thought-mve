@@ -12,10 +12,10 @@ import importlib.util
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
-import xml.etree.ElementTree as ET
 
 from evaluation_env import evaluation_environment
 from failure_attribution import api_policy
@@ -134,6 +134,74 @@ def load_stdlib_results(path, expected):
     return attributed_results(raw, expected, payload.get("provenance", {}))
 
 
+def load_pytest_report(path, expected):
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"Duplicate report field: {key}")
+            result[key] = value
+        return result
+
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+        with os.fdopen(fd, encoding="utf-8") as report:
+            if not stat.S_ISREG(os.fstat(report.fileno()).st_mode):
+                raise ValueError("Nonregular report")
+            payload = json.load(report, object_pairs_hook=unique_object)
+    except (OSError, ValueError) as error:
+        raise RuntimeError("Hidden pytest did not produce a readable JSON report") from error
+    if (not isinstance(payload, dict) or set(payload) != {"schema", "events", "provenance"}
+            or payload["schema"] != "mve-pytest-report/v1"
+            or not isinstance(payload["events"], list) or not payload["events"]
+            or not isinstance(payload["provenance"], dict)):
+        raise RuntimeError("Hidden pytest produced a malformed JSON report")
+    modules = {identity.split("::", 1)[0] + "::<import>" for identity in expected}
+    traces, out, provenance = {}, {}, {}
+    for event in payload["events"]:
+        if (not isinstance(event, dict) or set(event) != {"id", "phase", "outcome", "diagnostic"}
+                or not all(isinstance(value, str) for value in event.values())
+                or event["phase"] not in ("collect", "setup", "call", "teardown")
+                or event["outcome"] not in ("passed", "failed", "skipped")):
+            raise RuntimeError("Hidden pytest produced a malformed event report")
+        key, phase = event["id"], event["phase"]
+        if key not in (modules if phase == "collect" else expected):
+            raise RuntimeError(f"Hidden pytest reported an unexpected test identity: {key}")
+        trace = traces.setdefault(key, [])
+        if phase in [prior["phase"] for prior in trace]:
+            raise RuntimeError(f"Hidden pytest reported a duplicate test identity/phase: {key}")
+        trace.append(event)
+    for key, trace in traces.items():
+        phases = [event["phase"] for event in trace]
+        if phases == ["collect"]:
+            if trace[0]["outcome"] != "failed":
+                raise RuntimeError(f"Hidden pytest reported an unsupported collection result: {key}")
+            if any(identity.split("::", 1)[0] == key.split("::", 1)[0]
+                   for identity in traces if identity != key):
+                raise RuntimeError("Hidden pytest produced contradictory collection events")
+            raw = "error"
+        else:
+            if (phases not in (["setup", "call", "teardown"], ["setup", "teardown"])
+                    or (trace[0]["outcome"] == "passed") != ("call" in phases)):
+                raise RuntimeError(f"Hidden pytest produced an unsupported phase trace: {key}")
+            failures = [event for event in trace if event["outcome"] == "failed"]
+            if any(event["phase"] == "call" for event in failures) and trace[-1]["outcome"] == "failed":
+                raise RuntimeError(f"Hidden pytest reported a duplicate test identity: {key}")
+            raw = "error" if any(event["phase"] != "call" for event in failures) else \
+                "failed" if failures else \
+                "skipped" if any(event["outcome"] == "skipped" for event in trace) else "passed"
+        out[key] = raw
+        if raw in ("failed", "error"):
+            problem = next(event for event in trace if event["outcome"] == "failed")
+            provenance[key] = {
+                "raw_outcome": raw, "outcome": "error", "attribution": "unknown",
+                "diagnostic": problem["diagnostic"],
+            }
+    validated_results(out, expected)
+    provenance.update(payload["provenance"])
+    return out, provenance
+
+
 def run_hidden(repo, suite_dir, ids, runner, timeout=600, scratch_dir=None):
     if not ids or runner not in ("pytest", "stdlib"):
         raise ValueError("Hidden evaluation requires suite items and a supported test runner")
@@ -160,8 +228,7 @@ def run_hidden(repo, suite_dir, ids, runner, timeout=600, scratch_dir=None):
         with open(policy_path, "w", encoding="utf-8") as policy_file:
             json.dump(api_policy(suite_dir, ids), policy_file)
         if runner == "pytest":
-            xml = os.path.join(tmp, "junit.xml")
-            provenance_path = os.path.join(tmp, "provenance.json")
+            report_path = os.path.join(tmp, "pytest-report.json")
             bootstrap = (
                 "import importlib.util, json, sys, pytest; "
                 "helper, src, policy, output = sys.argv[1:5]; "
@@ -171,9 +238,9 @@ def run_hidden(repo, suite_dir, ids, runner, timeout=600, scratch_dir=None):
                 "sys.path.insert(0, src); raise SystemExit(pytest.main(sys.argv[5:], plugins=[plugin]))"
             )
             cmd = [sys.executable, "-I", "-B", "-c", bootstrap,
-                   os.path.join(HERE, "failure_attribution.py"), src, policy_path, provenance_path,
-                   "-q", "-p", "no:cacheprovider",
-                   "--continue-on-collection-errors", f"--junit-xml={xml}", tmp]
+                   os.path.join(HERE, "failure_attribution.py"), src, policy_path, report_path,
+                   "-q", "-p", "no:cacheprovider", "-p", "no:junitxml",
+                   "--continue-on-collection-errors", tmp]
             if importlib.util.find_spec("pytest_timeout"):
                 cmd[-1:-1] = ["-p", "pytest_timeout", "--timeout=10"]
         else:
@@ -187,52 +254,12 @@ def run_hidden(repo, suite_dir, ids, runner, timeout=600, scratch_dir=None):
         if process.returncode not in (0, 1):
             raise RuntimeError(f"Hidden {runner} exited with code {process.returncode}")
         if runner == "pytest":
-            try:
-                root = ET.parse(xml).getroot()
-            except (OSError, ET.ParseError) as error:
-                raise RuntimeError("Hidden pytest did not produce a readable JUnit report") from error
-            if root.tag not in ("testsuite", "testsuites"):
-                raise RuntimeError("Hidden pytest produced a malformed JUnit report")
-            out = {}
-            for case in root.iter("testcase"):
-                classname = case.get("classname", "")
-                name = case.get("name", "")
-                key = f"{classname.replace('.', '::')}::{name}"
-                outcome = "error" if case.find("error") is not None else \
-                    "failed" if case.find("failure") is not None else \
-                    "skipped" if case.find("skipped") is not None else "passed"
-                if not classname and outcome == "error":
-                    key = f"{name.removesuffix('.py')}::<import>"
-                if key in out:
-                    raise RuntimeError(f"Hidden pytest reported a duplicate test identity: {key}")
-                out[key] = outcome
+            out, provenance = load_pytest_report(report_path, expected)
             result = validated_results(out, expected)
             # Validate the raw report/exit agreement before any scientific reclassification.
             raw_not_passed = any(value in ("failed", "error", "timeout") for value in result.values())
             if (process.returncode == 0 and raw_not_passed) or (process.returncode == 1 and not raw_not_passed):
                 raise RuntimeError(f"Hidden {runner} exit status disagrees with its test report")
-            provenance = {}
-            for case in root.iter("testcase"):
-                problem = case.find("error")
-                if problem is None:
-                    problem = case.find("failure")
-                if problem is not None:
-                    classname, name = case.get("classname", ""), case.get("name", "")
-                    key = f"{classname.replace('.', '::')}::{name}" if classname else \
-                        f"{name.removesuffix('.py')}::<import>"
-                    provenance[key] = {
-                        "raw_outcome": out[key], "outcome": "error", "attribution": "unknown",
-                        "diagnostic": problem.text or problem.get("message", ""),
-                    }
-            if os.path.isfile(provenance_path):
-                try:
-                    with open(provenance_path, encoding="utf-8") as report:
-                        captured = json.load(report)["provenance"]
-                    if not isinstance(captured, dict):
-                        raise TypeError("Malformed provenance records")
-                    provenance.update(captured)
-                except (OSError, ValueError, KeyError, TypeError) as error:
-                    raise RuntimeError("Hidden pytest produced malformed provenance") from error
             result = attributed_results(out, expected, provenance)
         else:
             result = load_stdlib_results(js, expected)

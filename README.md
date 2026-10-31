@@ -32,18 +32,20 @@ See [the runtime decision record](protocol/runtime-acceptance-2026-10-30.json).
 All permission, isolation, accounting and final freeze safeguards remain.
 The [security refresh](protocol/security-remediation-2026-10-30.json) and
 [Debian component hardening](protocol/security-hardening-2026-10-30.json)
-remain historical evidence. The owner subsequently
-[adopted the qualified Alpine implementation](protocol/security-alpine-adoption.json):
-patched shared Expat, rebuilt Python XML extensions and archive-free BusyBox.
-Its 25 containment canaries, 40 runtime tests and 33 protected references pass;
-all scientific metric dictionaries and outcome vectors exactly match Debian.
-The recipe remains self-contained, but custom leaf builds, musl/ash and absent
-archive commands are deliberate maintenance/compatibility tradeoffs.
-**CVE-2025-66382 remains unfixed under conditional owner policy**, including
-the risk of halting remaining observations. Zero scanner matches are not an
-all-clear. Final exact-source/runtime acceptance, publication, a replacement
-freeze and prospective OSF recording remain separate; historical acceptance
-and `protocol-frozen-v2` do not authorize the new environment or collection.
+remain historical evidence, as does
+[the earlier Alpine adoption](protocol/security-alpine-adoption.json).
+On 31 October the owner authorized
+[the qualified Expat-free runtime](protocol/security-expat-removal-2026-10-31.json),
+verified publication, final acceptance and a replacement freeze.
+Pytest and attribution rules remain; internal reporting now uses strict JSON.
+Signed no-Expat Git replaces the Expat/Python-XML build families; archive-free
+BusyBox remains. The private candidate passed 25 canaries, 794 harness tests,
+16 SDK tests and 33 exact scientific comparisons to both baselines, with no skips.
+Final production-source validation and receipt binding are required before freeze.
+Container XML parsing and Git WebDAV push are deliberately unavailable.
+The historical Expat exception is not needed for the parser-free image; this is
+component removal, not an upstream fix or an all-clear. General candidate
+resource exhaustion/missingness remains possible under unchanged safeguards.
 
 [CONTRIBUTOR.md](CONTRIBUTOR.md) documents the separate complete source/setup
 bundle, offline checks, read-only user-budget audit and actual launch blockers.
@@ -53,7 +55,7 @@ identity on resume and exports separate primary estimates per model, never a
 pooled primary result. Infrastructure retries share the original step allowances;
 measurement retries do not replay agent work. Owner scientific alignment
 and runtime/access acceptance are recorded for their named sources; the final
-source freeze was authorized on 30 October after merging #4; its exact inputs
+replacement source freeze was authorized on 31 October; its exact inputs
 are recorded in [the freeze manifest](protocol/freeze.json).
 The prospective OSF amendment date remains unset, so the launcher still blocks
 collection. OSF recording is last; no new model calls are authorized.

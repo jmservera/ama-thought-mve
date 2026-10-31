@@ -453,3 +453,49 @@ def test_real_isolated_evaluation_matches_frozen_reference_without_snapshot_writ
     assert set(result["hidden"]) == expected
     assert result["metrics"]["mean_ccn"] > 0
     assert runtime.head(repo) == before and not runtime.git(repo, "status", "--porcelain").stdout
+
+
+@pytest.mark.skipif(not os.environ.get("MVE_TEST_ISOLATED_IMAGE"), reason="explicit offline Docker image required")
+@pytest.mark.parametrize("probe", ["modules", "libraries", "git"])
+def test_real_parser_free_runtime_preserves_required_functionality(runtime, tmp_path, probe):
+    from isolation import SandboxBroker
+
+    image = os.environ["MVE_TEST_ISOLATED_IMAGE"]
+    assert runtime.runtime_receipt()["image"] == image
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    programs = {
+        "modules": (
+            "import importlib, xml.etree.ElementTree as ET\n"
+            "for name in ('pyexpat', '_elementtree'):\n"
+            "    try: importlib.import_module(name)\n"
+            "    except ModuleNotFoundError: pass\n"
+            "    else: raise AssertionError(name)\n"
+            "try: ET.fromstring('<root/>')\n"
+            "except ImportError: pass\n"
+            "else: raise AssertionError('Expat-backed XML parsing remains')\n"
+        ),
+        "libraries": (
+            "import ctypes\n"
+            "for name in ('libexpat.so', 'libexpat.so.1', '/usr/lib/libexpat.so.1.13.0'):\n"
+            "    try: ctypes.CDLL(name)\n"
+            "    except OSError: pass\n"
+            "    else: raise AssertionError(name)\n"
+        ),
+        "git": (
+            "import subprocess\nfrom pathlib import Path\n"
+            "assert subprocess.check_output(['git','--version'],text=True).strip() == 'git version 2.54.0'\n"
+            "assert not Path('/usr/libexec/git-core/git-http-push').exists()\n"
+            "assert subprocess.check_output(['git','--exec-path'],text=True).strip() == '/usr/libexec/git-core'\n"
+        ),
+    }
+    broker = SandboxBroker(image, tmp_path / "broker")
+    try:
+        result = broker.evaluate(
+            ["/usr/local/bin/python3", "-I", "-c", programs[probe] + "print('verified')"],
+            mounts={"/work": repo}, timeoutSeconds=30,
+        )
+        assert result["exit_code"] == 0, result
+        assert result["stdout"].strip() == "verified"
+    finally:
+        broker.close()

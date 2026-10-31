@@ -1,34 +1,25 @@
-FROM python:3.12.16-alpine3.24@sha256:e6dae589c1c05976188fd3bd019afd091445fc533ed2ea29001beddc7368a9c8 AS expat
+FROM python:3.12.16-alpine3.24@sha256:e6dae589c1c05976188fd3bd019afd091445fc533ed2ea29001beddc7368a9c8 AS git_no_expat
 RUN apk upgrade --no-cache \
  && apk add --no-cache alpine-sdk bash patch \
  && apk update \
  && adduser -D builder \
  && addgroup builder abuild \
- && mkdir -p /build/hardening /packages /var/cache/distfiles \
- && chown -R builder:builder /build /packages /var/cache/distfiles
-COPY --chown=builder:builder security/alpine/expat /build/hardening/expat
+ && mkdir -p /build/hardening /packages /var/cache/distfiles /evidence \
+ && chown -R builder:builder /build /packages /var/cache/distfiles /evidence
+COPY --chown=builder:builder security/alpine/git-aports.tar.gz /build/
+COPY --chown=builder:builder security/alpine/prepare-git.py security/alpine/verify-git.py /build/tools/
 ENV REPODEST=/packages JOBS=2 MAKEFLAGS=-j2
 USER builder
-WORKDIR /build/hardening/expat
+WORKDIR /build
+RUN echo '89bd6da0404f427b5a9809efa979dcdbdf0a2de0d7962c8189616e01ecce518c  git-aports.tar.gz' | sha256sum -c - \
+ && tar -xzf git-aports.tar.gz --strip-components=2 -C /build/hardening aports-b3ed5f8f4ce6b2ef13adeaf7494557add6546bda/main/git \
+ && python3 /build/tools/prepare-git.py /build/hardening/git
+WORKDIR /build/hardening/git
 RUN abuild-keygen -an && abuild fetch
 USER root
 RUN install -m 644 /home/builder/.abuild/*.rsa.pub /etc/apk/keys/
 USER builder
-RUN --network=none abuild -r
-
-FROM expat AS python_xml
-USER root
-RUN apk add --no-cache xz \
- && apk update \
- && apk add --no-network \
-	/packages/hardening/x86_64/expat-2.9.0-r100.apk \
-	/packages/hardening/x86_64/libexpat-2.9.0-r100.apk \
-	/packages/hardening/x86_64/expat-dev-2.9.0-r100.apk
-COPY --chown=builder:builder security/alpine/python-xml /build/hardening/mve-python-xml
-USER builder
-WORKDIR /build/hardening/mve-python-xml
-RUN abuild fetch
-RUN --network=none abuild -r
+RUN abuild -r
 
 FROM python:3.12.16-alpine3.24@sha256:e6dae589c1c05976188fd3bd019afd091445fc533ed2ea29001beddc7368a9c8 AS busybox
 RUN apk upgrade --no-cache \
@@ -60,7 +51,7 @@ RUN npm install --global jscpd@5.4.1 && npm cache clean --force
 
 FROM python:3.12.16-alpine3.24@sha256:e6dae589c1c05976188fd3bd019afd091445fc533ed2ea29001beddc7368a9c8
 RUN apk upgrade --no-cache \
- && apk add --no-cache git make libstdc++
+ && apk add --no-cache make libstdc++ libcurl pcre2
 RUN python - <<'PY'
 from pathlib import Path
 import shutil
@@ -76,15 +67,14 @@ PY
 RUN pip install --no-cache-dir --upgrade pip==26.2.2 \
  && pip install --no-cache-dir ruff==0.17.3 lizard==1.24.3 pytest==9.1.1 pytest-timeout==2.4.0 \
  && python -m pip uninstall -y pip
-COPY --from=expat /home/builder/.abuild/*.rsa.pub /etc/apk/keys/
+COPY --from=git_no_expat /home/builder/.abuild/*.rsa.pub /etc/apk/keys/
 COPY --from=busybox /home/builder/.abuild/*.rsa.pub /etc/apk/keys/
 RUN --network=none \
- --mount=type=bind,from=expat,source=/packages/hardening/x86_64,target=/mve-expat \
- --mount=type=bind,from=python_xml,source=/packages/hardening/x86_64,target=/mve-python-xml \
+ --mount=type=bind,from=git_no_expat,source=/packages/hardening/x86_64,target=/mve-git \
  --mount=type=bind,from=busybox,source=/packages/hardening/x86_64,target=/mve-busybox \
  apk add --no-network \
- /mve-expat/libexpat-2.9.0-r100.apk \
- /mve-python-xml/mve-python-xml-3.12.16-r1.apk \
+ /mve-git/git-2.54.0-r100.apk \
+ /mve-git/git-init-template-2.54.0-r100.apk \
  /mve-busybox/busybox-1.37.0-r100.apk \
  /mve-busybox/busybox-binsh-1.37.0-r100.apk \
  /mve-busybox/ssl_client-1.37.0-r100.apk
@@ -95,10 +85,8 @@ import sysconfig
 suffix = sysconfig.get_config_var("EXT_SUFFIX")
 for name in ("pyexpat", "_elementtree"):
     original = Path(sysconfig.get_config_var("DESTSHARED")) / f"{name}{suffix}"
-    replacement = Path("/usr/lib/mve-python-xml") / original.name
-    assert replacement.is_file() and original.is_file() and not original.is_symlink()
+    assert original.is_file() and not original.is_symlink()
     original.unlink()
-    original.symlink_to(replacement)
 for directory in ("/bin", "/usr/bin", "/usr/local/bin"):
     for name in ("tar", "cpio", "unzip"):
         path = Path(directory) / name
@@ -109,7 +97,8 @@ PY
 COPY --from=metrics /usr/local/bin/node /usr/local/bin/node
 COPY --from=metrics /usr/local/lib/node_modules/jscpd /usr/local/lib/node_modules/jscpd
 COPY --from=busybox /evidence/busybox/removal-proof.json /usr/share/mve-security/busybox-removal-proof.json
-COPY security/alpine/expat/backport-provenance.json /usr/share/mve-security/expat-backports.json
+COPY --from=git_no_expat /evidence/git/no-expat-proof.json /usr/share/mve-security/git-no-expat-proof.json
+COPY security/alpine/git-provenance.json /usr/share/mve-security/git-provenance.json
 COPY security/alpine/verify-runtime.py /usr/share/mve-security/verify-runtime.py
 RUN --network=none python /usr/share/mve-security/verify-runtime.py > /usr/share/mve-security/runtime-proof.json
 RUN ln -s /usr/local/lib/node_modules/jscpd/run-jscpd.js /usr/local/bin/jscpd \

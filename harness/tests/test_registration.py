@@ -233,7 +233,10 @@ def test_submission_still_requires_real_disclosures_and_scope(registration, conf
     assert f"required_evidence.{key}" in report["collection_unresolved"]
 
 
-def test_package_is_allowlisted_hashed_private_and_refuses_overwrite(registration, draft_root):
+@pytest.mark.parametrize("security_record", [
+    "protocol/security-alpine-adoption.json", "protocol/security-expat-removal-2026-10-31.json",
+])
+def test_package_is_allowlisted_hashed_private_and_refuses_overwrite(registration, draft_root, security_record):
     (draft_root / ".env").write_text("synthetic private data")
     out = draft_root / ".study/draft"
     report = registration.prepare(out, draft_root)
@@ -242,7 +245,6 @@ def test_package_is_allowlisted_hashed_private_and_refuses_overwrite(registratio
     copied = {path.relative_to(out).as_posix() for path in out.rglob("*") if path.is_file()}
     assert copied == set(registration.SUBMISSION_FILES) | {"manifest.json", "readiness.json"}
     assert set(manifest["package_sha256"]) == set(registration.SUBMISSION_FILES)
-    security_record = "protocol/security-alpine-adoption.json"
     assert (out / security_record).read_bytes() == (draft_root / security_record).read_bytes()
     assert not report["execution_ready"]
     assert not out.stat().st_mode & 0o077

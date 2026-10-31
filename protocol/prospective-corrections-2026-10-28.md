@@ -8,7 +8,52 @@ collection. No calibration or registered pilot was run during this preparation.
 
 ## Original registration and chronology
 
+### 31 October Expat-free runtime and replacement freeze
+
+The owner authorized production adoption, verified publication, automatic
+final source/image acceptance after successful verification, and a replacement
+freeze. The owner will record this prospective update in OSF afterward.
+Original registration attachments and historical tags/acceptance records remain
+unchanged; no OSF completion date is inferred from this authorization.
+
+The new runtime preserves pytest9.1.1 and the scientific attribution policy,
+replacing internal JUnit XML with strict versioned native-event JSON.
+Fixed identities/denominators, both exit agreements, unknown fallback and
+existing fail-closed collection/double-failure cases are preserved.
+Supported signed Git2.54.0 with NO_EXPAT replaces custom Expat/Python-XML
+families, and both original base-image parser extensions/shared parser copies
+are absent from the supplied active runtime. Existing hardened BusyBox remains.
+Container Expat-backed XML parsing and Git dumb HTTP/WebDAV push are deliberately
+unavailable; the host-authenticated one-line launcher is unchanged.
+
+The exact private candidate passed25 authority canaries,794 harness tests,
+16 SDK tests and33 protected references, with no skips. Entire scientific metric
+dictionaries and outcome vectors exactly equal both retained baselines, without
+normalization/tolerance. Git vendor checks report31180 successes,0 unexpected
+failures,390 upstream known-broken and770 prerequisite skips; removed features
+are not claimed as exercised. Final production metadata requires renewed
+source-bound validation/receipt before the authorized freeze.
+
+Actual installed absence/code binding and a deliberate retained-parser negative
+control support component removal independently of the zero-match unsuppressed
+scan. A local Git revision is not an unrelated upstream security fix.
+The historical one-CVE exception is no longer needed for this supplied parser-free
+image, but is not rewritten as a repaired advisory or broadened waiver.
+Unknown Expat report identities/impacts remain unclassified. Arbitrary candidate
+denial of service and potentially informative study-wide missingness remain
+possible; all authority, deadlines, cleanup, accounting, retry and stop rules
+are unchanged. Host binaries and historical OCI bytes are not certified/erased.
+
+See [the new adoption/owner acceptance contract](security-expat-removal-2026-10-31.json)
+and [the exact replacement freeze](freeze.json). Record this environment and
+reporting change, owner-reviewed acceptance limitations and retained missingness
+policy prospectively before affected collection. No further paid calls,
+calibration or registered pilot has been authorized or run.
+
 ### Alpine runtime adoption and scoped Expat exception
+
+This subsection is historical; the31 October parser-removal section supersedes
+its active-runtime description without changing the original evidence/policy.
 
 The owner selected `adopt_qualified_alpine` after private offline qualification.
 The self-contained runtime recipe now uses digest-pinned official Python

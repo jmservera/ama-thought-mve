@@ -7,13 +7,21 @@ import os
 import shlex
 import subprocess
 import sys
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
 
-
 KIT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def write_pytest_report(command, outcomes, provenance=None):
+    events = [
+        {"id": identity, "phase": phase, "outcome": outcome if phase == "call" else "passed", "diagnostic": ""}
+        for identity, outcome in outcomes for phase in ("setup", "call", "teardown")
+    ]
+    Path(command[8]).write_text(json.dumps({
+        "schema": "mve-pytest-report/v1", "events": events, "provenance": provenance or {},
+    }), encoding="utf-8")
 
 
 @pytest.fixture
@@ -363,16 +371,16 @@ def test_given_spawn_failure_or_timeout_when_hidden_tests_run_then_measurement_f
         measure_module.run_hidden(str(repo), str(suite), ["f1"], runner)
 
 
-@pytest.mark.parametrize("report", [None, "not XML", "<unrelated />", "<testsuites />"])
-def test_given_missing_or_invalid_junit_when_hidden_tests_run_then_measurement_fails_explicitly(
+@pytest.mark.parametrize("report", [None, "not JSON", '{"schema":"unrelated"}',
+                                  '{"schema":"mve-pytest-report/v1","events":[],"provenance":{}}'])
+def test_given_missing_or_invalid_pytest_report_when_hidden_tests_run_then_measurement_fails_explicitly(
     hidden_candidate, measure_module, monkeypatch, report
 ):
     repo, suite, _ = hidden_candidate
 
     def fake_run(command, **kwargs):
         if report is not None:
-            path = next(argument.split("=", 1)[1] for argument in command if argument.startswith("--junit-xml="))
-            Path(path).write_text(report, encoding="utf-8")
+            Path(command[8]).write_text(report, encoding="utf-8")
         return subprocess.CompletedProcess(command, 0, "", "")
 
     monkeypatch.setattr(measure_module.subprocess, "run", fake_run)
@@ -1006,17 +1014,13 @@ def test_given_unavailable_git_head_when_measuring_then_failure_is_explicit(
     ("test_feature", "other_test"),
     ("test_feature", "TestWrong::<import>"),
 ])
-def test_given_lookalike_junit_identity_when_evaluating_then_it_cannot_replace_an_expected_test(
+def test_given_lookalike_pytest_identity_when_evaluating_then_it_cannot_replace_an_expected_test(
     hidden_candidate, measure_module, monkeypatch, classname, name
 ):
     repo, suite, _ = hidden_candidate
 
     def fake_run(command, **kwargs):
-        path = next(argument.split("=", 1)[1] for argument in command if argument.startswith("--junit-xml="))
-        root = ET.Element("testsuites")
-        test_suite = ET.SubElement(root, "testsuite")
-        ET.SubElement(test_suite, "testcase", classname=classname, name=name)
-        ET.ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
+        write_pytest_report(command, [(f"{classname.replace('.', '::')}::{name}", "passed")])
         return subprocess.CompletedProcess(command, 0, "", "")
 
     monkeypatch.setattr(measure_module.subprocess, "run", fake_run)
@@ -1025,19 +1029,18 @@ def test_given_lookalike_junit_identity_when_evaluating_then_it_cannot_replace_a
         measure_module.run_hidden(str(repo), str(suite), ["f1"], "pytest")
 
 
-@pytest.mark.parametrize("report, returncode", [
-    ('<testcase classname="test_feature" name="test_feature" />' * 2, 0),
-    ('<testcase classname="test_feature" name="test_feature"><failure /></testcase>', 0),
-    ('<testcase classname="test_feature" name="test_feature" />', 1),
+@pytest.mark.parametrize("outcomes, returncode", [
+    ([("test_feature::test_feature", "passed")] * 2, 0),
+    ([("test_feature::test_feature", "failed")], 0),
+    ([("test_feature::test_feature", "passed")], 1),
 ])
-def test_given_duplicate_or_contradictory_junit_when_evaluating_then_measurement_fails(
-    hidden_candidate, measure_module, monkeypatch, report, returncode
+def test_given_duplicate_or_contradictory_pytest_report_when_evaluating_then_measurement_fails(
+    hidden_candidate, measure_module, monkeypatch, outcomes, returncode
 ):
     repo, suite, _ = hidden_candidate
 
     def fake_run(command, **kwargs):
-        path = next(argument.split("=", 1)[1] for argument in command if argument.startswith("--junit-xml="))
-        Path(path).write_text(f"<testsuites><testsuite>{report}</testsuite></testsuites>", encoding="utf-8")
+        write_pytest_report(command, outcomes)
         return subprocess.CompletedProcess(command, returncode, "", "")
 
     monkeypatch.setattr(measure_module.subprocess, "run", fake_run)
@@ -1053,11 +1056,7 @@ def test_given_partially_run_module_when_evaluating_then_only_unrun_test_is_an_e
     test.write_text("def test_first():\n    assert True\n\ndef test_unrun():\n    assert True\n", encoding="utf-8")
 
     def fake_run(command, **kwargs):
-        path = next(argument.split("=", 1)[1] for argument in command if argument.startswith("--junit-xml="))
-        Path(path).write_text(
-            '<testsuites><testsuite><testcase classname="test_feature" name="test_first" /></testsuite></testsuites>',
-            encoding="utf-8",
-        )
+        write_pytest_report(command, [("test_feature::test_first", "passed")])
         return subprocess.CompletedProcess(command, 1, "", "")
 
     monkeypatch.setattr(measure_module.subprocess, "run", fake_run)
@@ -1076,6 +1075,139 @@ def test_given_pytest_class_when_evaluating_then_class_and_method_identity_are_p
     result = measure_module.run_hidden(str(repo), str(suite), ["f1"], "pytest")
 
     assert result == {"test_feature::TestFeature::test_feature": "passed"}
+
+
+@pytest.mark.parametrize("body, outcome, attribution", [
+    ("def test_feature():\n    assert True\n", "passed", "runner_status"),
+    ("def test_feature():\n    assert False\n", "failed", "assertion"),
+    (("@pytest.fixture\ndef broken():\n    raise RuntimeError('setup')\n"
+      "def test_feature(broken):\n    pass\n"), "error", "unknown"),
+    (("@pytest.fixture\ndef broken():\n    yield\n    raise RuntimeError('teardown')\n"
+      "def test_feature(broken):\n    pass\n"), "error", "unknown"),
+    (("@pytest.fixture\ndef broken():\n    yield\n    raise RuntimeError('teardown')\n"
+      "def test_feature(broken):\n    assert False\n"), None, None),
+    ("@pytest.mark.skip(reason='synthetic')\ndef test_feature():\n    assert False\n", "skipped", "runner_status"),
+    ("@pytest.mark.xfail\ndef test_feature():\n    assert False\n", "skipped", "runner_status"),
+    ("@pytest.mark.xfail\ndef test_feature():\n    pass\n", "passed", "runner_status"),
+    ("@pytest.mark.xfail(strict=True)\ndef test_feature():\n    pass\n", "error", "unknown"),
+    ("@pytest.mark.timeout(0.05)\ndef test_feature():\n    import time\n    time.sleep(0.2)\n", "error", "unknown"),
+    ("raise RuntimeError('collection')\ndef test_feature():\n    pass\n", "error", "unknown"),
+    ("pytest.skip('collection', allow_module_level=True)\ndef test_feature():\n    pass\n", None, None),
+])
+def test_given_native_pytest_phases_when_reporting_then_baseline_classification_is_preserved(
+    hidden_candidate, measure_module, body, outcome, attribution
+):
+    repo, suite, test = hidden_candidate
+    test.write_text("import pytest\n" + body, encoding="utf-8")
+    if outcome is None:
+        with pytest.raises(RuntimeError, match="duplicate test identity|unsupported collection|exited with code"):
+            measure_module.run_hidden(str(repo), str(suite), ["f1"], "pytest")
+    else:
+        result = measure_module.run_hidden(str(repo), str(suite), ["f1"], "pytest")
+        assert result == {"test_feature::test_feature": outcome}
+        assert result.provenance["test_feature::test_feature"]["attribution"] == attribution
+
+
+@pytest.mark.parametrize("corruption", [
+    "duplicate-key", "schema", "extra-root", "events-type", "provenance-type", "extra-event", "event-type",
+    "outcome", "phase", "diagnostic", "duplicate-phase", "phase-order", "incomplete", "call-after-error",
+    "foreign", "collection-skip", "collection-pass", "foreign-provenance",
+])
+def test_given_malformed_native_report_when_loading_then_it_is_rejected(
+    tmp_path, measure_module, corruption
+):
+    key = "test_feature::test_feature"
+    payload = {"schema": "mve-pytest-report/v1", "events": [
+        {"id": key, "phase": phase, "outcome": "passed", "diagnostic": ""}
+        for phase in ("setup", "call", "teardown")
+    ], "provenance": {}}
+    if corruption == "schema":
+        payload["schema"] = "other"
+    elif corruption == "extra-root":
+        payload["extra"] = True
+    elif corruption == "events-type":
+        payload["events"] = {}
+    elif corruption == "provenance-type":
+        payload["provenance"] = []
+    elif corruption == "extra-event":
+        payload["events"][0]["extra"] = True
+    elif corruption == "event-type":
+        payload["events"][0] = []
+    elif corruption in ("outcome", "phase", "diagnostic"):
+        payload["events"][0][corruption] = None
+    elif corruption == "duplicate-phase":
+        payload["events"].append(payload["events"][0])
+    elif corruption == "phase-order":
+        payload["events"].reverse()
+    elif corruption == "incomplete":
+        payload["events"].pop()
+    elif corruption == "call-after-error":
+        payload["events"][0]["outcome"] = "failed"
+    elif corruption == "foreign":
+        payload["events"][0]["id"] = "foreign::test"
+    elif corruption.startswith("collection-"):
+        payload["events"] = [{"id": "test_feature::<import>", "phase": "collect",
+                              "outcome": "skipped" if corruption.endswith("skip") else "passed", "diagnostic": ""}]
+    elif corruption == "foreign-provenance":
+        payload["provenance"] = {"foreign::test": {}}
+    path = tmp_path / "report.json"
+    text = json.dumps(payload)
+    if corruption == "duplicate-key":
+        text = text.replace('"schema":', '"schema": "other", "schema":', 1)
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(RuntimeError):
+        raw, provenance = measure_module.load_pytest_report(path, [key])
+        measure_module.attributed_results(raw, [key], provenance)
+
+
+@pytest.mark.parametrize("kind", ["symlink", "directory", "fifo"])
+def test_given_nonregular_native_report_when_loading_then_it_is_rejected(tmp_path, measure_module, kind):
+    path = tmp_path / "report.json"
+    if kind == "symlink":
+        target = tmp_path / "target.json"
+        target.write_text("{}", encoding="utf-8")
+        path.symlink_to(target)
+    elif kind == "directory":
+        path.mkdir()
+    else:
+        os.mkfifo(path)
+    with pytest.raises(RuntimeError, match="readable JSON report"):
+        measure_module.load_pytest_report(path, ["test_feature::test_feature"])
+
+
+def test_given_unavailable_xml_modules_when_pytest_runs_then_native_report_still_works(
+    hidden_candidate, measure_module, monkeypatch
+):
+    repo, suite, _ = hidden_candidate
+    run = measure_module.subprocess.run
+
+    def without_xml(command, **kwargs):
+        assert "no:junitxml" in command
+        command = list(command)
+        command[4] = "import sys; sys.modules.update({'pyexpat': None, '_elementtree': None}); " + command[4]
+        return run(command, **kwargs)
+
+    monkeypatch.setattr(measure_module.subprocess, "run", without_xml)
+    assert measure_module.run_hidden(str(repo), str(suite), ["f1"], "pytest") == {
+        "test_feature::test_feature": "passed",
+    }
+
+
+def test_given_attributed_report_exit_contradiction_when_evaluating_then_it_is_rejected(
+    hidden_candidate, measure_module, monkeypatch
+):
+    repo, suite, _ = hidden_candidate
+    key = "test_feature::test_feature"
+
+    def fake_run(command, **kwargs):
+        write_pytest_report(command, [(key, "failed")], {
+            key: {"raw_outcome": "failed", "outcome": "passed", "attribution": "synthetic", "diagnostic": ""},
+        })
+        return subprocess.CompletedProcess(command, 1, "", "")
+
+    monkeypatch.setattr(measure_module.subprocess, "run", fake_run)
+    with pytest.raises(RuntimeError, match="exit status disagrees"):
+        measure_module.run_hidden(str(repo), str(suite), ["f1"], "pytest")
 
 
 def test_given_inexact_collection_marker_when_validating_results_then_it_is_rejected(measure_module):
