@@ -1,7 +1,7 @@
 {
   "seed": 2027,
   "ceiling_credits": 270000,
-  "prior_credits": 17.59833,
+  "prior_credits": 21.79019,
   "historical_credit_provisions": [
     {
       "attempt_id": "gpt-6.1-sol-nonstudy-1",
@@ -26,6 +26,14 @@
       "source_commit": "5585ed1cf8fa27b253c42b40325aa54cc3ab25bd",
       "evidence_sha256": "63804ae9c968423a651b1afe626aa849ce7178c0f06e379a3a5c18a0592ddf25",
       "approval": "owner-approved-renewed-check-carry-forward-2026-10-29"
+    },
+    {
+      "attempt_id": "excluded-paid-p1-sonnet-20261031-f01-feature-1",
+      "reserved_credits": 300,
+      "actual_credits": null,
+      "source_commit": "423253482145ad5e9ba5c1cffd9c730d577d085f",
+      "evidence_sha256": "84177c3a4a11e29dc4016ba20b686df8628aab13c0c598d5e77a69c4bf8acba4",
+      "approval": "owner-approved-diagnostic-carry-forward-2026-10-31"
     }
   ],
   "session_reserve_credits": 300,

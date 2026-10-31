@@ -63,7 +63,7 @@ def test_unknown_usage_holds_reservation_and_blocks(study, usage):
         study.reserve(ledger, "next", 0)
 
 
-@pytest.mark.parametrize("provision_count", [1, 2, 3])
+@pytest.mark.parametrize("provision_count", [1, 2, 3, 4])
 def test_historical_hold_counts_against_admission_but_future_unknown_still_stops(study, tmp_path, provision_count):
     cfg = study.read_json(ROOT / "harness/study-config.json")
     cfg["historical_credit_provisions"] = cfg["historical_credit_provisions"][:provision_count]
@@ -71,10 +71,11 @@ def test_historical_hold_counts_against_admission_but_future_unknown_still_stops
     current = study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="historical-hold")
     ledger = current.state["ledger"]
     provisions = ledger["historical_credit_provisions"]
-    assert ledger["prior_nano"] == study.credits("17.59833")
+    assert ledger["prior_nano"] == study.credits("21.79019")
     assert all(item["actual_nano"] is None and item["status"] == "unknown" for item in provisions)
     room = ledger["ceiling_nano"] - ledger["prior_nano"] - sum(item["reserved_nano"] for item in provisions)
-    assert room == study.credits({1: "269682.40167", 2: "269382.40167", 3: "269082.40167"}[provision_count])
+    assert room == study.credits({1: "269678.20981", 2: "269378.20981",
+                                 3: "269078.20981", 4: "268778.20981"}[provision_count])
     study.reserve(ledger, "new", room)
     with pytest.raises(study.StudyError, match="ceiling"):
         study.reserve(ledger, "extra", 1)
@@ -107,7 +108,7 @@ def test_historical_hold_cannot_be_forged_or_reused(study, tmp_path):
             study.reserve(current.state["ledger"], original["attempt_id"], 0)
 
 
-@pytest.mark.parametrize("hold_index", [0, 1, 2])
+@pytest.mark.parametrize("hold_index", [0, 1, 2, 3])
 def test_historical_hold_is_bound_to_resume_state(study, tmp_path, hold_index):
     cfg = study.read_json(ROOT / "harness/study-config.json")
     current = study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="resume-hold")
@@ -120,13 +121,13 @@ def test_historical_hold_is_bound_to_resume_state(study, tmp_path, hold_index):
                          smoke=False, phase="pilot-estimation", study_id="resume-hold")
 
 
-@pytest.mark.parametrize("prior", [0, 14.54324, "17.598329999"])
+@pytest.mark.parametrize("prior", [0, 14.54324, "17.598329999", "21.790189999"])
 def test_historical_hold_requires_known_prior_and_remaining_budget(study, prior):
     cfg = study.read_json(ROOT / "harness/study-config.json")
     with pytest.raises(study.StudyError, match="confirmed known prior"):
         study.validate_config(dict(cfg, prior_credits=prior), smoke=False)
     with pytest.raises(study.StudyError, match="historical provisions exceed"):
-        study.validate_config(dict(cfg, ceiling_credits=917.59832), smoke=False)
+        study.validate_config(dict(cfg, ceiling_credits=1221.79018), smoke=False)
 
 
 def test_ceiling_cannot_be_raised_or_prior_spend_assumed(study, config):

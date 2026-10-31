@@ -50,6 +50,14 @@ APPROVED_RENEWED_PROVISION = {
     "evidence_sha256": "63804ae9c968423a651b1afe626aa849ce7178c0f06e379a3a5c18a0592ddf25",
     "approval": "owner-approved-renewed-check-carry-forward-2026-10-29",
 }
+APPROVED_FEATURE_DIAGNOSTIC_PROVISION = {
+    "attempt_id": "excluded-paid-p1-sonnet-20261031-f01-feature-1",
+    "reserved_credits": 300,
+    "actual_credits": None,
+    "source_commit": "423253482145ad5e9ba5c1cffd9c730d577d085f",
+    "evidence_sha256": "84177c3a4a11e29dc4016ba20b686df8628aab13c0c598d5e77a69c4bf8acba4",
+    "approval": "owner-approved-diagnostic-carry-forward-2026-10-31",
+}
 MODEL_DESIGN = "model-stratified-v1"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
@@ -81,7 +89,9 @@ def historical_credit_provisions(cfg: dict, *, smoke: bool = False) -> list[dict
     if provisions not in ([], [APPROVED_HISTORICAL_PROVISION],
                           [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION],
                           [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION,
-                           APPROVED_RENEWED_PROVISION]):
+                           APPROVED_RENEWED_PROVISION],
+                          [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION,
+                           APPROVED_RENEWED_PROVISION, APPROVED_FEATURE_DIAGNOSTIC_PROVISION]):
         raise StudyError("Historical provision must match the exact owner-approved attempt and evidence")
     if smoke:
         return []
@@ -108,7 +118,8 @@ def validate_config(cfg: dict, *, smoke: bool) -> None:
     if prior > credits(cfg["ceiling_credits"]):
         raise StudyError("Prior pilot spending exceeds aggregate ceiling")
     provisions = historical_credit_provisions(cfg, smoke=smoke)
-    if provisions and prior < credits("17.59833"):
+    minimum_prior = "21.79019" if len(provisions) == 4 else "17.59833"
+    if provisions and prior < credits(minimum_prior):
         raise StudyError("Historical provision requires the confirmed known prior spending")
     if prior + sum(item["reserved_nano"] for item in provisions) > credits(cfg["ceiling_credits"]):
         raise StudyError("Prior spending and historical provisions exceed aggregate ceiling")

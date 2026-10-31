@@ -70,8 +70,9 @@ study admission**, leaving 30,000 below the unchanged registered envelope.
 An in-flight response can finish over the CLI limit; neither buffer guarantees
 actual billed consumption. The company hard limit of 1,000,000/collaborator is
 owner-reported, not independently verified or a study-specific stop. A separate
-provider study hard cap is no longer required. Known prior 17.59833 (historical
-smoke 14.54324 plus excluded backend checks 3.05509), calibration,
+provider study hard cap is no longer required. Known prior 21.79019 (historical
+smoke 14.54324 plus excluded backend checks 3.05509 and audited P1 check4.19186),
+with1200unknown historical credits held separately, calibration,
 probes and all attempts count; billing-cycle resets do not reset study spending.
 Record [the prospective addendum](prospective-corrections-2026-10-28.md) before
 affected collection. Financial-risk acceptance waives no runtime/access,

@@ -1,5 +1,49 @@
 # Existing data and repository chronology
 
+## 31 October excluded paid P1 diagnostics and v4 correction
+
+The owner authorized one Sonnet5.5/medium P1 feature-only output check at
+source `423253482145ad5e9ba5c1cffd9c730d577d085f`, without retaining results.
+It stopped before verified measurement/journal production and lacks a complete
+usage receipt. Its exact discarded error cannot be reconstructed. The original
+private audit SHA256 is
+`84177c3a4a11e29dc4016ba20b686df8628aab13c0c598d5e77a69c4bf8acba4`;
+its300-credit unknown hold remains separate from known spending.
+
+The owner then explicitly authorized one fully audited rerun with that hold
+carried forward. Actual Sonnet5.5/medium returned committed P1 code and complete
+4.19186-credit usage. Evaluation was interrupted by a session-only audit logger
+that could not serialize normalized Path-valued mount metadata. An independent
+offline control also reproduced owner-only staging directories inaccessible to
+the UID1001 evaluator under umask077. A byte-identical private clone of the saved
+paid output, with intended evaluator-readable modes, passed4visible tests and
+produced actual measure.json and a labelled offline-verification steps.jsonl.
+No additional provider call was made for recovery; this is not an uninterrupted
+paid trajectory or proof the first discarded failure had the same cause.
+
+Original paid audit SHA256:
+`9ef55f26b56473fefa0605abb6f7bc428cd4689e43edddfd3962866915b755a5`.
+Executed diagnostic driver SHA256:
+`294dfd9230cedf5fc918f9402ec08a97c7e92d661f1432c18f315c9bfe6436a4`.
+All candidate/provider/result content from the audited rerun remains private,
+excluded and unavailable for registered analysis. Output/test information was
+inspected for tooling diagnosis; this is disclosed exposure, not outcome-blind
+preparation. No calibration or registered pilot trajectory was collected.
+
+Current known usage is21.79019, comprising17.59833previous known plus4.19186.
+Four unknown300-credit reservations total1200held separately:1221.79019
+conservatively accounted and268778.20981remaining under local270000admission.
+These holds are not measured charges or guaranteed maximum bills. Owner's
+subsequent approval to publish/merge/freeze the correction authorizes exact
+carry-forward, not a general unknown-usage waiver or another paid session.
+
+The production correction explicitly stages readable directories/files under
+private parents without changing read-only mounts, candidate UID/caps/network,
+guarded SDK tools, deadlines or scientific definitions. Subsequent verification
+is offline. Owner confirms neither v2 nor v3 was registered on OSF; preserve
+their historical code freezes and prepare working v4 prospectively. The original
+reported registration remains historical; no v4 OSF completion is claimed.
+
 **Prospective disclosure, recorded 28 October 2026; not final protocol approval
 or completed registration.** Repository dates below are Git metadata, not
 reconstructed execution or first-inspection timestamps.
