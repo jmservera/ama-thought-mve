@@ -114,7 +114,7 @@ running models or uploading anything. See the
 The supplied settings use a 10% buffer: **270 AI Credits per original session**
 (shared across any infrastructure retry), below the registered 300, and a
 **270,000-credit local study admission stop**, below the unchanged registered
-300,000-credit envelope. Known prior **17.59833 credits**, calibration, probes and
+300,000-credit envelope. Known prior **21.79019 credits**, calibration, probes and
 every attempt count. [CLI session limits](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/set-session-limit)
 allow an in-flight response to finish **over** the limit; the buffer reduces risk
 but guarantees neither per-session nor total billed consumption. The company
@@ -128,14 +128,24 @@ for monitoring, reset and overrun instructions.
 failed, first during SDK setup and then twice on unexpected built-in MCP startup.
 None produced tool calls or complete usage evidence. On 29 October the owner
 separately approved retaining each 300-credit reservation as an exact
-source/evidence-bound unknown provision. Known usage is now **17.59833**,
+source/evidence-bound unknown provision. A later excluded Sonnet P1 diagnostic
+also lacked complete billing and retains a fourth 300-credit hold. Known usage is
+now **21.79019**,
 including **3.05509** from three subsequent successful excluded backend checks
-at `eff4d09` (see [prior-data disclosure](protocol/prior-data-disclosure.md));
-**900 credits** are held separately, not booked as spending or certified zero.
-Known usage plus held budget is **917.59833**, leaving **269082.40167** within
+at `eff4d09` and **4.19186** from the separately authorized audited Sonnet P1
+session (see [prior-data disclosure](protocol/prior-data-disclosure.md));
+**1200 credits** are held separately, not booked as spending or certified zero.
+Known usage plus held budget is **1221.79019**, leaving **268778.20981** within
 the 270000 local admission threshold. Total actual prior usage remains unknown.
 These provisions are not guaranteed billing bounds. Future
 unknown usage still stops new work; live verification and collection gates remain.
+
+Evaluator staging uses explicit readable input modes under private parent
+directories, including when the host uses `umask077`. Read-only mounts and
+candidate isolation are unchanged. The audited paid output was verified through
+an offline continuation, not an uninterrupted registered launcher run.
+The owner confirms neither v2 nor v3 was registered on OSF; their code freezes
+remain historical. Prepare the corrected v4 materials prospectively before collection.
 
 **The isolated live backend is a candidate implementation, not collection
 approval.** It uses repository-local Copilot SDK **1.0.28** with CLI **1.0.105**:

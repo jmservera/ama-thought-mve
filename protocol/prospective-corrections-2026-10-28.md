@@ -8,6 +8,28 @@ collection. No calibration or registered pilot was run during this preparation.
 
 ## Original registration and chronology
 
+### 31 October working v4 staging and accounting correction
+
+The owner authorized a new PR, merge and replacement code freeze for explicit
+evaluator-readable staging under private parent directories, independent of host
+umask. Read-only evaluation, candidate UID/caps/network, scientific outcomes,
+resource limits and unknown/retry policies are unchanged. The audit-only logger
+fix remains private diagnostic tooling, not production experiment code.
+
+Two excluded P1 checks precede this correction: the first lacks complete usage
+and retains an additional300-credit unknown hold; the audited Sonnet5.5/medium
+session returned code and certified4.19186credits, with result generation
+verified by offline continuation rather than a new paid call. Full diagnostic
+exposure/exclusion is recorded in prior-data-disclosure.md. Current known21.79019
+plus1200held =1221.79019accounted, with268778.20981local admission room.
+Future unknown usage still stops new admission.
+
+Owner explicitly confirms neither v2 nor v3 was registered on OSF. They remain
+historical code freezes, not approved OSF updates. Prepare the verified working
+v4 directly for prospective owner OSF registration/update while preserving the
+reported original registration and historical materials. Neither publication nor
+freeze performs an OSF action or authorizes calibration/pilot collection.
+
 ### 31 October Expat-free runtime and replacement freeze
 
 The owner authorized production adoption, verified publication, automatic

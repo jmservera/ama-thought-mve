@@ -46,7 +46,8 @@ def test_export_rejects_unsafe_paths_modes_and_conflicts_before_publish(runtime,
     assert not (tmp_path / "escape").exists()
 
 
-def test_safe_publish_keeps_private_git_and_roundtrips_executable_files(runtime, tmp_path):
+@pytest.mark.parametrize("mask", [0o022, 0o077])
+def test_safe_publish_keeps_private_git_and_roundtrips_executable_files(runtime, tmp_path, mask):
     repo = tmp_path / "repo"
     repo.mkdir()
     runtime.git(repo, "init", "-q")
@@ -54,8 +55,13 @@ def test_safe_publish_keeps_private_git_and_roundtrips_executable_files(runtime,
     marker.write_text("trusted-only")
     (repo / "obsolete").write_text("old")
     files = [file_record("src/code.py", "print('x')\n"), file_record("tcr", "#!/bin/sh\n", 0o755)]
-    runtime.replace_tree(repo, files)
+    previous = os.umask(mask)
+    try:
+        runtime.replace_tree(repo, files)
+    finally:
+        os.umask(previous)
     assert runtime.regular_files(repo) == files
+    assert (repo / "src").stat().st_mode & 0o777 == 0o755
     assert not (repo / "obsolete").exists()
     assert marker.read_text() == "trusted-only"
 
@@ -244,6 +250,46 @@ def trusted_repo(runtime, root):
     return repo
 
 
+@pytest.mark.parametrize("cr", [False, True])
+def test_evaluator_staging_is_readable_under_private_parent_with_restrictive_umask(
+    runtime, tmp_path, cr,
+):
+    repo = trusted_repo(runtime, tmp_path)
+    suite_dir = runtime.ROOT / "suites/s1-retrofit"
+    suite = runtime.read_json(suite_dir / "suite.json")
+    live = object.__new__(runtime.LiveRuntime)
+    live.run = SimpleNamespace(
+        repo=repo, dir=str(tmp_path / "private-run"), suite=suite, suite_dir=str(suite_dir),
+        cell={"attempts": [{"id": "offline-staging"}]},
+    )
+    previous = os.umask(0o077)
+    try:
+        mounts = live.evaluator_inputs(k=1, cr=cr)
+    finally:
+        os.umask(previous)
+    parent = tmp_path / "private-run/attempts/offline-staging/evaluation-inputs"
+    assert parent.stat().st_mode & 0o777 == 0o700
+    for source in mounts:
+        for path in [source, *source.rglob("*")]:
+            assert not path.is_symlink()
+            assert path.stat().st_mode & 0o777 == (
+                0o755 if path.is_dir() or path.stat().st_mode & 0o111 else 0o644)
+    assert (next(source for source, target in mounts.items() if target == "/work")
+            / "src/code.py").read_bytes() == (repo / "src/code.py").read_bytes()
+
+
+def test_evaluator_staging_rejects_links_without_chmod_following_them(runtime, tmp_path):
+    staged = tmp_path / "staged"
+    staged.mkdir()
+    protected = tmp_path / "protected"
+    protected.write_text("private")
+    protected.chmod(0o600)
+    (staged / "link").symlink_to(protected)
+    with pytest.raises(runtime.StudyError, match="nonregular"):
+        runtime.evaluator_readable_tree(staged)
+    assert protected.stat().st_mode & 0o777 == 0o600
+
+
 def test_changed_head_equal_tree_preserves_delivery_but_wip_never_becomes_a_commit(runtime, tmp_path):
     repo = trusted_repo(runtime, tmp_path)
     live = object.__new__(runtime.LiveRuntime)
@@ -410,8 +456,9 @@ def test_live_attempt_reserves_before_transport_and_preserves_charge_on_failure(
 
 @pytest.mark.skipif(not os.environ.get("MVE_TEST_ISOLATED_IMAGE"), reason="explicit offline Docker image required")
 @pytest.mark.parametrize("stage,k,cr", [("f01", 1, False), ("f10", 10, False), ("cr1", 10, True)])
+@pytest.mark.parametrize("mask", [0o022, 0o077])
 def test_real_isolated_evaluation_matches_frozen_reference_without_snapshot_writeback(
-    runtime, tmp_path, stage, k, cr,
+    runtime, tmp_path, stage, k, cr, mask,
 ):
     from isolation import SandboxBroker
 
@@ -445,14 +492,19 @@ def test_real_isolated_evaluation_matches_frozen_reference_without_snapshot_writ
         dir=str(tmp_path), repo=repo, suite=suite, suite_dir=suite_dir,
         cfg={"measure": {"test_runner": "pytest"}}, cell={"attempts": [{"id": "offline-fixture"}]},
         controller=SimpleNamespace(state={"deadline": time.time() + 180}, save=lambda: None))
-    assert live.visible()
-    result = live.measure(k, str(tmp_path / "steps/offline-fixture"), "feature-start", cr)
-    assert result["hidden_passed"] == result["hidden_total"] > 0
-    panel = runtime.read_json(source / "protocol/contract-panel.json")["contracts"]
-    expected = {item["id"] for item in panel if item["from_cycle"] <= k or (cr and item["role"] == "cr1")}
-    assert set(result["hidden"]) == expected
-    assert result["metrics"]["mean_ccn"] > 0
-    assert runtime.head(repo) == before and not runtime.git(repo, "status", "--porcelain").stdout
+    previous = os.umask(mask)
+    try:
+        assert live.visible()
+        result = live.measure(k, str(tmp_path / "steps/offline-fixture"), "feature-start", cr)
+        assert result["hidden_passed"] == result["hidden_total"] > 0
+        panel = runtime.read_json(source / "protocol/contract-panel.json")["contracts"]
+        expected = {item["id"] for item in panel if item["from_cycle"] <= k or (cr and item["role"] == "cr1")}
+        assert set(result["hidden"]) == expected
+        assert result["metrics"]["mean_ccn"] > 0
+        assert runtime.head(repo) == before and not runtime.git(repo, "status", "--porcelain").stdout
+    finally:
+        os.umask(previous)
+        live.broker.close()
 
 
 @pytest.mark.skipif(not os.environ.get("MVE_TEST_ISOLATED_IMAGE"), reason="explicit offline Docker image required")

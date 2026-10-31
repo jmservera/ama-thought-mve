@@ -132,9 +132,21 @@ def replace_tree(directory: Path, files: object) -> None:
     for name, (mode, data) in validated.items():
         path = directory / name
         path.parent.mkdir(parents=True, exist_ok=True)
+        for parent in path.parents:
+            if parent == directory:
+                break
+            parent.chmod(0o755)
         with path.open("xb") as stream:
             stream.write(data)
         path.chmod(mode)
+
+
+def evaluator_readable_tree(directory: Path) -> None:
+    """Make mounted inputs readable without exposing their private parent."""
+    for path in [directory, *directory.rglob("*")]:
+        if path.is_symlink() or not (path.is_dir() or path.is_file()):
+            raise StudyError("Evaluator input contains nonregular content")
+        path.chmod(0o755 if path.is_dir() or path.stat().st_mode & 0o111 else 0o644)
 
 
 def check_host_auth(root: Path = ROOT) -> None:
@@ -381,7 +393,7 @@ class LiveRuntime:
         root.mkdir(parents=True, exist_ok=True, mode=0o700)
         snapshot = root / ("snapshot-" + head(run.repo))
         if not snapshot.exists():
-            shutil.copytree(run.repo, snapshot)
+            shutil.copytree(run.repo, snapshot, symlinks=True)
         kit = root / "kit"
         harness = kit / "harness"
         tools = kit / "skeleton/tools"
@@ -410,6 +422,8 @@ class LiveRuntime:
                     for source in (Path(run.suite_dir) / prefix / item["id"] / kind).glob("*.py"):
                         shutil.copyfile(source, destination / source.name)
             mounts[suite_root] = "/suite"
+        for source in mounts:
+            evaluator_readable_tree(source)
         return mounts
 
     def visible(self) -> bool:

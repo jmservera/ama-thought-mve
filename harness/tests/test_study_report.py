@@ -110,8 +110,8 @@ def test_exports_distinguish_historical_budget_hold_from_actual_usage(modules, r
     exporter = report.legacy_export if legacy else report.export
     exporter(reports.parent, state, "export-test")
     provenance = study.read_json(reports / "provenance.json")
-    assert provenance["prior_nano"] == study.credits("17.59833")
-    assert provenance["historical_reserved_nano"] == study.credits(900)
+    assert provenance["prior_nano"] == study.credits("21.79019")
+    assert provenance["historical_reserved_nano"] == study.credits(1200)
     assert provenance["historical_usage_complete"] is False
     holds = provenance["historical_credit_provisions"]
     assert [hold["attempt_id"] for hold in holds] == [
