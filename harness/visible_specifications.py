@@ -1,7 +1,6 @@
 """Immutable candidate-visible specifications/examples and intervention evidence."""
 from __future__ import annotations
 
-import ast
 import hashlib
 import json
 from pathlib import Path
@@ -58,19 +57,6 @@ def restore(repo: Path, files: dict[str, bytes]) -> list[str]:
     return sorted(set(changed))
 
 
-def _test_nodes(content: str) -> dict[str, str]:
-    tree = ast.parse(content)
-    result = {}
-    for node in tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            result[node.name] = ast.dump(node, include_attributes=False)
-        elif isinstance(node, ast.ClassDef):
-            for method in node.body:
-                if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    result[f"{node.name}::{method.name}"] = ast.dump(method, include_attributes=False)
-    return result
-
-
 def note_violations(repo: Path, name: str) -> list[str]:
     """Reject missing/non-UTF-8/over-budget notes without silent truncation."""
     path = repo / name
@@ -84,21 +70,19 @@ def note_violations(repo: Path, name: str) -> list[str]:
 
 
 def test_changes(repo: Path, before: str, git) -> tuple[list[str], list[str]]:
-    """Distinguish new test files/nodes from changes to accepted test definitions."""
+    """Freeze accepted Python test files, including fixture/module/class context."""
     changed = git(repo, "diff", "--name-only", before, "HEAD").stdout.splitlines()
     paths = [path for path in changed if path.startswith("tests/")
              and not path.startswith("tests/examples/") and path.endswith(".py")]
     modified = []
     for path in paths:
-        old = git(repo, "show", f"{before}:{path}", check=False)
+        old = git(repo, "rev-parse", f"{before}:{path}", check=False)
         new = repo / path
-        previous = _test_nodes(old.stdout) if old.returncode == 0 else {}
-        try:
-            current = _test_nodes(new.read_text(encoding="utf-8")) if new.is_file() else {}
-        except (SyntaxError, UnicodeError):
-            modified.append(path)
-            continue
-        if any(current.get(name) != definition for name, definition in previous.items()):
+        current = git(repo, "rev-parse", f"HEAD:{path}", check=False)
+        if old.returncode == 0 and (
+            not new.is_file() or new.is_symlink() or current.returncode != 0
+            or current.stdout.strip() != old.stdout.strip()
+        ):
             modified.append(path)
     return paths, modified
 

@@ -349,6 +349,59 @@ def test_specification_bound_test_correction_is_separate_E_not_B(tmp_path):
     assert violations
 
 
+@pytest.mark.parametrize(("path_name", "old", "new"), [
+    ("tests/test_pin.py", "EXPECTED = 1\ndef test_pin():\n    assert 1 == EXPECTED\n",
+     "EXPECTED = 2\ndef test_pin():\n    assert 1 == EXPECTED\n"),
+    ("tests/test_pin.py", "class TestPin:\n    expected = 1\n    def test_pin(self):\n        assert 1 == self.expected\n",
+     "class TestPin:\n    expected = 2\n    def test_pin(self):\n        assert 1 == self.expected\n"),
+    ("tests/conftest.py", "EXPECTED = 1\ndef fixture_value():\n    return EXPECTED\n",
+     "EXPECTED = 2\ndef fixture_value():\n    return EXPECTED\n"),
+    ("tests/test_pin.py", "def test_pin():\n    assert 1 == 1\n",
+     "def test_pin():\n    assert 1 == 1\n\ndef test_added():\n    assert True\n"),
+])
+def test_accepted_file_context_cannot_be_weakened_or_extended(tmp_path, path_name, old, new):
+    runner = importlib.import_module("runner")
+    visible = importlib.import_module("visible_specifications")
+    repo = tmp_path / "repo"
+    path = repo / path_name
+    path.parent.mkdir(parents=True)
+    runner.git(repo, "init", "-q")
+    runner.git(repo, "config", "user.name", "synthetic")
+    runner.git(repo, "config", "user.email", "synthetic@example.invalid")
+    path.write_text(old)
+    runner.git(repo, "add", "-A")
+    runner.git(repo, "commit", "-qm", "synthetic accepted file")
+    before = runner.head(repo)
+    path.write_text(new)
+    runner.git(repo, "add", "-A")
+    runner.git(repo, "commit", "-qm", "synthetic context change")
+
+    paths, modified = visible.test_changes(repo, before, runner.git)
+
+    assert paths == [path_name] and modified == [path_name]
+
+
+def test_new_test_file_is_allowed_without_changing_accepted_file(tmp_path):
+    runner = importlib.import_module("runner")
+    visible = importlib.import_module("visible_specifications")
+    repo = tmp_path / "repo"
+    (repo / "tests").mkdir(parents=True)
+    runner.git(repo, "init", "-q")
+    runner.git(repo, "config", "user.name", "synthetic")
+    runner.git(repo, "config", "user.email", "synthetic@example.invalid")
+    (repo / "tests/test_accepted.py").write_text("def test_accepted():\n    assert True\n")
+    runner.git(repo, "add", "-A")
+    runner.git(repo, "commit", "-qm", "synthetic accepted file")
+    before = runner.head(repo)
+    (repo / "tests/test_added.py").write_text("def test_added():\n    assert True\n")
+    runner.git(repo, "add", "-A")
+    runner.git(repo, "commit", "-qm", "synthetic added file")
+
+    paths, modified = visible.test_changes(repo, before, runner.git)
+
+    assert paths == ["tests/test_added.py"] and modified == []
+
+
 def test_D_retry_shares_original_single_45_minute_540_credit_allowance(tmp_path):
     study = importlib.import_module("study")
     cfg = json.loads((ROOT / "harness/study-config.json").read_text())

@@ -81,7 +81,7 @@ Publication follows collection and paper release with actual owner authorization
 | Check | Observed result and scope |
 | --- | --- |
 | Candidate harness before final parent test additions | 849 passed; nine explicit current-image checks unavailable. Not zero-skip runtime qualification. |
-| Five-arm planning/execution/measurement/receipt/sharing regression module | 50 passed with default external pytest temporary paths, including the corrected source-relative receipt fixture and distinct signed-build identities. |
+| Five-arm planning/execution/measurement/receipt/sharing regression module | 55 passed, including source-relative receipt, signing identities and whole accepted-test context/new-file/E-exception cases. |
 | SDK under supported Node24.22.2 and CLI1.0.105 | 18 passed, zero skipped. Actual startup in a new owned tmux context intercepts/rejects inference locally; no provider model session. |
 | Protected reference triplicates | 33 all-pass vectors across eleven stages; new-source independent scientific acceptance remains pending. |
 | Bounded mutation diagnostic | 48 generated, 47 observed kills, one unavailable; equivalence unadjudicated. Not universal test adequacy. |
@@ -96,3 +96,19 @@ stage overwrote the first public key and strict verification failed.
 Distinct Git/BusyBox PACKAGER identities fix that naming collision without
 allowing untrusted packages or disabling signature checks. Rebuilding and
 new-source runtime acceptance are separate from the passing regression.
+
+## Original assisted review and correction
+
+The read-only source-independent review of paper8fe7c333 and kit2486a50 found
+one moderate mismatch: comparing test function/method ASTs omitted module
+values and class attributes (`visible_specifications.py:61-71,86-103`;
+`runner.py:302-310`). Its original assessment was one substantive mismatch
+remaining, not publication/collection approval.
+
+The correction freezes entire accepted Python test files, including imports,
+fixture functions and module/class constants. New tests use new files; E's
+existing specification/hash/diff exception is preserved. Five added regressions
+cover these context changes and permitted new files. Passing55tests does not
+erase the original finding or substitute for exact-head follow-up.
+The review was sampled AI assistance, not independent human peer review,
+scientific certification, actual-image or real-model acceptance.

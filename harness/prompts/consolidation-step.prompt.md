@@ -19,8 +19,9 @@ blindly bless it with a behavior-pinning test or repair it in this session.
 4. Never modify or delete tests/examples/ or specifications/. Keep all accepted
    tests green. Before adding a behavior-pinning test, check its expectation
    against an immutable released specification and identify the numbered rule.
-   Do not modify previously accepted test definitions. For each added/changed
-   agent-test file, write TEST_EVIDENCE.json with a `changes` array of objects:
+   Existing accepted Python test files are immutable in full, including imports,
+   fixtures and module/class constants. Add tests in new files, never by extending
+   an accepted file. For each added agent-test file, write TEST_EVIDENCE.json with a `changes` array of objects:
    `path`, `before_sha256` (null for a new file), `after_sha256`,
    `specification` (specifications/fNN.md), `spec_sha256`, `rule` (number),
    `rationale` explaining the specification-derived expectation. Hash file bytes

@@ -22,7 +22,8 @@ Rules:
 * Make every test in tests/ pass, including tests/examples/test_f{k:02d}_*.py. Do not modify or delete anything in tests/examples/. You may add tests.
 * Do not delete or weaken existing tests.
 * Keep previously accepted agent-authored tests green, especially tests accepted
-  during earlier B consolidation. Do not modify their definitions. A specification
+  during earlier B consolidation. Preserve existing Python test files in full,
+  including fixture/module/class context; add tests only in new files. A specification
   contradiction can be documented for the separate visible-repair session only;
   it is not permission to weaken tests during feature work.
 * Run `make test` before committing. Commit only when all tests pass. Uncommitted work is discarded when your time is up.

@@ -61,7 +61,9 @@ trusted host SDK provider network is distinct.
 B must check behavior-pinning expectations against a numbered immutable visible
 specification, not bless an existing defect. New test-file evidence binds actual
 before/after file SHA-256, specification SHA-256 and rule/rationale in
-TEST_EVIDENCE.json. Later B feature sessions must keep accepted tests green and
+TEST_EVIDENCE.json. Existing accepted Python test files are frozen in full,
+including imports, fixtures and module/class constants; additions use new files.
+Later B feature sessions must keep accepted tests green and
 not alter their definitions. A visible contradiction is documented, not repaired
 or silently legitimized during B consolidation.
 
