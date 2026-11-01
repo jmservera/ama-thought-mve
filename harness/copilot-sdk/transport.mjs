@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { resolve, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { mkdir } from 'node:fs/promises';
+import { performance } from 'node:perf_hooks';
 import { ToolSet } from '@github/copilot-sdk';
 import { LIMITS, makeRuntime } from './runtime-guard.mjs';
 
@@ -15,15 +16,25 @@ const keysOnly = (value, names) => object(value) && Object.keys(value).every(key
 const text = value => typeof value === 'string' && value.length > 0;
 const nano = value => Number.isSafeInteger(value) && value >= 0;
 const fault = code => Object.assign(new Error(code), { transportCode: code });
+const duration = value => Number.isFinite(value) && value >= 0;
+const postKinds = { A: null, B: 'consolidation', C: 'review', D: null, E: 'repair' };
 
 export function validateRequest(request) {
   if (!keysOnly(request, ['model', 'reasoningEffort', 'prompt', 'remainingSeconds',
-    'maxAiCredits', 'cliPath', 'baseDirectory']) ||
+    'maxAiCredits', 'cliPath', 'baseDirectory', 'arm', 'stepKind', 'originalMaxAiCredits']) ||
     !text(request.model) || request.model.length > 200 ||
     request.reasoningEffort !== 'medium' || !text(request.prompt) ||
     !Number.isFinite(request.remainingSeconds) || request.remainingSeconds <= 0 ||
     request.remainingSeconds > 86400 ||
     !Number.isFinite(request.maxAiCredits) || request.maxAiCredits <= 0 ||
+    !Object.hasOwn(postKinds, request.arm) ||
+    !['feature', 'change_request', postKinds[request.arm]].filter(Boolean).includes(request.stepKind) ||
+    request.remainingSeconds > (request.stepKind === 'feature' ?
+      (request.arm === 'D' ? 2700 : 1800) : request.stepKind === 'change_request' ? 2700 : 900) ||
+    !Number.isSafeInteger(request.originalMaxAiCredits) ||
+    request.originalMaxAiCredits < 30 ||
+    request.originalMaxAiCredits > (request.arm === 'D' && request.stepKind === 'feature' ? 600 : 300) ||
+    request.maxAiCredits > request.originalMaxAiCredits ||
     !text(request.cliPath) || !isAbsolute(request.cliPath) ||
     !text(request.baseDirectory) || !isAbsolute(request.baseDirectory))
     throw fault('invalid_initial_request');
@@ -168,7 +179,7 @@ export class OutputRecords {
 }
 
 export class Evidence {
-  constructor(request, sessionId) {
+  constructor(request, sessionId, clock = () => performance.now()) {
     this.request = request;
     this.sessionId = sessionId;
     this.models = new Set();
@@ -182,6 +193,11 @@ export class Evidence {
     this.shutdown = null;
     this.checkpoints = [];
     this.status = 'unavailable';
+    this.clock = clock;
+    this.wallStart = clock();
+    this.sendWaitMs = null;
+    this.toolDurations = [];
+    this.dispatches = new Map();
   }
   identity(model, effort) {
     if (text(model)) this.models.add(model);
@@ -240,6 +256,14 @@ export class Evidence {
       this.idle = true;
     } else if (event.type === 'assistant.turn_start') {
       this.idle = false;
+    } else if (event.type === 'model.call_finished' && data.outcome === 'success') {
+      if (!this.dispatches.has(event.id)) {
+        this.dispatches.set(event.id, {
+          event_id: event.id, turn_id: data.turnId ?? null,
+          interaction_id: data.interactionId ?? null,
+          dispatch_duration_ms: duration(data.dispatchDurationMs) ? data.dispatchDurationMs : null,
+        });
+      }
     } else if (event.type === 'session.shutdown') {
       if (!this.idle || data.shutdownType !== 'routine') throw fault('unexpected_shutdown');
       if (this.shutdown && JSON.stringify(this.shutdown) !== JSON.stringify(data))
@@ -296,6 +320,10 @@ export class Evidence {
       checkpoint.totalNanoAiu <= sum &&
       checkpoint.usageAccountingWatermarks[this.sessionId] <= sequences.length);
     const certified = complete && checkpointsConsistent;
+    const apiDurations = calls.map(call => duration(call.duration) ? call.duration : null);
+    const observedApi = apiDurations.filter(value => value !== null);
+    const tools = this.toolDurations.filter(record => record.roundtrip_ms !== null);
+    const dispatches = [...this.dispatches.values()];
     return {
       session_id: this.sessionId,
       sdk_version: SDK_VERSION, cli_version: CLI_VERSION, protocol_version: PROTOCOL_VERSION,
@@ -311,8 +339,28 @@ export class Evidence {
         reasoningEffort: call.reasoningEffort ?? null,
         aiCreditsStatus: call.aiCreditsStatus ?? 'unavailable',
         totalNanoAiu: nano(call.copilotUsage?.totalNanoAiu) ? call.copilotUsage.totalNanoAiu : null,
+        api_duration_ms: duration(call.duration) ? call.duration : null,
       })),
       routing_changes: this.routing,
+      timing: {
+        host_session_wall_ms: this.clock() - this.wallStart,
+        host_send_and_wait_ms: this.sendWaitMs,
+        isolated_tool_roundtrips: this.toolDurations,
+        isolated_tool_roundtrip_ms_observed_sum: tools.length ?
+          tools.reduce((sum, record) => sum + record.roundtrip_ms, 0) : null,
+        isolated_tool_roundtrips_observed: tools.length,
+        isolated_tool_roundtrips_missing: this.toolDurations.length - tools.length,
+        sdk_api_request_durations: { expected_calls: calls.length, observed_calls: observedApi.length,
+          missing_calls: apiDurations.length - observedApi.length,
+          observed_sum_ms: observedApi.length ? observedApi.reduce((sum, value) => sum + value, 0) : null,
+          complete_sum_ms: apiDurations.length && observedApi.length === apiDurations.length ?
+            observedApi.reduce((sum, value) => sum + value, 0) : null,
+          source: 'assistant.usage.duration; pinned SDK defines milliseconds, includes API latency' },
+        sdk_logical_dispatches: dispatches,
+        provider_active_compute_ms: null, provider_rate_limit_wait_ms: null,
+        provider_timing_status: 'unknown: SDK API/dispatch latency is not provider-active compute or rate-limit wait',
+        host_timing_scope: 'monotonic host observations; tool roundtrips include broker/transport overhead; sendAndWait includes tools',
+      },
       protocol_error: errorCode || (certified ? null : 'complete_usage_evidence_unavailable'),
     };
   }
@@ -464,11 +512,15 @@ export async function runTransport({ input = process.stdin, output = process.std
         return { textResultForLlm: 'Tool interrupted.', resultType: 'failure' };
       }
       invocation.signal?.addEventListener('abort', onAbort, { once: true });
+      const toolTiming = { tool_call_id: id, roundtrip_ms: null };
+      const toolStart = performance.now();
+      evidence.toolDurations.push(toolTiming);
       const result = await new Promise(resolveResult => {
         pending = { id, resolve: resolveResult };
         try { writer.write({ type: 'tool', id, arguments: args }); }
         catch (error) { fail(error); }
       });
+      if (!failure) toolTiming.roundtrip_ms = performance.now() - toolStart;
       invocation.signal?.removeEventListener('abort', onAbort);
       return { textResultForLlm: JSON.stringify(result),
         resultType: result.exit_code === 0 ? 'success' : 'failure' };
@@ -484,8 +536,13 @@ export async function runTransport({ input = process.stdin, output = process.std
     if (session.sessionId !== evidence.sessionId) throw fault('created_session_mismatch');
     if (!evidence.started) throw fault('session_identity_unavailable');
     stage = 'session_send';
-    await Promise.race([session.sendAndWait({ prompt: request.prompt },
-      Math.max(1, deadline - Date.now())), failed]);
+    const sendStart = performance.now();
+    try {
+      await Promise.race([session.sendAndWait({ prompt: request.prompt },
+        Math.max(1, deadline - Date.now())), failed]);
+    } finally {
+      evidence.sendWaitMs = performance.now() - sendStart;
+    }
     if (!evidence.idle || pending) throw fault('session_not_idle');
     stage = 'session_shutdown';
     await Promise.race([session.rpc.shutdown({ type: 'routine' }), failed]);

@@ -9,12 +9,12 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { CopilotRequestHandler } from '@github/copilot-sdk';
 import { Evidence, InputRecords, OutputRecords, assertRuntime, permissionHandler,
-  runTransport, sessionConfig, validateArguments } from './transport.mjs';
+  runTransport, sessionConfig, validateArguments, validateRequest } from './transport.mjs';
 import { RpcFrames, hostEnvironment, makeRuntime, prepareRuntimeDirectories } from './runtime-guard.mjs';
 
 const request = (extra = {}) => ({ model: 'test-model', reasoningEffort: 'medium', prompt: 'test',
   remainingSeconds: 2, maxAiCredits: 173.5, cliPath: '/trusted/copilot',
-  baseDirectory: '/trusted/sterile', ...extra });
+  baseDirectory: '/trusted/sterile', arm: 'B', stepKind: 'feature', originalMaxAiCredits: 270, ...extra });
 const event = (type, data) => ({ id: crypto.randomUUID(), parentId: null,
   timestamp: new Date().toISOString(), type, data });
 const start = (sid, req = request()) => event('session.start', {
@@ -120,6 +120,45 @@ test('exact source-qualified tools, permission/session checks, shared limits and
   assert.deepEqual(hostEnvironment({ HOME: '/host', PATH: '/bin', GH_TOKEN: 'secret',
     GITHUB_TOKEN: 'secret', COPILOT_HOME: '/host/config', NODE_OPTIONS: 'unsafe' }),
   { HOME: '/host', PATH: '/bin' });
+});
+
+test('only D feature receives larger original credits and remaining retries cannot top up', () => {
+  assert.equal(validateRequest(request({ arm: 'D', maxAiCredits: 540, originalMaxAiCredits: 540 })).maxAiCredits, 540);
+  assert.equal(validateRequest(request({ arm: 'D', maxAiCredits: 39.5, originalMaxAiCredits: 540 })).maxAiCredits, 39.5);
+  for (const extra of [
+    { arm: 'B', maxAiCredits: 540, originalMaxAiCredits: 540 },
+    { arm: 'D', maxAiCredits: 541, originalMaxAiCredits: 540 },
+    { arm: 'D', maxAiCredits: 601, originalMaxAiCredits: 601 },
+    { arm: 'D', remainingSeconds: 2701 }, { arm: 'B', remainingSeconds: 1801 },
+    { arm: 'E', stepKind: 'repair', remainingSeconds: 901 },
+    { arm: 'D', stepKind: 'review' }, { arm: 'A', stepKind: 'repair' },
+    { arm: 'E', stepKind: 'consolidation' }, { arm: 'D', stepKind: 'change_request',
+      maxAiCredits: 540, originalMaxAiCredits: 540 },
+  ]) assert.throws(() => validateRequest(request(extra)), /invalid_initial_request/);
+  assert.equal(validateRequest(request({ arm: 'E', stepKind: 'repair' })).arm, 'E');
+});
+
+test('actually observable SDK API duration is latency; active/rate-limit timing stays unknown', () => {
+  const evidence = new Evidence(request(), 's', () => 42);
+  evidence.observe(start('s'));
+  evidence.observe(usage('s', { duration: 12.5 }));
+  evidence.observe(event('model.call_finished', { outcome: 'success', dispatchDurationMs: 15,
+    turnId: 'synthetic-turn', interactionId: 'synthetic-interaction' }));
+  evidence.observe(event('session.idle', {}));
+  evidence.observe(shutdown('s'));
+  const timing = evidence.receipt().timing;
+  assert.equal(timing.sdk_api_request_durations.complete_sum_ms, 12.5);
+  assert.equal(timing.sdk_api_request_durations.missing_calls, 0);
+  assert.equal(timing.sdk_logical_dispatches[0].dispatch_duration_ms, 15);
+  assert.equal(timing.provider_active_compute_ms, null);
+  assert.equal(timing.provider_rate_limit_wait_ms, null);
+  assert.equal(timing.host_send_and_wait_ms, null);
+  assert.equal(timing.isolated_tool_roundtrip_ms_observed_sum, null);
+  const unknown = new Evidence(request(), 's');
+  unknown.observe(start('s'));
+  unknown.observe(usage('s'));
+  assert.equal(unknown.receipt().timing.sdk_api_request_durations.complete_sum_ms, null);
+  assert.equal(unknown.receipt().timing.sdk_api_request_durations.missing_calls, 1);
 });
 
 test('complete correlated terminal aggregate deduplicates per-call and cumulative events', () => {

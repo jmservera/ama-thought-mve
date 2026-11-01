@@ -1,8 +1,15 @@
 {
-  "schema_version": 1,
-  "status": "expat-free-runtime-owner-authorized-final-verification-freeze-and-prospective-osf-recording",
-  "readiness_policy": "Owner authorised separation of OSF submission from collection readiness on2026-10-28. On2026-10-30 the owner individually accepted all six scientific scopes for90e393e, then corrected1120002 runtime/access evidence, selecting documented owner review without independent reviewers for this first exploratory study. No independent scientific or access/security review is claimed; the separate experiment executor supplies operational separation only. Legacy independent-named evidence keys retain their names but record owner acceptance explicitly. Actual information boundaries, permissions, isolation, unknown-usage stops, final source-bound owner freeze and prospective existing-registration OSF update remain mandatory. No agent permission, trust or sandbox safeguard changes. Soft-limit overshoot risk remains owner-accepted with buffers, not billing guarantees. Record the review-policy changes and other corrections prospectively before affected collection; no new paid calls or collection authorized.",
+  "schema_version": 2,
+  "status": "prospective-five-arm-v5-offline-candidate-collection-blocked",
+  "active_readiness_policy": "Changed arms, sample, prompts, analysis and runtime inputs invalidate v4 acceptance for this candidate. Preserve protocol-frozen-v4 and protocol/freeze.json unchanged. New exact-source independent scientific/runtime review, feasibility, owner privacy attestations/access readback, a new owner-authorized freeze and prospective OSF amendment are pending. Offline checks are not approval or permission for paid calls. No collection, publication, repository visibility change or OSF mutation is performed by this candidate.",
+  "historical_v4_readiness_policy": "Owner authorised separation of OSF submission from collection readiness on2026-10-28. On2026-10-30 the owner individually accepted all six scientific scopes for90e393e, then corrected1120002 runtime/access evidence, selecting documented owner review without independent reviewers for this first exploratory study. No independent scientific or access/security review is claimed; the separate experiment executor supplies operational separation only. Legacy independent-named evidence keys retain their names but record owner acceptance explicitly. Actual information boundaries, permissions, isolation, unknown-usage stops, final source-bound owner freeze and prospective existing-registration OSF update remain mandatory. No agent permission, trust or sandbox safeguard changes. Soft-limit overshoot risk remains owner-accepted with buffers, not billing guarantees. Record the review-policy changes and other corrections prospectively before affected collection; no new paid calls or collection authorized.",
   "scientific_review_policy": {
+    "mode": "independent-review",
+    "independent_review_required_before_collection": true,
+    "independent_review_completed": false,
+    "evidence": null
+  },
+  "historical_v4_scientific_review_policy": {
     "mode": "owner-reviewed-exploratory-pilot",
     "decision_date": "2026-10-30",
     "evidence": "protocol/scientific-acceptance-2026-10-30.json",
@@ -10,6 +17,12 @@
     "independent_review_completed": false
   },
   "runtime_access_review_policy": {
+    "mode": "independent-review",
+    "independent_review_required_before_collection": true,
+    "independent_review_completed": false,
+    "evidence": null
+  },
+  "historical_v4_runtime_access_review_policy": {
     "mode": "owner-reviewed-runtime-access",
     "decision_date": "2026-10-30",
     "evidence": "protocol/runtime-acceptance-2026-10-30.json",
@@ -38,6 +51,13 @@
     "path": "docs/capstone/thought-leadership/everything-but-the-software/main.tex",
     "sha256": "240335ea4f2015dc91cbdc1e55315f65cc552691b0579aa93b2498c1b590bad2"
   },
+  "candidate_paper_alignment": {
+    "title": "Feature-Driven Decay in an Agentic Coding Loop",
+    "status": "pending exact-source manuscript alignment; paper field above is historical provenance",
+    "accepted": false,
+    "commit": null,
+    "sha256": null
+  },
   "mve_baseline": "1fee4535dd65ccedcee9638ef3a77ff3f9ce12a2",
   "historical_tag": {
     "name": "protocol-frozen",
@@ -46,14 +66,18 @@
   },
   "study": {
     "purpose": "pilot-estimation",
+    "title": "Feature-Driven Decay in an Agentic Coding Loop",
+    "candidate_version": "v5",
+    "analysis_design": "model-blocked-v2",
     "suite": "s1-retrofit",
-    "arms": ["A", "B", "C"],
-    "runs_per_arm": 2,
+    "arms": ["A", "B", "C", "D", "E"],
+    "runs_per_arm": 33,
     "model_roster": ["gpt-6.1-sol", "claude-sonnet-5.5", "gemini-4-argon"],
     "features": 10,
     "change_request": true,
     "formal_hypotheses": [],
-    "core_endpoints": ["H1", "H2", "H6"],
+    "core_endpoints": ["final_coverage_B_D"],
+    "secondary_endpoints": ["retained_losses", "graded_CR1", "binary_CR1", "resources"],
     "deferred_formal_claims": ["H4", "H7"],
     "calibration_runs_per_arm": 1,
     "calibration_change_request": false,
@@ -69,12 +93,18 @@
     "feature_seconds": 1800,
     "post_seconds": 900,
     "change_request_seconds": 2700,
+    "D_feature_seconds": 2700,
+    "D_feature_nominal_credit_cap": 600,
+    "D_feature_operational_soft_credit_limit": 540,
+    "D_post_session": false,
+    "E_post_kind": "visible_regression_repair",
     "credit_ceiling": 300000,
     "calibration_session_credit_cap": 300,
     "pilot_session_credit_cap": 300,
     "operational_session_soft_limit_credits": 270,
     "operational_admission_ceiling_credits": 270000,
-    "soft_limit_risk_policy": "Owner accepts residual in-flight-response overshoot. Uniform 10% buffer selected as implementation assumption on 2026-10-29, pending prospective recording. Original registered 300/session and 300000 total remain nominal maxima, not guaranteed provider-enforced stops. Known prior21.79019 (historical smoke14.54324 plus excluded backend checks3.05509 and audited P1 check4.19186), calibration, probes and every attempt count; historical1200held remains separate from actual spending. Retries share remaining original time/soft allowance and are not topped up below CLI minimum30.",
+    "soft_limit_risk_policy": "Prospective v5 nominal ordinary sessions300, D feature600; soft270/540. Aggregate300000 registered and270000 local admission unchanged. Retries share original arm/step allowances, no top-ups below remaining30. In-flight overshoot can exceed soft caps; buffers do not guarantee billed consumption. Known prior21.79019, historical1200holds, calibration and every attempt count. Financial risk/review/registration for this changed source remain pending.",
+    "historical_v4_soft_limit_risk_policy": "Owner accepts residual in-flight-response overshoot. Uniform 10% buffer selected as implementation assumption on 2026-10-29, pending prospective recording. Original registered 300/session and 300000 total remain nominal maxima, not guaranteed provider-enforced stops. Known prior21.79019 (historical smoke14.54324 plus excluded backend checks3.05509 and audited P1 check4.19186), calibration, probes and every attempt count; historical1200held remains separate from actual spending. Retries share remaining original time/soft allowance and are not topped up below CLI minimum30.",
     "company_hard_limit_credits_owner_reported": 1000000,
     "company_hard_limit_independently_verified": false,
     "study_specific_provider_hard_cap_required": false,
@@ -98,15 +128,51 @@
   "analysis": {
     "bootstrap_resamples": 10000,
     "seed": 2027,
-    "bootstrap_interval": "pointwise 95% percentile; whole runs within arm within model; no undefined draws discarded",
-    "cr_interval": "97.5% equal-tailed Clopper-Pearson per arm; opposite endpoints give at least 95% per-comparison coverage",
-    "comparisons": ["B-A", "B-C"],
-    "primary_stratification": "model",
-    "overall_summary": "Exploratory only; equal model weights; do not silently pool model-specific runs",
-    "multiplicity": "No family-wide or confirmatory coverage claim",
-    "power_simulation_completed": false
+    "bootstrap_interval": "pointwise 95% percentile; whole trajectories within each arm/model cell; equal model weights; missing draws/endpoints never discarded",
+    "cr_interval": "Exact 95% Clopper-Pearson per arm/model binary success proportion when all allocated outcomes observed; not simultaneous or family-wide",
+    "cr1_prerequisite_strata": "Both/not-both/unknown: each F9/F10 fixed contract group passed fully at a unique observed pre-CR1 F/P checkpoint after release. Missing acquisition opportunities stay unknown. Current P10 availability is a separate companion; conditioning is post-treatment selection, not causal.",
+    "comparisons": ["B-D", "B-A", "B-C", "E-B", "E-D"],
+    "primary_comparison": "B-D",
+    "primary_stratification": "model-blocked equal weights 1/3",
+    "overall_summary": "Primary equal-model-weight blocked final-coverage B-D; per-model outcomes and other comparisons descriptive secondary",
+    "multiplicity": "One prospective primary coverage comparison; no family-wide secondary claim",
+    "power_simulation_completed": false,
+    "normal_planning_calculation": {
+      "alpha_two_sided": 0.05, "power": 0.8,
+      "minimum_useful_absolute_gain_pp": 10,
+      "within_cell_sd_pp": 25, "sd_status": "ASSUMPTION, not observed variance",
+      "formula": "ceil(2 * SD_pp^2 * (z_(1-alpha/2) + z_power)^2 / (3 * delta_pp^2))",
+      "computed_runs_per_arm_model": 33, "computed_total_trajectories": 495,
+      "sensitivity_sd_pp": [15, 20, 25, 50],
+      "sensitivity_runs_per_arm_model": [12, 21, 33, 131],
+      "bounded_score_worst_case_sd_pp": 50,
+      "pooled_complete_within_cell_df": 480, "primary_B_D_complete_within_cell_df": 192,
+      "binary_CR1_powered": false, "fixed_before_outcomes": true,
+      "outcome_driven_resizing_or_replacements": false
+    },
+    "historical_model_stratified_v1": {
+      "arms": ["A", "B", "C"], "runs_per_arm_model": 2, "total_trajectories": 18,
+      "pooled_within_cell_df": 9, "four_pairwise_differences_per_model_comparison": true,
+      "two_observation_percentile_bootstrap_nominal_95_claim": false,
+      "never_reinterpreted_as_v2": true
+    },
+    "structural_metrics": "External fixed Ruff --isolated --ignore-noqa, distinct Lizard complexity/jscpd duplication and added suppression/config edits are treatment-fidelity checks, not independent efficacy outcomes",
+    "C_follow_through": "External semantic annotations require actual review-head/line and later-feature diff-hunk locators plus observed/unknown coverage; overlap alone is not repair evidence",
+    "provider_active_compute_and_rate_limit_waits": "unknown unless separately observable; SDK API/dispatch duration is latency, not active compute"
   },
   "owner_decisions": {
+    "post_after_failed_feature": "Prospective v5 selection: B/C/E post-steps run after completed unsuccessful feature attempts on retained green state; A/D have no scheduled post. Never replay poor outcomes.",
+    "prerequisite_continuation_and_later_recovery": "Continue from retained state. E may repair previously specified behavior, not introduce new capabilities or hidden feedback. No make-up or replacement trajectories.",
+    "evaluator_information_boundary": "Every arm receives only current/previous immutable visible specifications and approved examples. No hidden scores, identifiers/messages, reference assets, future specifications or CR1 before its session. Candidates have no network; trusted host SDK provider network is distinct.",
+    "outage_retry_and_missing_measurement_rules": "At most one infrastructure-only retry sharing original arm/step time and soft credits, including D's single 45-minute/540-soft-credit feature. Missing billing/measurement and overshoot stops remain. No outcome-driven retries, additions, replacements or silent sample reduction.",
+    "agent_failure_classification": "Documented terminal agent-caused CR1 inability can be unsuccessful; infrastructure/oracle/unclassified missingness stays unknown with denominators/bounds.",
+    "assisted_run_disposition_and_telemetry": "Retain every allocation, costs and assistance dispositions. No content assistance during primary collection; unknown assistance is not zero. Structural and C annotations are fidelity checks; provider-active/rate-limit waits remain unknown.",
+    "comprehension_include_or_defer": "Comprehension efficacy remains deferred; no unmeasured comprehension or structural-metric efficacy claim.",
+    "oracle_repeat_count_and_failure_rules": "Require unchanged triplicate references at all 10 features and fixed CR1 (33 evaluations), complete all-pass vectors and zero contradictions. Any contradiction halts, is investigated/versioned and revalidated before new collection.",
+    "post_calibration_credit_cap_and_affordability": "Five arms, three existing models, fixed 33/cell (495) from alpha=.05/power=.80/delta=10pp/SD=25pp planning assumption. Excluded calibration 1/arm/model (15), no CR1, cost-only. Keep 300000 nominal aggregate/270000 admission and historical holds. Proposed 1.25 cost/time projection margin, full CR1 forecast and largest reservation headroom must support ALL495 within remaining admission/deadline or halt and amend, never shrink n.",
+    "actual_prior_data_seen_and_chronology": "Historical prior-data disclosure and acceptance records remain unchanged and excluded. No new observations, exposure chronology, approvals, metadata or financial conversion invented."
+  },
+  "historical_owner_decisions": {
     "post_after_failed_feature": "Owner selected 2026-10-27: after a completed unsuccessful feature attempt, retain green-only rollback and run scheduled B/C post-step on the last retained green state without replaying the failed feature request; A has no extra session.",
     "prerequisite_continuation_and_later_recovery": "Owner selected 2026-10-27: continue scheduled later features and CR1 from retained state; allow incidental recovery only within normal prompts, permissions and budgets; no dedicated make-up attempts or replacement trajectories.",
     "evaluator_information_boundary": "Owner selected 2026-10-27: task specifications and approved visible examples only; hidden evaluator scores, identities, messages and reference solutions stay external and are never fed back; withhold CR1 text until its session. Owner accepted corrected1120002 controlled access evidence on2026-10-30 and explicitly selected owner review without independent reviewers for this first study; separate executor provides operational separation, not independent technical review. Earlier independent-access-review requirement is prospectively superseded, not reported completed. All actual information-boundary and isolation safeguards remain.",
@@ -119,6 +185,14 @@
     "actual_prior_data_seen_and_chronology": "Owner confirmed 2026-10-27: planned registered study has not run and starts only after OSF registration. Owner confirmed disclosed-only inventory 2026-10-28: earlier unmeasured manual work, measured MVE smoke-01 (Sonnet 5.5, B/F1 plus consolidation, 14.54324 credits), and offline/fake/reference diagnostics; no additional model runs or calibration/pilot trajectories reported. All are excluded. protocol/prior-data-disclosure.md records exact Git recording/interpretation dates with timezones; historical collection/first-inspection times remain unverified, not inferred from commits. Unrelated hve-squad benchmarking (https://github.com/Peter-N91/hve-squad/pull/212) is not pooled or used as MVE evidence."
   },
   "required_evidence": {
+    "independent_suite_review": null, "contract_panel_review": null, "oracle_stability": null,
+    "local_runtime_evidence": null, "access_probe_including_cr1_text": null,
+    "analysis_and_reference_metrics_acceptance": null,
+    "telemetry_coverage_or_explicit_secondary_unavailability": "HIR/IDR efficacy outcomes deferred; observable SDK/host timing and explicit unknown provider components only. Billing/model/assistance evidence still mandatory.",
+    "prior_data_disclosure": "Pending new source-bound owner reconfirmation; preserved protocol/prior-data-disclosure.md.",
+    "multi_model_harness_alignment": null
+  },
+  "historical_required_evidence": {
     "independent_suite_review": "Owner accepted bounded pilot workload on2026-10-30 for90e393e; protocol/scientific-acceptance-2026-10-30.json records scope, limits and owner-reviewed policy. No independent review is claimed.",
     "contract_panel_review": "Owner accepted fixed142contract panel and test-weighted interpretation on2026-10-30 for90e393e; protocol/scientific-acceptance-2026-10-30.json. Independent scientific acceptance deferred, not completed.",
     "oracle_stability": "Owner accepted33protected reference evaluations across11stages with exact triplicate all-pass vectors on90e393e, recorded2026-10-30 in protocol/scientific-acceptance-2026-10-30.json. Evidence remains bound to that source; contradictions halt collection.",
@@ -130,9 +204,85 @@
     "multi_model_harness_alignment": "Owner accepted existing18pilot/9calibration trajectory allocation, assigned-model resume, bounded retries/resource accounting and model-specific exports on2026-10-30 for90e393e; protocol/scientific-acceptance-2026-10-30.json. This is not runtime or paid-execution approval."
   },
   "owner_approval": {
+    "approved": false, "date": null, "evidence": null
+  },
+  "historical_v4_owner_approval": {
     "approved": true,
     "date": "2026-10-31",
     "evidence": "Owner response: '1. approve, 2. go ahead, 3. accept automatically, 4. do it, 5. I will do it when you do 4'. Authorizes production adoption, verified commit/push, exact final-source/image acceptance after successful verification, and replacement freeze; protocol/security-expat-removal-2026-10-31.json. Commit/tag/image/final-source receipt must be bound and verified in protocol/freeze.json; failed verification blocks freeze. Historical v2/original attachments and all accounting evidence preserved. OSF amendment is owner-operated afterward, not recorded or backdated; no new paid calls or collection authorized."
   },
-  "registration": {"submitted": true, "url": "https://osf.io/ywsrv/", "date": "2026-10-28"}
+  "registration": {
+    "submitted": true, "url": "https://osf.io/ywsrv/", "date": "2026-10-28",
+    "scope": "Actual owner-confirmed original registration only, not v5",
+    "prospective_amendment_completed": false, "prospective_amendment_date": null,
+    "prospective_amendment_evidence": null
+  },
+  "candidate_requirements": {
+    "exact_source_scientific_review": null, "five_arm_runtime_boundary_review": null,
+    "triplicate_reference_oracle": null, "bounded_mutation_review": null,
+    "billing_model_assistance_evidence": null, "cost_only_full_sample_feasibility": null,
+    "owner_repository_privacy_attestations": null, "operator_access_readback": null,
+    "prospective_osf_amendment": null, "owner_exact_source_freeze_and_launch": null
+  },
+  "feasibility": {
+    "status": "proposed thresholds, not completed approvals",
+    "failed_infrastructure_step_fraction_maximum": 0.05,
+    "missing_primary_measurements_maximum": 0, "oracle_contradictions_maximum": 0,
+    "required_reference_evaluations": 33, "information_boundary_failures_maximum": 0,
+    "complete_billing_model_assistance_evidence_required": true,
+    "cost_only_calibration_runs": 15, "unchanged_study_trajectories": 495,
+    "cost_time_projection_multiplier": 1.25, "forecast_CR1_soft_credits_each": 270,
+    "forecast_CR1_seconds_each": 2700, "largest_original_reservation_headroom_credits": 600,
+    "study_sessions": 8415, "study_maximum_agent_hours": 3836.25,
+    "calibration_sessions": 240, "calibration_maximum_agent_hours": 105,
+    "combined_sessions": 8655, "combined_maximum_agent_hours": 3941.25,
+    "combined_nominal_caps_credits": 2902500, "combined_operational_soft_caps_credits": 2612250,
+    "worst_case_caps_fit_aggregate": false,
+    "action_if_unfeasible": "Halt and amend prospectively BEFORE affected collection; never shrink n"
+  },
+  "sharing": {
+    "intended_audience": "trusted independent researchers/operators, privately",
+    "original_repositories": ["jmservera/ama", "jmservera/ama-thought-mve"],
+    "interim_public_development": {
+      "owner_selection": "public-pr-now",
+      "decision_date": "2026-11-01",
+      "evidence": "Owner explicitly selected public-pr-now after the parent explained both original repositories remain public",
+      "development_source_PRs_authorized_for_parent": true,
+      "reported_original_visibility": "both public; this kit task did not query or mutate visibility",
+      "researcher_archive_or_study_result_release_authorized": false,
+      "OSF_mutation_authorized": false,
+      "collection_authorized": false,
+      "contamination_limitation": "Interim public development source, including protocol/oracle/reference material, can be exposed to researchers/models. Later privacy and tool boundaries cannot erase prior or interim exposure."
+    },
+    "owner_must_make_both_original_repositories_private_before_experiment": true,
+    "owner_privacy_attestations_completed": false, "owner_visibility_readback_completed": false,
+    "operator_no_original_repositories_or_paper_access_required": true,
+    "operator_access_readback_completed": false,
+    "previous_public_or_model_exposure_not_undone_by_visibility": true,
+    "operator_may_possess_protected_harness_reference_assets": true,
+    "candidate_may_possess_protected_harness_reference_assets": false,
+    "candidate_tool_network": "none",
+    "trusted_host_provider_network": "necessary SDK transport only; not candidate network",
+    "private_archive_checksum_handoff_required": true, "upload_performed": false,
+    "prospective_osf_registration_and_embargo_planned": true,
+    "new_osf_configuration_verified": false,
+    "publication_only_after_collection_and_paper_release": true,
+    "publication_scope": "researcher archives, study results and paper release; development-source PR permission is a separate owner decision",
+    "publication_release_authorized": false
+  },
+  "historical_exports_policy": {
+    "status": "owner-deferred",
+    "decision_date": "2026-11-01",
+    "scope": "historical cloud/sign-in/usage exports; critique uses repository evidence only",
+    "exports_retrieved_or_reconciled_by_this_task": false,
+    "known_prior_and_historical_holds_unchanged": true,
+    "prospective_complete_billing_model_assistance_requirements_waived": false
+  },
+  "follow_up": {
+    "scope": "Subsequent main study only; current fixed CR1 unchanged",
+    "prewritten_randomized_change_request_pool": "protocol/change-request-pool.json",
+    "pool_review_and_prospective_follow_up_freeze_completed": false,
+    "bounded_mutation_check": "harness/mutation_adequacy.py",
+    "mutation_acceptance_completed": false, "universal_hidden_test_adequacy_claim": false
+  }
 }

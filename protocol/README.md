@@ -1,50 +1,44 @@
-# Current protocol and registration draft
+---
+title: Active prospective v5 protocol and retained history
+description: Five-arm fixed-sample candidate, not v4 acceptance or OSF completion
+ms.date: 2026-11-01
+---
 
-Start with [pilot-estimation.md](pilot-estimation.md) and
-[osf-preregistration.md](osf-preregistration.md).
-[pilot-estimation.json](pilot-estimation.json) is the machine-readable design
-and owner-decision ledger. Choices now specify three models, two trajectories
-per arm/model (18 pilot plus nine excluded calibration), and 300,000 total
-AI Credits as the nominal registered envelope. The 29 October owner-accepted
-soft-limit policy uses 270/session and 270,000 local admission (10% buffers);
-in-flight responses can exceed soft limits, so billed consumption is not
-guaranteed. The much larger company hard limit is owner-reported, not verified
-study enforcement. See [collaborator instructions](../CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk).
-The original registration is owner-confirmed approved following
-submission on 28 October 2026: https://osf.io/ywsrv/overview.
-The subsequent corrected candidate needs
-[prospective OSF recording](prospective-corrections-2026-10-28.md) and
-actual prospective amendment completion; no permission to collect data is recorded.
-The owner separately approved all six scientific scopes for `90e393e` on
-30 October and selected owner review rather than independent scientific
-acceptance for this exploratory pilot. The lack of independent review is a
-disclosed limitation, not a completed review. See
-[the scientific decision record](scientific-acceptance-2026-10-30.json).
-Corrected `1120002` runtime/access evidence was also explicitly owner-accepted.
-The owner selected no independent reviewers for this first study; the separate
-executor supplies operational separation, not scientific or security auditing.
-See [the runtime decision record](runtime-acceptance-2026-10-30.json).
-This changes review sign-off policy, not actual runtime safeguards.
+Start with [pilot-estimation.md](pilot-estimation.md) and its
+[JSON declaration](pilot-estimation.json). The filename/CLI phase are retained
+for compatibility; the active candidate is **model-blocked-v2, five arms,
+33 trajectories/arm/model (495)**. The SD25pp power-planning value is an
+assumption, not observed variance. Excluded cost-only calibration is 15 runs,
+without CR1. All-495 affordability/deadline evidence is pending.
 
-The controller/analysis implement model-aware scheduling and separate primary
-estimates per model, with immutable assigned-model/replicate identity. Required
-`multi_model_harness_alignment` is owner-accepted on the reviewed source;
-runtime/access acceptance is separately recorded. After merging #4 the owner
-authorized the source-bound [freeze manifest](freeze.json); its prospective
-OSF completion date stays unset until the actual amendment is recorded.
-Final OSF recording and separate launch authorization remain.
-An updated draft does not authorise the expanded study.
-These are precollection safeguards, **not ordinary OSF submission requirements**.
-The owner authorised submitting an honestly unreviewed plan on 28 October 2026,
-with actual approval of 235489c content plus selected metadata now recorded.
-The selected document licence is CC BY-NC-ND 4.0, with embargo through
-2026-12-31; contributors/affiliations are entered directly in OSF. Follow
-[osf-submission-checklist.md](osf-submission-checklist.md) for the live form and
-safe attachments. Readiness reports separate submission and collection blockers;
-no pending evidence is marked accepted to prepare a registration.
+[The v5 amendment](prospective-v5-2026-11-01.md) and
+[OSF checklist](osf-submission-checklist.md) enumerate pending exact-source
+requirements. Researcher/operator archives remain intended for private trusted
+handoff. The owner selected `public-pr-now` on 2026-11-01 after acknowledging both
+original repositories remain public; parent development-source PRs are permitted,
+not collection or researcher-archive release. Interim source exposure is a
+contamination limitation. The title is *Feature-Driven Decay in an Agentic Coding Loop*.
+Owner repository privacy attestations and operator access readbacks are pending;
+earlier public/model exposure is not undone by changing visibility.
 
-The other context/hypotheses/design/plan/vetting documents below are retained
-**historical proposals**, not active seven-test criteria. The immutable
-[pre-amendment snapshot](https://github.com/jmservera/ama-thought-mve/tree/1fee4535dd65ccedcee9638ef3a77ff3f9ce12a2)
-and old `protocol-frozen` tag remain unchanged. Current analysis is estimation-only;
-historical analysis requires explicit `--legacy-proposal`.
+Historical cloud/sign-in/usage exports are explicitly owner-deferred; the critique
+uses repository evidence, not new live-export reconciliation or fabricated metadata.
+
+The original [OSF registration](https://osf.io/ywsrv/) is owner-confirmed
+approved on 28 October 2026, not independently verified. Original submitted/
+date flags remain true/recorded; the v5 prospective amendment remains false/
+unset. Preparation does not upload, approve, freeze or enable collection.
+
+Historical [freeze.json](freeze.json), `protocol-frozen-v4`,
+[scientific acceptance](scientific-acceptance-2026-10-30.json),
+[runtime acceptance](runtime-acceptance-2026-10-30.json), security records,
+[prior data](prior-data-disclosure.md), original attachments and critiques are
+unchanged. Prior canonical versions remain in Git/the frozen tag. Historical
+`model-stratified-v1` remains A/B/C, n2/cell (18), with four pairwise differences
+and pooled SD/df9 as diagnostics, not nominal 95% bootstrap inference.
+
+Other context/hypotheses/design/plan/vetting/divergence documents are retained
+historical proposals and records, not the active v5 sample or seven-test rules.
+[The change-request pool](change-request-pool.json) is prewritten for a later
+main study and requires its own prospective review/freeze. Current fixed CR1,
+examples, hidden tests, references and contract-panel hashes are unchanged.

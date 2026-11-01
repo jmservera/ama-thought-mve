@@ -33,8 +33,20 @@ is never copied.
 Verify the external archive checksum before extraction. `manifest.json` binds
 every packaged file. From `source/`, start with `CONTRIBUTOR.md` and the dated
 prospective clarification in `protocol/prospective-corrections-2026-10-28.md`.
-The original approved registration is https://osf.io/ywsrv/; the corrected
-candidate still needs its prospective OSF update and source-bound acceptance.
+The original approved registration is https://osf.io/ywsrv/; it is not approval
+of this five-arm v5 candidate. The owner must make both original repositories
+private and attest/read back visibility and operator access before experiment.
+The operator must lack access to the original repositories/paper, while being
+trusted to possess this protected harness/reference archive. Prior public/model
+exposure cannot be undone by changing visibility. See the prospective v5 note.
+No visibility change, OSF amendment, collection or upload is performed here.
+On2026-11-01 the owner selected public-pr-now after acknowledging both original
+repositories remain public. Parent development-source PRs are authorized, not
+researcher-archive/results release or collection. Interim public protocol/oracle/
+reference exposure is a contamination limitation that future privacy cannot undo.
+The title remains Feature-Driven Decay in an Agentic Coding Loop. Historical
+cloud/sign-in/usage exports are owner-deferred; repository evidence is not new
+live-export reconciliation or a waiver of prospective billing/model/assistance.
 
 Offline checks (Python 3.11+, git, make):
 
@@ -44,7 +56,8 @@ Offline checks (Python 3.11+, git, make):
 
 The archive path in the first command is illustrative; use its actual location.
 Smoke spends zero model credits. The owner accepts soft-credit-limit overshoot
-risk: settings are buffered to 270/session and 270000 local admission, not
+risk: settings are buffered to 270/original ordinary session, 540 for D's single
+matched-resource feature session and 270000 local admission, not
 guaranteed billed limits. The reported company 1M/collaborator hard cap is not
 independently verified. See CONTRIBUTOR.md before any authorized paid work.
 The isolated live backend is a candidate, not collection approval. Install its
@@ -200,6 +213,12 @@ def prepare(out: Path, root: Path = ROOT) -> dict:
         "registered_source_commit": REGISTERED_COMMIT, "registration_url": REGISTRATION_URL,
         "registration_status": "Owner-confirmed original approval; candidate changes not published by this tool",
         "audience": "trusted operator only; contains hidden evaluator and reference material",
+        "sharing_policy": "private trusted researcher/operator handoff; no automatic upload",
+        "interim_development_source_policy": "Owner selected public-pr-now on2026-11-01; parent development PRs permitted, archive/results/OSF/collection not authorized",
+        "interim_public_exposure_limitation": "Future privacy cannot undo public protocol/oracle/reference exposure",
+        "owner_repository_privacy_attestations_completed": False,
+        "operator_original_repository_paper_access_readback_completed": False,
+        "prospective_v5_amendment_completed": False,
         "git_history": "shallow exact-commit checkout, no personal Git configuration or prior commit history",
         "private_run_data_included": False, "paid_execution_ready": False,
         "files": file_inventory(destination),

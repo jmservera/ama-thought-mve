@@ -12,6 +12,8 @@ from contract_panel import accepted, checked_panel
 from study import fingerprint
 from study_io import ROOT, StudyError, atomic_json, command, read_json
 from study_report import check_credentials
+from arms import ARMS, BLOCKED_DESIGN
+from feasibility import REQUIRED_GATES, sample_size
 
 SUBMISSION_FILES = (
     "protocol/README.md", "protocol/pilot-estimation.md",
@@ -29,6 +31,10 @@ SUBMISSION_FILES = (
     "protocol/security-expat-removal-2026-10-31.json",
     "harness/prompts/feature-step.prompt.md", "harness/prompts/consolidation-step.prompt.md",
     "harness/prompts/review-only-step.prompt.md", "harness/prompts/change-request.prompt.md",
+    "harness/prompts/repair-step.prompt.md",
+    "protocol/change-request-pool.json", "harness/quality-policy.json",
+    "harness/arms.py", "harness/feasibility.py", "harness/mutation_adequacy.py",
+    "protocol/prospective-v5-2026-11-01.md",
 )
 DECISIONS = {
     "post_after_failed_feature", "prerequisite_continuation_and_later_recovery",
@@ -86,8 +92,11 @@ def readiness(config: dict, panel: dict) -> dict:
     study = config["study"]
     resources = config["resources"]
     models = study.get("model_roster")
+    prospective = study.get("analysis_design") == BLOCKED_DESIGN
+    expected_arms = list(ARMS) if prospective else ["A", "B", "C"]
+    expected_runs = sample_size()["trajectories_per_arm_model"] if prospective else 2
     design = (study["purpose"] == "pilot-estimation" and study["suite"] == "s1-retrofit"
-              and study["arms"] == ["A", "B", "C"] and study["runs_per_arm"] == 2
+              and study["arms"] == expected_arms and study["runs_per_arm"] == expected_runs
               and isinstance(models, list) and len(models) == 3
               and all(isinstance(model, str) for model in models)
               and set(models) == {"gpt-6.1-sol", "claude-sonnet-5.5", "gemini-4-argon"}
@@ -101,12 +110,34 @@ def readiness(config: dict, panel: dict) -> dict:
               and resources["separate_monetary_budget_usd"] is None
               and [resources[name] for name in ("feature_seconds", "post_seconds", "change_request_seconds")]
               == [1800, 900, 2700])
+    if prospective:
+        declaration = config["analysis"].get("normal_planning_calculation", {})
+        computed = sample_size()
+        design &= (declaration.get("alpha_two_sided") == computed["alpha_two_sided"]
+                   and declaration.get("power") == computed["power"]
+                   and declaration.get("minimum_useful_absolute_gain_pp") == computed["delta_pp"]
+                   and declaration.get("within_cell_sd_pp") == computed["sd_pp"]
+                   and declaration.get("computed_runs_per_arm_model") == computed["trajectories_per_arm_model"]
+                   and declaration.get("computed_total_trajectories") == computed["total_trajectories"]
+                   and declaration.get("fixed_before_outcomes") is True
+                   and declaration.get("outcome_driven_resizing_or_replacements") is False
+                   and resources.get("D_feature_seconds") == 2700
+                   and resources.get("D_feature_nominal_credit_cap") == 600
+                   and resources.get("D_feature_operational_soft_credit_limit") == 540
+                   and resources.get("D_post_session") is False
+                   and resources.get("operational_admission_ceiling_credits") == 270000)
     decisions = [f"owner_decisions.{key}" for key, value in config["owner_decisions"].items() if not resolved(value)]
     evidence = [f"required_evidence.{key}" for key, value in config["required_evidence"].items() if not resolved(value)]
     submission_unresolved = decisions + [
         f"required_evidence.{key}" for key, value in config["required_evidence"].items()
         if key in SUBMISSION_EVIDENCE and not resolved(value)]
     collection_unresolved = decisions + evidence
+    if prospective:
+        requirements = config.get("candidate_requirements", {})
+        if not isinstance(requirements, dict) or set(requirements) != set(REQUIRED_GATES):
+            raise StudyError("Prospective v5 requires the complete exact-source candidate gate ledger")
+        collection_unresolved += [f"candidate_requirements.{key}" for key, value in requirements.items()
+                                  if not resolved(value)]
     approval = config["owner_approval"]
     if not (approval["approved"] is True and resolved(approval["date"]) and resolved(approval["evidence"])):
         submission_unresolved.append("owner_approval")
@@ -126,6 +157,9 @@ def readiness(config: dict, panel: dict) -> dict:
            for key in ("local_runtime_evidence", "access_probe_including_cr1_text")):
         execution_blockers.insert(0, "Isolated live backend runtime/access evidence require separate acceptance")
     return {"draft_complete": design, "author_submission_ready": design and not submission_unresolved,
+            "analysis_design": BLOCKED_DESIGN if prospective else "historical-model-stratified-v1",
+            "prospective_amendment_recorded": registration.get("prospective_amendment_completed") is True,
+            "original_registration_is_v5_authorization": False,
             "unresolved": submission_unresolved, "submission_unresolved": submission_unresolved,
             "collection_unresolved": collection_unresolved,
             "independent_review_required_for_submission": False,
@@ -164,14 +198,17 @@ def prepare(out: Path, root: Path = ROOT) -> dict:
     source_hashes = {}
     for folder in ("protocol", "harness", "skeleton", "suites", "scripts"):
         for path in sorted((root / folder).rglob("*")):
-            if "__pycache__" in path.parts or ".pytest_cache" in path.parts:
+            if ("__pycache__" in path.parts or ".pytest_cache" in path.parts
+                    or path.relative_to(root).parts[:3] == ("harness", "copilot-sdk", "node_modules")):
                 continue
             if path.is_symlink():
                 raise StudyError("Source evidence must not contain symlinks")
             if path.is_file():
                 source_hashes[path.relative_to(root).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
-    launcher = root / "run-study.sh"
-    source_hashes["run-study.sh"] = hashlib.sha256(launcher.read_bytes()).hexdigest()
+    for relative in ("run-study.sh", "run-experiment.sh", "README.md", "CONTRIBUTOR.md", "RUNBOOK.md"):
+        path = root / relative
+        if path.is_file():
+            source_hashes[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
     manifest = {"status": "offline-draft-not-submitted", "source_commit": command(["git", "rev-parse", "HEAD"], cwd=root),
                 "working_tree_dirty": bool(command(["git", "status", "--porcelain"], cwd=root)),
                 "inputs_sha256": fingerprint(root), "paper": config["paper"],

@@ -41,5 +41,7 @@
   "max_attempts": 2,
   "study_timeout_seconds": 1209600,
   "min_disk_gib": 10,
-  "freeze_manifest": "protocol/freeze.json"
+  "freeze_manifest": "protocol/freeze-v5.json",
+  "calibration_state": ".study/excluded-calibration/state.json",
+  "feasibility_receipt": ".study/feasibility-v5.json"
 }

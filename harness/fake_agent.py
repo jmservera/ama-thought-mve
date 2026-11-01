@@ -59,6 +59,12 @@ def main():
             f.write("\n# a change the review step is not allowed to make\n")
         sh("git add -A && git commit -q -m 'review'", repo)
         print("review written (and an illegal code change, to test enforcement)")
+    elif "visible regression-repair session" in p:
+        with open(os.path.join(repo, "REPAIR.md"), "w") as f:
+            f.write("# Visible repair diagnostic\n\nNo visible defect in the offline reference-copy stub. "
+                    "This is not model or hidden-feedback evidence.\n")
+        r = sh("./tcr 'visible repair diagnostic'", repo)
+        print(r.stdout, r.stderr)
     elif "implementing a change request" in p:
         ref = os.path.join(a.suite, "reference", "cr1", "workbench")
         dst = os.path.join(repo, "src", "workbench")

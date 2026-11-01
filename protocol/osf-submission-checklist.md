@@ -1,119 +1,90 @@
-# OSF preregistration submission checklist
+---
+title: Prospective v5 OSF and exact-source checklist
+description: Pending owner metadata, source review and precollection gates
+ms.date: 2026-11-01
+---
 
-**Original registration: owner-confirmed approved following submission on
-28 October 2026, https://osf.io/ywsrv/overview.**
-The original 763945b attachment is immutable. The checklist below documents its
-submission procedure; do not treat its historical approval as approval of the
-subsequent corrected source. Record
-[the prospective clarification](prospective-corrections-2026-10-28.md)
-and obtain exact candidate acceptance before collection. No collection
-permission or independent runtime acceptance is implied.
-Use the ordinary **OSF Preregistration** template, not Registered Reports.
-Independent scientific review is not an OSF requirement for this submission.
-On 30 October the owner superseded independent-review sign-off prerequisites
-for this first study with disclosed owner scientific and runtime/access review.
-The separate executor provides operational separation, not independent review.
-All actual runtime safeguards and final freeze/OSF requirements remain.
+Original OSF registration https://osf.io/ywsrv/ is owner-confirmed approved
+after submission28October2026, not independently verified. Original attachments,
+historical acceptance records and v4 tag/manifest remain immutable. This v5
+amendment is **not submitted/configured/approved/completed**.
 
-## What is ready and what remains
+## Prepare a truthful draft
 
-The design, analysis, operational choices, secondary scope and prior-data
-disclosure are specified in the attached protocol. The six scientific scopes
-and corrected `1120002` runtime/access evidence are owner-accepted, not
-independently validated. See the [runtime decision record](runtime-acceptance-2026-10-30.json).
-The owner authorized source-bound approval/freeze after merging #4 on 30 October.
-See [the freeze manifest](freeze.json). Prospective OSF completion stays unset;
-actual amendment recording and separate launch authorization remain. Finite
-diagnostics do not guarantee future entitlement.
+* [ ] Review the [canonical protocol](pilot-estimation.md)/JSON and
+  [v5 change note](prospective-v5-2026-11-01.md), independent of manuscript claims.
+* [ ] Recompute33/cell/495 from alpha.05/power.80/delta10pp/SD25pp ASSUMPTION;
+  disclose SD15/20/25/50 sensitivity and131/cell bounded-score worst case.
+* [ ] Retain fixed five-arm allocation, three existing models, cost-only15
+  calibration without CR1, all-run missingness/assistance and historical v1 separation.
+* [ ] Confirm proposed feasibility thresholds and honestly state caps/deadline
+  exceed aggregate maxima. Do not shrink n to fit outcomes or costs.
+* [ ] Owner reconfirms the unchanged prior-data inventory and exposure chronology.
+  Unknown times stay unknown; no new outcomes/approvals inferred.
+* [ ] Owner enters real contributors/affiliations and confirms prospective licence,
+  embargo and publication-after-collection/paper-release metadata. Historical
+  CC BY-NC-ND4.0/2026-12-31 choices are not new configured settings.
+* [ ] Obtain actual exact-source owner submission approval. Editing this draft
+  is not that approval. OSF does not itself require independent review merely
+  to submit; this project's collection gate does.
 
-`readiness.json` reports `submission_unresolved` separately from
-`collection_unresolved`. `unresolved` is an alias for submission blockers.
-Actual source-bound owner approval is now recorded; it was supplied explicitly,
-not inferred from an edit request. Registration and execution remain separate.
+## Private independent review and operator separation
 
-## Recorded final owner decisions
+The 2026-11-01 owner selection `public-pr-now` permits parent development-source
+PRs after acknowledging both original repositories remain public. It does not
+permit public researcher-archive release, OSF mutation, visibility change or
+collection. Record interim source exposure as a contamination limitation, not
+something future private visibility can erase. Preserve the title
+*Feature-Driven Decay in an Agentic Coding Loop*. Historical cloud/sign-in/usage
+exports are owner-deferred; repository-only evidence is not live reconciliation.
 
-The owner approved content at `235489cc8b63307d35d624b1b7bb02124c1bfec1`
-plus only the selected metadata/approval updates, on 28 October 2026.
-The agreed protocol and prior-data inventory were reconfirmed unchanged, with
-no additional work/data exposure or calibration/registered pilot collected.
-The owner chose to submit with independent review/runtime checks pending,
-confirmed contributors/permissions settled and no additional preregistration
-approvals required.
+* [ ] Owner makes both original repositories private before experiment.
+* [ ] Obtain exact-ID, dated owner visibility/access attestation and readback.
+* [ ] Verify operator has no access to original repositories/paper; preserve
+  disclosed prior public/model exposure, not a claim it was undone.
+* [ ] Protected harness/reference archive is only for trusted independent
+  researchers/operators, never a candidate mount. Verify external checksums,
+  exact source/file-mode hashes and private archive retention through a trusted channel.
+* [ ] Independent exact-source scientific, five-arm runtime/information-boundary,
+  test/panel and measurement review; no historical v4 acceptance reuse.
+* [ ] Verify current triplicate references, zero contradictions, bounded mutation
+  denominator/equivalence/unavailability review and any pending tooling limits.
+* [ ] Verify current image/canary/source/model/billing/assistance evidence.
+  Candidate tools stay no-network; trusted host provider network is separate.
 
-**Document licence:** [CC BY-NC-ND 4.0 International](https://creativecommons.org/licenses/by-nc-nd/4.0/).
-This applies only to owner-controlled preregistration documents/attachments,
-not repository code or third-party materials.
-**Visibility:** embargo through **2026-12-31**, selected but not configured here.
-Personal contributor/affiliation details must be entered directly in OSF.
-
-## Complete the live OSF form
-
-1. Select the general-purpose OSF Preregistration template.
-2. Enter the title/description from [osf-preregistration.md](osf-preregistration.md).
-   Enter the settled contributors/affiliations directly in OSF, select
-   **CC BY-NC-ND 4.0 International**, and choose embargo ending **2026-12-31**.
-   Do not infer coauthors or publish private reviewer details.
-3. Transfer the existing-data disclosure, including excluded historical smoke,
-   manual work and offline/reference diagnostics. Git dates are source-history
-   dates, not verified historical collection/first-inspection dates.
-4. Transfer questions, design/randomisation, inclusion/exclusion, outcomes,
-   missingness/analysis and resource rules from the corresponding sections.
-   This is an eighteen-trajectory pilot/estimation plan with nine excluded
-   calibration trajectories, not seven confirmatory hypothesis tests.
-5. Include the pending-review/runtime statement above. No completed independent
-   review or model access is claimed; any necessary substantive method change
-   will be documented prospectively before collecting affected data.
-
-## Attach only the submission package
-
-Generate a fresh private package after committing the final candidate:
+## Generate, verify and transfer only the intended package
 
 ```bash
-.venv/bin/python -B harness/prepare_registration.py --out .study/osf-preregistration-NEW-CANDIDATE
+python3 harness/prepare_registration.py --out .study/v5-osf-draft-NEW
 ```
 
-The package contains the explicit protocol/checklist/ledger/prompt files,
-owner-reviewed contract panel, scientific/runtime decision records, source/package hashes and readiness
-report. Consult its manifest for the exact snapshot and file inventory.
-The decision records identify actual owner acceptance and its limited scope;
-package generation itself never approves checks or a later behavioral change.
+The draft contains the allowlisted active protocol, historical disclosure/decision
+records, prompts, planning/mutation helper, prewritten follow-up pool, source/
+package hashes and readiness report. Dirty candidate status is explicit.
+A complete draft is not submission readiness or execution authorization.
+`registration_recorded` describes the original only;
+`prospective_amendment_recorded` remains false until genuinely supplied.
 
-Do not upload the separate private reviewer bundle, `.study` wholesale, raw
-session logs, credentials, hidden test source or reference implementations.
-The contract panel reveals evaluator identities: choose access/embargo settings
-deliberately and never expose the panel or other held-out material to a study
-agent. Final containment provenance must match the source-bound owner freeze.
-Retain an owner-controlled backup of the exact submitted package and checksums.
+Do not upload raw logs, credentials, candidate repositories, the complete private
+operator archive, hidden sources/references or `.study` wholesale. The protected
+contract panel contains hidden identities: maintain embargo/access separation
+and never expose it to candidates. This tool performs no upload or OSF mutation.
 
-## Verify the approved package and submit
+## Prospective amendment and launch, still pending
 
-Review the exact source commit, input fingerprint and package inventory.
-The owner has explicitly approved the recorded choices, prior-data disclosure
-and limited metadata updates; dated evidence is in the ledger. Verify that the
-package matches that approved scope. Further substantive changes require
-renewed approval; regenerate a clean exact package if any tracked file changes.
-The recorded approval covers preregistration, not permission to collect data.
-
-Submit through OSF and complete its actual contributor-approval/archive process.
-A local package or saved live draft is not completed registration. Record the
-real registration URL/date only once completion is confirmed; do not invent them.
-
-## Before any collection
-
-Record the 30 October owner-reviewed scientific policy and six individually
-accepted scopes plus corrected runtime/access acceptance, explicitly disclosing
-no independent scientific or access/security review. Preserve assistance/usage coverage,
-known prior spending and owner-authorised freeze. The 29 October owner-accepted
-soft-limit policy uses 270/session and 270,000 local admission buffers, not a
-guaranteed provider stop. Record it prospectively; a separate study hard cap
-is no longer required. See [CONTRIBUTOR.md](../CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk).
-The current paid backend remains disabled even with complete registration.
-If review requires substantive changes, document them prospectively in OSF and
-version the affected source/panel/analysis before collecting affected data.
-Preserve the original registration and disclose amendments; do not backdate.
-
-Guidance: [official OSF guide](https://help.osf.io/article/330-welcome-to-registrations),
-[COS preregistration](https://www.cos.io/initiatives/prereg), and
-[Registered Reports distinction](https://www.cos.io/initiatives/registered-reports)
-(consulted 28 October 2026).
+* [ ] Owner records the exact approved v5 source/package amendment before affected
+  collection. Read back actual OSF URL, timestamp, embargo, metadata and attachment
+  checksums; do not substitute the original registration date.
+* [ ] New owner-authorized exact-source freeze/tag/image/canary/review/privacy/
+  OSF evidence. Preserve `protocol/freeze.json` and `protocol-frozen-v4` unchanged.
+  Active `protocol/freeze-v5.json` is absent until genuine authorization.
+* [ ] Separately authorize excluded cost-only calibration only under its phase gate.
+* [ ] Verify all15 original calibration journals/charges/model/assistance and
+  all-495 projected affordability within remaining270000 admission/deadline.
+  Main ledger carries actual calibration charges exactly once.
+* [ ] If any proposed go/no-go criterion fails, halt and amend prospectively
+  before collection. No replacements, additions or silent reduction.
+* [ ] Exact-source main-phase freeze and separate owner launch authorization,
+  not merely calibration approval or numerical affordability.
+* [ ] Publication/OSF release only after collection and paper release with actual
+  owner authorization; no publication is performed here.

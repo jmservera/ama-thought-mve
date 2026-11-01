@@ -15,6 +15,7 @@ RUN echo '89bd6da0404f427b5a9809efa979dcdbdf0a2de0d7962c8189616e01ecce518c  git-
  && tar -xzf git-aports.tar.gz --strip-components=2 -C /build/hardening aports-b3ed5f8f4ce6b2ef13adeaf7494557add6546bda/main/git \
  && python3 /build/tools/prepare-git.py /build/hardening/git
 WORKDIR /build/hardening/git
+ENV PACKAGER="MVE Git Builder <mve-git@example.invalid>"
 RUN abuild-keygen -an && abuild fetch
 USER root
 RUN install -m 644 /home/builder/.abuild/*.rsa.pub /etc/apk/keys/
@@ -39,6 +40,7 @@ RUN echo '0998037cf5c752fff144b075629df0f3d00fdbcc5a425aa17f63b057abc4b8a2  busy
  && gzip -dc /build/tools/busybox-date-utc.patch.gz > /build/hardening/busybox/mve-date-utc.txt \
  && python3 /build/tools/prepare-busybox.py /build/hardening/busybox
 WORKDIR /build/hardening/busybox
+ENV PACKAGER="MVE BusyBox Builder <mve-busybox@example.invalid>"
 RUN abuild-keygen -an && abuild fetch
 USER root
 RUN install -m 644 /home/builder/.abuild/*.rsa.pub /etc/apk/keys/

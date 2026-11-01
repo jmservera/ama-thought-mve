@@ -16,9 +16,11 @@ import stat
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 from evaluation_env import evaluation_environment
 from failure_attribution import api_policy
+from fidelity import measure_fidelity
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -343,7 +345,8 @@ def main():
     ids = suite_items(a.suite, a.k, a.cr)
     hidden = run_hidden(a.repo, a.suite, ids, a.runner,
                         **({"scratch_dir": a.scratch_dir} if a.scratch_dir else {}))
-    m = code_metrics(a.repo, a.complexity, a.duplication, a.lint)
+    policy = json.loads((Path(HERE) / "quality-policy.json").read_text(encoding="utf-8"))
+    m = code_metrics(a.repo, a.complexity, a.duplication, a.lint, lint_policy=policy)
     with evaluation_environment() as env:
         head_result = subprocess.run(["git", "-c", f"safe.directory={os.path.abspath(a.repo)}",
                                       "rev-parse", "--verify", "HEAD"], cwd=a.repo, capture_output=True,
@@ -363,10 +366,14 @@ def main():
         "integrity": integrity(a.repo, a.suite, ids),
         "test_counts": test_counts(a.repo),
         "diff": diff_stats(a.repo, a.prev_ref),
+        "fidelity": measure_fidelity(Path(a.repo), a.prev_ref, policy=Path(HERE) / "quality-policy.json"),
         "test_runner": a.runner,
         "evaluation": {"execution": "local_subprocess", "environment": "allowlisted_subprocesses",
                        "os_isolated": False, "network_isolated": False},
     }
+    result["fidelity"].update(
+        backends=m["backends"], ruff_executed=m["backends"]["lint"] == "ruff",
+        measurement_scope="Policy flags are declarations; disabled diagnostic backends are not measured Ruff/Lizard/jscpd")
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=1)
     print(f"hidden {result['hidden_passed']}/{result['hidden_total']}, mean CC {result['metrics']['mean_ccn']}, "

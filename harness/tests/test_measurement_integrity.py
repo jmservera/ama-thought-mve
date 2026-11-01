@@ -918,7 +918,9 @@ def measurement_command(tmp_path, measure_module, metrics_module, monkeypatch):
     ])
     monkeypatch.setattr(measure_module, "suite_items", lambda *args: ["f1"])
     monkeypatch.setattr(measure_module, "run_hidden", lambda *args: {"test_feature::test_feature": "passed"})
-    monkeypatch.setattr(metrics_module, "measure", lambda *args: {"mean_ccn": 1, "dup_pct": 0, "lint_warnings": 0})
+    monkeypatch.setattr(metrics_module, "measure", lambda *args, **kwargs: {
+        "mean_ccn": 1, "dup_pct": 0, "lint_warnings": 0,
+        "backends": {"complexity": "lizard", "duplication": "jscpd", "lint": "ruff"}})
     monkeypatch.setattr(measure_module, "integrity", lambda *args: {"modified": [], "missing": []})
     monkeypatch.setattr(measure_module, "test_counts", lambda *args: {"tests": 1, "asserts": 1})
     monkeypatch.setattr(measure_module, "diff_stats", lambda *args: None)
@@ -969,9 +971,15 @@ def test_given_direct_measure_cli_when_metric_and_git_children_run_then_metadata
             }), encoding="utf-8")
             stdout = ""
         elif command[0] == "/synthetic/ruff":
+            assert "--isolated" in command and "--ignore-noqa" in command
             stdout = "[]"
-        elif command[:4] == ["git", "-c", f"safe.directory={repo}", "rev-parse"]:
+        elif command[0] == "git" and "rev-parse" in command:
             stdout = "a" * 40
+        elif command[0] == "git" and "--unified=0" in command:
+            assert "--no-ext-diff" in command and "--no-textconv" in command
+            stdout = "+++ b/src/source.py\n+VALUE = 1  # noqa: F401\n"
+        elif command[0] == "git" and "--name-only" in command:
+            stdout = "pyproject.toml\nsrc/source.py\n"
         else:
             assert command[:4] == ["git", "-c", f"safe.directory={repo}", "diff"]
             stdout = "1\t0\tsrc/source.py\n"
@@ -989,7 +997,9 @@ def test_given_direct_measure_cli_when_metric_and_git_children_run_then_metadata
     assert result["metrics"]["backends"] == {"complexity": "internal", "duplication": "jscpd", "lint": "ruff"}
     assert result["hidden_passed"] == result["hidden_total"] == 1
     assert result["diff"]["src"] == {"added": 1, "removed": 0}
-    assert len(commands) == 4
+    assert len(commands) == 7
+    assert result["fidelity"]["new_suppression_lines"] == 1
+    assert result["fidelity"]["changed_configuration_paths"] == ["pyproject.toml"]
     assert all(not path.exists() for path in owned_paths)
     assert os.environ["COPILOT_GITHUB_TOKEN"] == "synthetic-review-marker"
 

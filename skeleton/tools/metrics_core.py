@@ -214,18 +214,26 @@ def duplication(src, files, backend=None):
 
 
 # ----------------------------------------------------------------------- lint
-def lint(src, backend=None, config_root=None):
+def lint(src, backend=None, config_root=None, fixed_policy=None):
     backend = backend or os.environ.get("MVE_LINT", "auto")
     if backend not in ("auto", "ruff", "none"):
         raise ValueError(f"Unknown lint backend: {backend}")
     if backend == "none":
         return {"backend": "none", "warnings": None, "by_code": {}}
+    policy = fixed_policy or {"ruff_select": LINT_RULES, "max_complexity": 10,
+                              "ruff_isolated": True, "ruff_ignore_noqa": True}
+    if (policy.get("ruff_isolated") is not True or policy.get("ruff_ignore_noqa") is not True
+            or not isinstance(policy.get("ruff_select"), str) or not policy["ruff_select"]
+            or type(policy.get("max_complexity")) is not int or policy["max_complexity"] != 10):
+        raise ValueError("External Ruff policy must declare fixed rules, complexity10 and isolated/ignore-noqa")
     with evaluation_environment() as env:
         exe = shutil.which("ruff", path=env["PATH"])
         if not exe:
             raise RuntimeError("ruff requested but not on PATH")
         # --isolated ignores every configuration file, so editing pyproject.toml cannot change the measure.
-        r = subprocess.run([exe, "check", "--isolated", "--select", LINT_RULES, "--output-format", "json",
+        r = subprocess.run([exe, "check", "--isolated", "--ignore-noqa", "--no-respect-gitignore",
+                            "--select", policy["ruff_select"], "--config", "lint.mccabe.max-complexity=10",
+                            "--output-format", "json",
                             "--exit-zero", "--no-cache", os.path.abspath(src)],
                            capture_output=True, text=True, timeout=300, cwd=config_root or None, env=env)
     if r.returncode != 0:
@@ -252,7 +260,7 @@ def lint(src, backend=None, config_root=None):
 
 
 # -------------------------------------------------------------------- summary
-def measure(repo, complexity_backend=None, duplication_backend=None, lint_backend=None):
+def measure(repo, complexity_backend=None, duplication_backend=None, lint_backend=None, *, lint_policy=None):
     src = os.path.join(repo, "src")
     tests = os.path.join(repo, "tests")
     sfiles = py_files(src)
@@ -262,7 +270,7 @@ def measure(repo, complexity_backend=None, duplication_backend=None, lint_backen
     nloc_src = sum(code_lines(_read(p)) for p in sfiles)
     nloc_tests = sum(code_lines(_read(p)) for p in tfiles)
     dup = duplication(src, sfiles, duplication_backend)
-    li = lint(src, lint_backend, config_root=repo)
+    li = lint(src, lint_backend, config_root=repo, fixed_policy=lint_policy)
     md_words = 0
     generated_reports = os.path.abspath(os.path.join(repo, "reports"))
     for d, dirs, files in os.walk(repo):

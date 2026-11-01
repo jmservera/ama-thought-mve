@@ -37,7 +37,7 @@ def test_exact_export_schemas_unavailable_values_and_figure(modules, reports):
     assert {path.name for path in reports.iterdir()} == set(report.EXPORTS)
     assert len(report.validated_artifacts(reports)) == len(report.EXPORTS)
     summary = study.read_json(reports / "summary.json")
-    assert summary["cost_unit"] == "credits" and len(summary["runs"]) == 3
+    assert summary["cost_unit"] == "credits" and len(summary["runs"]) == 5
     assert summary["provenance"]["diagnostic_stub"] is True
     assert summary["provenance"]["session_soft_limit_credits"] == 270
     assert summary["provenance"]["ceiling_nano"] == 270000 * study.NANO
@@ -49,7 +49,7 @@ def test_exact_export_schemas_unavailable_values_and_figure(modules, reports):
     assert {"H4", "H7", "HIR", "IDR", "mixed_effects", "decay_amendment"} <= availability["unavailable"].keys()
     with (reports / "runs.csv").open() as stream:
         rows = list(csv.DictReader(stream))
-    assert len(rows) == 3 and all(row["status"] == "pending" for row in rows)
+    assert len(rows) == 5 and all(row["status"] == "pending" for row in rows)
     assert all(row["unattempted_cycles"] == "1" and row["HIR"] == "" for row in rows)
     with (reports / "intervals.csv").open() as stream:
         intervals = list(csv.DictReader(stream))
@@ -95,7 +95,7 @@ def test_saved_progress_and_sharing_need_no_authentication_or_paid_preflight(
     monkeypatch.setattr(study, "preflight", lambda *args, **kwargs: pytest.fail("Read-only saved action"))
     monkeypatch.setattr(study.sys, "argv", ["study", "--study-id", "export-test", action])
     assert study.main() == 0
-    assert "0/5 steps completed; 5 remaining" in capsys.readouterr().out
+    assert "0/8 steps completed; 8 remaining" in capsys.readouterr().out
     assert (directory / "state.json").read_bytes() == before
     assert (directory / "export-test-results.zip").exists() is (action == "--share")
 

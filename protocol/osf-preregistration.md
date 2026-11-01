@@ -1,282 +1,148 @@
-# OSF Preregistration submission draft
+---
+title: Prospective v5 OSF amendment draft
+description: Five arms and fixed model-blocked coverage planning, not a completed amendment
+ms.date: 2026-11-01
+---
 
-**Original 763945b submission: owner-confirmed registered and approved,
-28 October 2026. This subsequent corrected candidate is not yet prospectively
-recorded; its merged source is owner-approved for freezing, not authorised
-for data collection.** The [freeze manifest](freeze.json) keeps prospective
-amendment completion unset until the actual OSF update is recorded.
-Preserve the original attachment and record
-[the prospective clarification](prospective-corrections-2026-10-28.md)
-before affected collection.
-Use the general-purpose **OSF Preregistration** form. Field wording may change:
-transfer these answers into the live form and attach the approved protocol,
-decision ledger, candidate contract panel and checksums. The panel is not
-independently accepted. Follow [the submission checklist](osf-submission-checklist.md);
-do not upload private session logs or the private reviewer bundle.
+**Not submitted, configured, approved or recorded for v5 by this work.**
+The owner-confirmed original registration is https://osf.io/ywsrv/,
+submitted28October2026. Original attachments and actual historical flags remain;
+they do not register this changed design. Do not backdate the prospective amendment.
+Use the ordinary OSF Preregistration template, not journal registered-report
+acceptance. Follow [the checklist](osf-submission-checklist.md).
 
-## Metadata
+## Metadata and privacy
 
-**Title:** Scheduled consolidation during agentic feature delivery:
-an eighteen-trajectory, three-model S1 pilot/estimation study.
+Title: Feature-Driven Decay in an Agentic Coding Loop.
 
-**Contributors and affiliations:** owner confirmed authorship and permissions
-are settled; enter personal details directly in OSF. Do not infer identities
-or coauthor endorsement from this repository.
+Contributors/affiliations must be entered by the owner in OSF; no identities or
+endorsements are inferred. Historical document licence CC BY-NC-ND4.0 and
+embargo-through2026-12-31 were owner selections for earlier documents, not
+newly verified v5 configuration or code relicensing. Owner must confirm suitable
+prospective amendment/registration, embargo and release metadata. Publication
+is planned only after collection and paper release, not performed here.
 
-**Licence:** [Creative Commons Attribution-NonCommercial-NoDerivatives 4.0
-International (CC BY-NC-ND 4.0)](https://creativecommons.org/licenses/by-nc-nd/4.0/),
-selected by the owner for owner-controlled preregistration documents and
-submission attachments. Repository code and third-party materials are not
-relicensed by this selection.
+On 2026-11-01 the owner selected `public-pr-now` after acknowledging that both
+original repositories remain public. Development-source PRs may be published by
+the parent coordinator. This does not authorize researcher-archive/study-result
+release, OSF action or collection. Interim public source exposure is a contamination
+limitation; making repositories private later cannot restore unexposed models.
 
-**Visibility:** owner selected embargo until **31 December 2026**
-(`2026-12-31`). These settings must still be entered in OSF; no active embargo
-or completed registration is claimed.
+Researcher/operator archives remain intended for private trusted handoff.
+Owner must make both original repositories private before experiment and supply
+visibility/access attestations and readbacks. Operator must lack access to the
+original repositories/paper. These are pending requirements, not claims about
+current repository visibility. Prior public/model exposure is not undone by
+making repositories private. Operators may hold protected harness/reference
+assets; candidates may not.
 
-**Description:** We compare feature-only delivery (A), consolidation after each
-feature (B), and read-only review (C), fully crossed with GPT 6.1 Sol, Sonnet 5.5
-and Gemini 4 Argon: two independent trajectories per arm/model, eighteen
-ten-feature S1 trajectories in total. The pilot estimates final behavioural coverage,
-retained-contract losses, final CR1 success and consumption; it checks feasibility,
-variation and failure modes for a later separately planned study. Consolidation
-includes extra resources, permission to edit/add tests and a different note.
+## Existing data and chronology
 
-## Registration type and existing data
+Historical cloud/sign-in/usage exports are explicitly owner-deferred. This
+critique uses repository evidence, not retrieved or reconciled live exports.
+Retain known prior credits, historical holds and prospective complete billing/
+model/assistance gates; no new accounting or exposure timestamps are invented.
 
-Prospective **pilot/estimation** preregistration, not a confirmatory seven-test
-study or a registered report with journal acceptance. The intended eighteen-run
-cohort has not been run by this work.
+Yes, excluded historical diagnostics exist. Preserve
+[prior-data-disclosure.md](prior-data-disclosure.md), historical critiques,
+acceptance records, results and original frozen protocol. Earlier model-stratified
+v1 data are A/B/C, n2/cell (18), not prospective v2. Their outcomes are not pooled,
+relabeled or used to select favorable prospective n/model/arm allocations.
+No new model sessions/observations were collected by this offline implementation.
+Reconfirm actual inventory/exposure with the owner before submission; unknown
+historical collection/inspection timestamps remain unknown.
 
-**Data already exist:** yes, separate development diagnostics exist. Tracked
-`results/smoke` covers historical paid `smoke-01` (B, F1 plus consolidation,
-14.54 credits) and discloses observed performance/usage; its stored phase label
-does not make it an estimation replicate. Offline reference/stub diagnostics
-also exist and their outcomes have been used to check tooling. Neither is pooled
-into the eighteen trajectories. The owner confirmed on 27 October that the
-registered study has not run and will start only after registration; earlier
-manual work was unmeasured, and the measured smoke is disclosed as excluded
-development diagnostics. On 28 October the owner confirmed this disclosed inventory is complete, with no
-additional model runs or calibration/pilot trajectories reported. The first
-smoke artifacts are recorded in Git at `c5184c5`, 25 October 2026
-00:53:50 +02:00 (24 October 22:53:50 UTC). Subsequent README/RUNBOOK
-commits record interpretation and exclusion. These are repository dates, not
-actual collection or first-inspection timestamps; those historical event times
-remain unverified. [The full disclosure](prior-data-disclosure.md) records
-the evidence and uncertainty, including offline reference outcomes used to
-revise tooling. No outcome-blind development process is claimed.
-Unrelated [hve-squad benchmarking](https://github.com/Peter-N91/hve-squad/pull/212)
-is not this MVE's data or validation evidence. Reconcile this disclosure with
-actual artifacts before signing the live existing-data answers. During final
-approval on 28 October the owner reconfirmed this inventory is accurate and
-complete, with no additional work/data exposure or calibration/registered
-pilot collected.
+## Question, treatments and fixed sample
 
-No timestamp, lack of prior exposure, complete calibration or registration is
-asserted from a local draft, manuscript statement or historical Git tag.
+Primary question: does B improve final fixed hidden-contract coverage over
+matched-resource D by an absolute useful10percentagepoints?
+Five treatments: A feature-only; B behavior-preserving consolidation, tests and
+DESIGN.md; C read-only review with REVIEW.md informing later feature sessions;
+D one45minute/nominal600/soft540credit A+ feature session, no post;
+E visible-specification regression repair, not hidden feedback or new capabilities.
+B/C/E each have30minute/300nominal/270soft feature plus15minute/300nominal/270soft
+post. All CR1 sessions45minutes/300nominal/270soft.
 
-## Review status and preregistration policy
+Three fixed models: GPT6.1Sol, Sonnet5.5, Gemini4Argon. Fresh trajectories,
+ten ordered features and unchanged fixed CR1. Seed2027 interleaves arms in
+model/replicate blocks. Every arm gets only current/previous immutable visible
+specifications/examples; hidden/reference outcomes/identities/messages, future
+specifications and early CR1 are prohibited.
 
-This plan has **not received independent scientific acceptance**. On
-30 October the owner individually accepted the six scientific scopes for
-`90e393e`: suite adequacy, panel mapping and explicit panel acceptance,
-analysis/reference metrics, multi-model alignment and oracle stability.
-The owner selected documented owner review for this first exploratory pilot
-and deferred independent scientific review. This is a limitation to disclose,
-not a completed independent review. A separate operator does not independently
-validate the scientific design. See
-[the decision record](scientific-acceptance-2026-10-30.json).
-The owner subsequently accepted corrected `1120002` runtime/access evidence
-and confirmed no independent reviewers for this first study beyond the separate
-executor. This also prospectively supersedes the independent-access-review
-sign-off prerequisite; no independent scientific or access/security review is
-claimed. The executor supplies operational separation only. See
-[the runtime decision record](runtime-acceptance-2026-10-30.json).
-Historical paid model checks retain their actual source and limited scope;
-current offline evidence is finite, not an exhaustive security proof or future
-entitlement guarantee. All permission, isolation, accounting, final freeze and
-prospective OSF requirements remain. Ordinary OSF preregistration records the plan;
-it does not require independent scientific peer review or certify validity.
+Normal planning: two-sided alpha.05, power.80, delta10pp, within-cell SD25pp
+ASSUMPTION (not observed variance). Equal-model weighting gives
+ceil(2*25^2*(1.95996398454+.84162123357)^2/(3*10^2))=33/cell:
+**495 trajectories**. Sensitivity SD15/20/25/50pp gives12/21/33/131 per cell.
+Worst-case bounded-score SD50pp needs131/cell, not33. Fix the sample before
+outcomes; never add/replace/cherry-pick or silently shrink n.
 
-On 28 October the owner explicitly approved the content at source commit
-`235489cc8b63307d35d624b1b7bb02124c1bfec1`, plus the selected metadata and
-approval-record updates, for submission with this disclosure. The owner
-confirmed no additional approvals are required before preregistration.
-The project retains all outstanding
-runtime/access and operational checks as prerequisites before calibration/pilot
-collection. No checks are marked accepted merely to prepare or submit this
-registration. Any substantive method changes arising from review will be
-documented prospectively in OSF and versioned before collecting affected data.
+Excluded calibration:1/arm/model,15 trajectories, no CR1, cost-only. It cannot
+select efficacy outcomes, sample, models or requests.
 
-## Questions, hypotheses and endpoint hierarchy
+## Analysis and limitations
 
-There are **no formal pass/fail hypotheses for this pilot**. H1/H2/H6 retain
-traceability labels: what behaviour remains; whether previously passing
-unchanged contracts are lost/recovered; whether the final repository absorbs CR1.
-Resource use is the practical counterbalance. Formal H4/H7 claims are deferred;
-structural metrics are descriptive secondary scope subject to their evidence
-gates. The owner explicitly excluded HIR/IDR outcomes on 28 October;
-unavailable fields are not zero intervention. Comprehension assessment is deferred; no comprehension-effect
-claim will be made.
-Earlier numeric thresholds do not decide adoption or seven hypothesis verdicts.
+Primary equal-model-weight B-D final-coverage estimation uses whole-run
+within-arm/model resampling,10000 draws/seed2027 and pointwise95% percentile
+intervals. Per-model coverage and B-A/B-C/E-B/E-D are descriptive secondary.
+Features/tests are not independent replicates. Report pooled within-cell
+variance/SD/observed/planned df (complete five-arm480, B/D192), not outcome-driven
+power/sample updates. Historical n2/cell v1 retains four pairwise differences
+and pooled SD/df9 as diagnostics; no nominal95% two-observation bootstrap claim.
 
-## Study design, sampling and randomisation
+Retain all allocations, missingness and assistance dispositions without
+replacement. Missing final values are unavailable, not imputed earlier values.
+Observed retained-loss density excludes missing risk outcomes from its denominator
+while retaining full-risk counts and acquisition/episode uncertainty.
 
-Controlled repeated-trajectory software experiment; synthetic data, one S1
-suite, three deliberately selected model candidates: `gpt-6.1-sol`,
-`claude-sonnet-5.5`, `gemini-4-argon`. Two fresh repositories per A/B/C arm
-within each model, ten sequential features and full CR1: eighteen independent
-units. Arm order is randomised within model/replicate blocks, seed 2027. Same machine,
-skeleton, specifications, tools and feature budgets. B adds consolidation and
-C adds read-only review; B-C is not pure refactoring or equal realised compute.
+CR1 binary success is secondary, not powered by the coverage calculation.
+Exact95% Clopper-Pearson intervals are per arm/model, not family-wide and not
+asserted necessarily informative. Include tests passed/15 and pre-CR1-passed
+contracts lost with observed/missing risk denominators. Report both/not-both/
+unknown F9/F10 acquisition strata (a complete group passed at an observed pre-CR1
+F/P checkpoint after release), current P10 availability separately, and
+post-treatment selection limitations. Missing acquisition opportunities stay unknown.
 
-Separate budget calibration: one trajectory per arm/model (nine total), ten
-features, no CR1, excluded from the eighteen. CLI `calibration`/legacy `pilot` refers to this
-excluded stage; `pilot-estimation`/legacy `first` refers to the eighteen.
-The three-model/two-per-cell design is an explicit owner amendment to the
-paper's original single-model/four-per-arm pilot. Replication tests robustness
-to these models, not independence from model choice or all-model generality.
-No optional stopping, outcome-based replacements or sample enlargement.
-All incomplete, assisted, failed and unattempted allocated trajectories remain.
-Owner choices are recorded in the attached ledger: continue scheduled work,
-including B/C post-steps on retained green state after unsuccessful feature
-delivery, with no replay/make-up; incidental recovery within existing step
-permissions is allowed. At most one documented infrastructure-only retry per
-step from its pre-attempt snapshot may use the remaining original aggregate
-step budget; all attempts/charges count. Poor outcomes never justify retry.
-Retry an infrastructure-failed measurement once on the same immutable snapshot;
-contradictory valid outcomes halt collection for oracle investigation.
-Final source approval is still required before submission.
+Ruff fixed external `--isolated --ignore-noqa`, Lizard complexity, jscpd
+duplication and suppressions/config edits are fidelity checks, not independent
+efficacy. C follow-through needs external semantic annotations with genuine
+review/diff locators and unknown/observed coverage; overlap is not repair.
+Actual SDK request/dispatch latency, host wall/send wait and tool roundtrips
+can be observed. Provider-active compute/rate-limit waits remain unknown where
+unavailable; no invented zeros. No currency conversion or unmeasured comprehension
+effect is claimed.
 
-## Blinding and inclusion/exclusion
+## Feasibility and stop rules
 
-Agents cannot be blinded to their assigned post-step prompt. Evaluator outputs
-are external and never fed back: no hidden scores, identifiers, messages or
-reference solutions. Only specifications and approved visible examples are
-available; CR1 is withheld until its dedicated session. Verify actual access;
-do not claim OS isolation for local execution. The owner deferred comprehension
-assessment; no comprehension-effect claim will be made.
-Only logged infrastructure administration is permitted, with no human code
-fixes, hints or design advice. Flag any content-assisted trajectory and retain
-all data/costs. HIR/IDR outcomes are excluded; assistance/intervention logging,
-unassisted eligibility, CR1-help records and primary cost coverage remain required.
+Proposed go/no-go: infrastructure failed steps<=5%, missing primary measurements0,
+oracle contradictions0 across33 required triplicate references, no information
+boundary failure, complete model/billing/assistance evidence, and affordability/
+deadline for all495 unchanged trajectories within remaining270000 admission,
+including calibration, prior21.79019, holds1200 and ongoing reservations.
 
-No trajectory is excluded for poor outcomes. Assisted trajectories are retained
-and labelled; their data/costs are shown separately from the unassisted comparison,
-which can become unavailable at its allocated size. Missing feature tests remain
-in H1's scheduled cumulative denominator. Infrastructure absence is not a failure
-unless a prospectively agreed rule and event evidence establish that classification.
+Combined8655sessions/3941.25maximumhours/2902500nominalcredit caps exceed the
+unchanged300000envelope/270000admission and14day sequential maximum. No feasible
+budget/deadline approval is claimed. Cost-only projection uses proposed1.25
+feature/post margin, full CR1 forecasts and600reservation headroom; this is
+not a guaranteed financial upper bound. If unfeasible, halt and amend prospectively
+before affected collection, never reduce n.
+Infrastructure retries share original allowances; measurement retries use the
+same snapshot. Unknown accounting, overshoot and oracle contradictions remain stops.
 
-## Manipulations and measured variables
+## Adequacy and later follow-up
 
-Fixed prompts, limits and enforcement: see `pilot-estimation.md`.
-H1: final P_10 hidden coverage. H2: F/P unchanged-contract risk sets, losses,
-densities and episodes from the reviewed eligibility map. H6: CR1 success
-preserving pre-CR1 passing tests, and all-attempt cost.
-Show eligible/ever-passed/never-passed/currently-passing counts and feature groups;
-separate new acquisition failures and same-cycle post losses.
-Credits primary; tokens/seconds/currency separate. Failed, stopped, assisted and
-unmeasured attempts remain in resource accounting; unknown is not free.
-Secondary metrics use frozen settings, reference-compatible raw gaps and
-descriptive ranges; no unvalidated composite decay score.
+Run/review bounded reproducible mutation diagnostics on protected references:
+generated/observed/killed/surviving/unavailable and unadjudicated-equivalence
+denominators, no universal adequacy claim. Unavailable checks leave acceptance
+pending. Current fixed CR1 is unchanged. The
+[prewritten randomized request pool](change-request-pool.json) is a prospective
+later-main-study follow-up with matched-block request assignment, separate
+difficulty/power/oracle/OSF review and freeze; no present pool collection.
 
-## Analysis, transformations, missing data and inference
+## Pending evidence and authorization
 
-All run-level outcomes/ranges precede model-specific B-A and B-C differences.
-Each arm/model has two trajectories. Any equal-model-weighted overall summary
-is explicitly exploratory, not a silently pooled primary contrast. No feature or
-test is an independent inference unit. H1 and resource comparisons use mean
-differences and pointwise whole-run bootstrap intervals within arm within model
-(10,000 draws, seed 2027).
-Insufficient strata or any undefined draw makes the affected interval unavailable;
-do not discard undefined draws or impute last-observed final outcomes.
-Two runs/arm/model permits only very limited feasibility/variation estimates,
-not stable precision or a completed power simulation.
-
-H2 reports paired F/P histories; inherited risk requires a pass at an earlier P.
-Its final contrast uses P_10 open-loss counts; accumulated test-cycle losses
-are separately labelled descriptive. Earlier missing measurements do not erase
-otherwise valid final H1/CR1 observations; their own required missing checkpoints
-still make the endpoint unavailable.
-Empty risk-set density is undefined; missing outcomes never become passes,
-losses or recoveries. Preserve episodes and uncertainty over outages.
-No relative reduction when A's loss denominator is zero.
-
-CR1 denominator: all allocated runs. Adjudicated agent-caused terminal inability
-is unsuccessful; unobserved infrastructure/unknown cases remain missing.
-With missing outcomes, show lower/upper success and contrast bounds instead of
-complete-case point estimates. With complete outcomes, use 97.5% equal-tailed
-Clopper-Pearson component intervals and opposite-endpoint B-A/B-C bounds,
-at least 95% coverage per comparison, not across the whole endpoint family.
-Successful-only CR1 cost is secondary/conditional, undefined with zero successes;
-all-attempt consumption is interpreted jointly with success, not as success cost.
-
-No significance-based seven-hypothesis decisions, mixed-effects primary analysis,
-non-inferiority margin or H7 half-gap test. No outlier removal/winsorisation.
-Null/negative/non-estimable patterns are reported. Eligibility/oracle amendments,
-policy deviations and unplanned analyses are versioned and labelled exploratory.
-
-## Resources, provenance and approval checklist
-
-30/15/45-minute limits; 318 pilot sessions/133.5 maximum agent-hours,
-150 excluded calibration sessions/60 hours; combined 468 sessions/193.5 hours
-excluding non-agent overhead. Counts are planned sessions; allowed infrastructure retries can add
-calls but share the original step's aggregate time and credit allowance.
-Nominal registered 300-AI-Credit/session soft cap for both
-stages; **300,000 AI Credits total**, including prior spend and calibration.
-The owner's 29 October prospective policy accepts soft-limit overshoot risk:
-supplied operational settings use a 10% buffer, **270/session** and **270,000
-local admission**, without changing allocation or the nominal registered envelope.
-An in-flight response can exceed the CLI threshold; neither buffer guarantees
-actual billed consumption. The company hard limit of 1,000,000/collaborator is
-owner-reported, not independently verified or a study-specific stop. A separate
-provider study hard cap is no longer a project prerequisite. Record this
-addendum prospectively before affected collection; the original OSF attachment
-is unchanged.
-The owner's approximately $3,000 equivalent is unverified, not a conversion or
-separate precise monetary limit. A cost-only full-design affordability check
-after calibration must pass; otherwise halt and amend rather than reduce sample
-silently. Actual usage completeness and the isolated live backend remain required.
-Require three exact agreeing reference executions at every feature stage and
-CR1, all expected tests passing; discrepancies block collection until
-investigated/versioned/revalidated, not rerun until green.
-
-The scheduler and analysis implement model-aware allocation and separate
-per-model primary estimates. Owner-accepted
-`multi_model_harness_alignment` evidence covers the
-eighteen-trajectory model-aware schedule, model-specific analysis, revised
-budget and chosen operational rules. Requested model/runtime availability and
-compatible reasoning settings also require verification; no live probe or
-paid collection is authorized by the scientific decisions. Earlier excluded
-backend checks are separately disclosed; their runtime acceptance remains
-pending. The owner selected the prospective
-CLI 1.0.105/Ruff 0.17.3/Lizard 1.24.3/jscpd 5.4.1 amendment on 28 October;
-these candidates do not by themselves establish runtime acceptance.
-
-Attach `pilot-estimation.md`, `pilot-estimation.json`, owner-accepted
-`contract-panel.json`, protocol/harness/suite source hashes, fixed prompts,
-analysis version, `scientific-acceptance-2026-10-30.json`, pending-evidence
-disclosures and data chronology. Existing90e393e oracle/reference diagnostics
-were accepted by the owner within their recorded limits, not independently
-approved or newly executed on a later source.
-Source paper: jmservera/ama `196b97644bb9bffa43d41a9921d6a06a93b2699e`.
-Historical proposal/tag provenance is in the protocol; never replace the old tag.
-
-Before submission: confirm recorded owner choices, planned runtime/caps,
-secondary scope and prior exposure; disclose pending review/runtime evidence
-and approve exact files/source SHA. Do not fabricate acceptance of pending checks.
-Owner completes OSF contributor/privacy settings and real approval workflow.
-Only after registration completes record the actual URL and date; a saved draft
-or uploaded archive is not completed registration. Freeze execution inputs before
-fresh collection only after all retained review and operational prerequisites
-are genuinely met; no exercise runs or launch authorisation are performed here.
-
-## Guidance consulted
-
-- [Official OSF registration/preregistration guide](https://help.osf.io/article/330-welcome-to-registrations)
-- [COS template and pilot guidance](https://www.cos.io/blog/choosing-preregistration-template-guide-for-researchers)
-
-Retrieved 27 October 2026. A general-purpose draft is provided, not an assurance
-that OSF, an institution or a journal has approved this design.
-The preregistration/peer-review distinction was checked on 28 October against
-[COS preregistration guidance](https://www.cos.io/initiatives/prereg) and
-[Registered Reports](https://www.cos.io/initiatives/registered-reports).
+Independent exact-source scientific/runtime review, current containment/oracle
+and mutation review, actual model/billing/assistance, all-495 feasibility,
+owner privacy/operator access readbacks, prospective OSF amendment/embargo and
+new owner freeze/launch authorization remain pending. Historical owner-reviewed
+v4 approvals do not apply to changed v5 inputs. A draft or private archive
+generation never supplies those approvals.

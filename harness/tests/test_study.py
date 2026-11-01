@@ -23,7 +23,7 @@ def study(monkeypatch):
 def config():
     """Synthetic known-prior fixture without the real historical provision."""
     return dict(json.loads((ROOT / "harness/study-config.json").read_text()),
-                prior_credits=14.54324, historical_credit_provisions=[])
+                prior_credits=14.54324, historical_credit_provisions=[], freeze_manifest="protocol/freeze.json")
 
 
 def controller(study, config, path):
@@ -136,7 +136,7 @@ def test_ceiling_cannot_be_raised_or_prior_spend_assumed(study, config):
         study.validate_config(config, smoke=False)
     config["prior_credits"] = 0
     config["ceiling_credits"] = 300001
-    with pytest.raises(study.StudyError, match="300,000"):
+    with pytest.raises(study.StudyError, match="270,000"):
         study.validate_config(config, smoke=False)
 
 
@@ -153,15 +153,15 @@ def test_interrupted_repository_setup_preserves_zero_step_metadata(study, config
     monkeypatch.setattr(study.shutil, "copytree", interrupted_copy)
     current = controller(study, config, tmp_path)
     assert not current.go()
-    assert len(list((tmp_path / "runs").glob("*/run.json"))) == 3
+    assert len(list((tmp_path / "runs").glob("*/run.json"))) == 5
     summary = study.read_json(tmp_path / "results/summary.json")
-    assert len(summary["runs"]) == 3 and all(run["end"] is None for run in summary["runs"])
+    assert len(summary["runs"]) == 5 and all(run["end"] is None for run in summary["runs"])
 
 def test_complete_nominal_freeze_cannot_bypass_missing_runtime_evidence(study, config, monkeypatch, tmp_path):
     config["prior_credits"] = 0
     monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "synthetic-token-never-output")
     monkeypatch.setattr(study.shutil, "which", lambda tool: f"/tools/{tool}")
-    monkeypatch.setattr(study, "freeze_errors", lambda *args: [])
+    monkeypatch.setattr(study, "freeze_errors", lambda *args, **kwargs: [])
     versions = {"copilot": "GitHub Copilot CLI 1.0.105.\nRun 'copilot update' to check for updates.",
                 "ruff": "0.17.3", "lizard": "1.24.3", "jscpd": "5.4.1"}
     def version_output(args, **kwargs):
@@ -170,9 +170,9 @@ def test_complete_nominal_freeze_cannot_bypass_missing_runtime_evidence(study, c
         return versions.get(args[0], "")
     monkeypatch.setattr(study, "command", version_output)
     errors = study.preflight(config, smoke=False, root=tmp_path)
-    assert len(errors) == 1
-    assert "isolated live backend" in errors[0]
-    assert "provider-enforced hard billing" not in errors[0]
+    assert any("isolated live backend" in error for error in errors)
+    assert any("feasibility receipt unavailable" in error for error in errors)
+    assert not any("provider-enforced hard billing" in error for error in errors)
     assert "synthetic-token" not in str(errors)
 
 
@@ -192,7 +192,7 @@ def test_cli_version_requires_exact_release_and_retains_paid_stop(
     config["prior_credits"] = 0
     monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "synthetic-token-never-output")
     monkeypatch.setattr(study.shutil, "which", lambda tool: f"/tools/{tool}")
-    monkeypatch.setattr(study, "freeze_errors", lambda *args: [])
+    monkeypatch.setattr(study, "freeze_errors", lambda *args, **kwargs: [])
     versions = {"copilot": output, "ruff": "0.17.3", "lizard": "1.24.3", "jscpd": "5.4.1"}
     monkeypatch.setattr(study, "command", lambda args, **kwargs: versions.get(args[0], ""))
     errors = study.preflight(config, smoke=False, root=tmp_path)
@@ -235,10 +235,10 @@ def test_valid_freeze_hash_tag_and_commit_are_checked(study, config, tmp_path, m
 
 def test_schedule_matches_model_matrix_and_excludes_calibration_cr(study):
     cells = study.schedule(False, "first", 2027)
-    assert len(cells) == 18
-    assert sum(cell["features"] * (1 if cell["arm"] == "A" else 2) + cell["change_request"]
-               for cell in cells) == 318
-    assert len(study.schedule(False, "pilot", 2027)) == 9
+    assert len(cells) == 495
+    assert sum(study.planned_steps(cell["arm"], cell["features"], cell["change_request"])
+               for cell in cells) == 8415
+    assert len(study.schedule(False, "pilot", 2027)) == 15
     assert not any(cell["change_request"] for cell in study.schedule(False, "pilot", 2027))
     for alias, legacy in (("calibration", "pilot"), ("pilot-estimation", "first")):
         actual = study.schedule(False, alias, 2027)
@@ -246,11 +246,11 @@ def test_schedule_matches_model_matrix_and_excludes_calibration_cr(study):
         assert [dict(cell, run_id="") for cell in actual] == [dict(cell, run_id="") for cell in original]
     assert study.schedule(False, "first", 2027) == cells
     for model in ("gpt-6.1-sol", "claude-sonnet-5.5", "gemini-4-argon"):
-        for arm in "ABC":
+        for arm in "ABCDE":
             selected = [cell for cell in cells if cell["assigned_model"] == model and cell["arm"] == arm]
-            assert {cell["replicate"] for cell in selected} == {1, 2}
-            assert all(cell["analysis_design"] == "model-stratified-v1" for cell in selected)
-    assert len({cell["run_id"] for cell in cells}) == 18
+            assert {cell["replicate"] for cell in selected} == set(range(1, 34))
+            assert all(cell["analysis_design"] == "model-blocked-v2" for cell in selected)
+    assert len({cell["run_id"] for cell in cells}) == 495
 
 
 def test_lock_is_exclusive(study, tmp_path):
@@ -286,9 +286,9 @@ def test_zero_step_cells_retained_on_persistent_deadline(study, config, tmp_path
     current.state["deadline"] = time.time() - 1
     current.save()
     assert not current.go()
-    assert len(list((tmp_path / "runs").glob("*/run.json"))) == 3
+    assert len(list((tmp_path / "runs").glob("*/run.json"))) == 5
     summary = json.loads((tmp_path / "results/summary.json").read_text())
-    assert len(summary["runs"]) == 3
+    assert len(summary["runs"]) == 5
     assert all(run["end"] is None and run["total_cost"] is None for run in summary["runs"])
     assert all(not cell["attempts"] for cell in current.state["cells"])
     assert not controller(study, config, tmp_path).go()
@@ -362,10 +362,10 @@ def test_measured_non_delivery_is_retained_and_not_retried(study, config, tmp_pa
     monkeypatch.setattr(study.StudyRun, "run_agent", no_work)
     current = controller(study, config, tmp_path)
     assert current.go()
-    assert sum(cell["completed_steps"] for cell in current.state["cells"]) == 5
+    assert sum(cell["completed_steps"] for cell in current.state["cells"]) == 8
     records = [json.loads(line) for path in (tmp_path / "runs").glob("*/steps.jsonl")
                for line in path.read_text().splitlines()]
-    assert sum(len(cell["attempts"]) for cell in current.state["cells"]) == 5
+    assert sum(len(cell["attempts"]) for cell in current.state["cells"]) == 8
     assert all(record["delivered"] is False for record in records if record["kind"] == "feature")
     assert all(record["measure"]["hidden_total"] == 12 for record in records)
     assert all(record["measure"]["hidden_passed"] == 0 for record in records)
@@ -387,9 +387,9 @@ def test_recorded_step_survives_crash_before_controller_checkpoint_clear(study, 
     monkeypatch.setattr(study.StudyRun, "record", original)
     resumed = controller(study, config, tmp_path)
     assert resumed.go()
-    assert sum(cell["completed_steps"] for cell in resumed.state["cells"]) == 5
-    assert sum(len(cell["attempts"]) for cell in resumed.state["cells"]) == 5
-    assert sum(len(path.read_text().splitlines()) for path in (tmp_path / "runs").glob("*/steps.jsonl")) == 5
+    assert sum(cell["completed_steps"] for cell in resumed.state["cells"]) == 8
+    assert sum(len(cell["attempts"]) for cell in resumed.state["cells"]) == 8
+    assert sum(len(path.read_text().splitlines()) for path in (tmp_path / "runs").glob("*/steps.jsonl")) == 8
 
 
 def test_one_line_launcher_previews_from_any_directory_without_model_calls(tmp_path):
@@ -420,13 +420,13 @@ def test_stub_pipeline_resume_deduplicates_steps_and_never_creates_tags(study, c
     current = controller(study, config, tmp_path)
     assert current.go()
     before = {path: path.read_bytes() for path in (tmp_path / "runs").glob("*/steps.jsonl")}
-    assert len(before) == 3
-    assert sum(len(text.splitlines()) for text in before.values()) == 5
+    assert len(before) == 5
+    assert sum(len(text.splitlines()) for text in before.values()) == 8
     assert controller(study, config, tmp_path).go()
     assert all(path.read_bytes() == text for path, text in before.items())
     assert all(not list((path.parent / "repo/.git/refs/tags").glob("*")) for path in before)
     summary = json.loads((tmp_path / "results/summary.json").read_text())
-    assert len(summary["runs"]) == 3
+    assert len(summary["runs"]) == 5
     assert set(summary["endpoints"]) == {"H1", "H2", "H6", "resources"}
     assert "verdict" not in json.dumps(summary)
     assert summary["provenance"]["diagnostic_stub"] is True
@@ -446,15 +446,15 @@ def test_interrupted_unmeasured_attempt_retries_without_adding_replicates(study,
     monkeypatch.setattr(study.StudyRun, "_measure_once", fail_once)
     current = controller(study, config, tmp_path)
     assert current.go()
-    assert sum(len(cell["attempts"]) for cell in current.state["cells"]) == 5
+    assert sum(len(cell["attempts"]) for cell in current.state["cells"]) == 8
     assert sum(attempt["measurement"]["calls"] for cell in current.state["cells"]
-               for attempt in cell["attempts"]) == 6
+               for attempt in cell["attempts"]) == 9
     summary = json.loads((tmp_path / "results/summary.json").read_text())
-    assert len(summary["runs"]) == 3
+    assert len(summary["runs"]) == 5
     records = [json.loads(line) for path in (tmp_path / "runs").glob("*/steps.jsonl")
                for line in path.read_text().splitlines()]
-    assert len(records) == 5
-    assert sum(len(record["attempts"]) for record in records) == 5
+    assert len(records) == 8
+    assert sum(len(record["attempts"]) for record in records) == 8
 
 
 def test_dry_run_is_read_only_and_live_refusal_never_calls_agent(study, monkeypatch, capsys, tmp_path):
@@ -466,7 +466,7 @@ def test_dry_run_is_read_only_and_live_refusal_never_calls_agent(study, monkeypa
     monkeypatch.setattr(study.Controller, "__init__", lambda *args, **kwargs: pytest.fail("Dry-run wrote state"))
     assert study.main() == 0
     preview = json.loads(capsys.readouterr().out)
-    assert len(preview["schedule"]) == 3 and not preview["hard_billing_supported"]
+    assert len(preview["schedule"]) == 5 and not preview["hard_billing_supported"]
     monkeypatch.setattr(sys, "argv", ["study", "--dry-run"])
     assert study.main() == 2
     preview = json.loads(capsys.readouterr().out)
@@ -555,7 +555,7 @@ def test_journal_without_final_newline_is_refused_before_resume(study, config, t
 
 
 def study_run(study, current, cell=None):
-    cell = cell or current.state["cells"][0]
+    cell = cell or next(cell for cell in current.state["cells"] if cell["arm"] == "B")
     args = study.SimpleNamespace(
         config=str(current.runtime_config), suite=str(ROOT / "suites/s1-retrofit"),
         arm=cell["arm"], run_id=cell["run_id"], phase=current.phase,
@@ -576,7 +576,7 @@ def test_current_model_identity_survives_atomic_setup(study, config, tmp_path):
         run.setup()
         meta = json.loads((Path(run.dir) / "run.json").read_text())
         assert meta["assigned_model"] == meta["config"]["agent_values"]["model"] == model
-        assert meta["analysis_design"] == "model-stratified-v1"
+        assert meta["analysis_design"] == "model-blocked-v2"
         assert meta["replicate"] == cell["replicate"] and meta["diagnostic"] is False
     assert study.Controller(tmp_path, dict(config, prior_credits=0), smoke=False,
                             phase="pilot-estimation", study_id="planned").state["identity"]["model_roster"]
@@ -610,7 +610,8 @@ def test_current_budget_and_retry_configuration_boundaries(study, config):
         changed = dict(config, **{key: wrong})
         with pytest.raises(study.StudyError):
             study.validate_config(changed, smoke=False)
-    assert 133.5 * 3600 < config["study_timeout_seconds"] <= 30 * 86400
+    assert config["study_timeout_seconds"] == 14 * 86400
+    assert 3836.25 * 3600 > config["study_timeout_seconds"]
 
 
 def test_agent_retry_uses_remaining_original_time_and_credits(study, config, tmp_path, monkeypatch):
@@ -768,7 +769,7 @@ def test_prepared_command_selects_only_an_approved_model(study, tmp_path):
 
 def test_smoke_never_claims_an_experimental_model(study, config, tmp_path):
     current = controller(study, config, tmp_path)
-    assert len(current.state["cells"]) == 3
+    assert len(current.state["cells"]) == 5
     assert "model_roster" not in current.state["identity"]
     for cell in current.state["cells"]:
         assert "assigned_model" not in cell and "analysis_design" not in cell

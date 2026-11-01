@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+sys.path.insert(0, str(Path(__file__).parents[1]))
 SPEC = importlib.util.spec_from_file_location("analyze", Path(__file__).parents[1] / "analyze.py")
 analysis = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(analysis)

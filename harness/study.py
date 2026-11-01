@@ -20,12 +20,17 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from analyze import step_usage
+from arms import (
+    ARMS, BLOCKED_DESIGN, MODELS, credit_multiplier, descriptor, planned_steps, step_kind,
+)
+from feasibility import REQUIRED_GATES, sample_size
 from pilot_analysis import collection_role
 from runner import Run, git, head
 from study_io import ROOT, RetryableError, StudyError, atomic_json, command, read_json
 
 NANO = 1_000_000_000
 MAX_CREDITS = 300000 * NANO
+MAX_ADMISSION = 270000 * NANO
 APPROVED_HISTORICAL_PROVISION = {
     "attempt_id": "gpt-6.1-sol-nonstudy-1",
     "reserved_credits": 300,
@@ -58,8 +63,9 @@ APPROVED_FEATURE_DIAGNOSTIC_PROVISION = {
     "evidence_sha256": "84177c3a4a11e29dc4016ba20b686df8628aab13c0c598d5e77a69c4bf8acba4",
     "approval": "owner-approved-diagnostic-carry-forward-2026-10-31",
 }
-MODEL_DESIGN = "model-stratified-v1"
-INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
+MODEL_DESIGN = BLOCKED_DESIGN
+INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh",
+          "scripts", "README.md", "CONTRIBUTOR.md", "RUNBOOK.md")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
     "missing_feature_policy", "retry_policy", "evaluator_information_policy",
@@ -110,10 +116,10 @@ def validate_config(cfg: dict, *, smoke: bool) -> None:
     """Reject unaffordable, unknown or unbounded controller settings."""
     expected = {"seed", "ceiling_credits", "prior_credits", "session_reserve_credits", "session_soft_limit_credits",
                 "max_attempts", "study_timeout_seconds", "min_disk_gib", "freeze_manifest"}
-    if set(cfg) - {"historical_credit_provisions"} != expected:
+    if set(cfg) - {"historical_credit_provisions", "calibration_state", "feasibility_receipt"} != expected:
         raise StudyError("Configuration has missing or unknown fields; never put credentials in config")
-    if not 0 < credits(cfg["ceiling_credits"]) <= MAX_CREDITS:
-        raise StudyError("Aggregate ceiling must be positive and at most 300,000 AI credits")
+    if not 0 < credits(cfg["ceiling_credits"]) <= MAX_ADMISSION:
+        raise StudyError("Local aggregate admission ceiling must be positive and at most 270,000 AI credits")
     prior = 0 if smoke else credits(cfg["prior_credits"])
     if prior > credits(cfg["ceiling_credits"]):
         raise StudyError("Prior pilot spending exceeds aggregate ceiling")
@@ -128,6 +134,8 @@ def validate_config(cfg: dict, *, smoke: bool) -> None:
     soft = cfg["session_soft_limit_credits"]
     if type(soft) is not int or not 30 <= soft <= 300:
         raise StudyError("Session soft limit must be an integer from 30 through the nominal reservation")
+    if not smoke and soft != 270:
+        raise StudyError("v5 ordinary original soft allowance is 270; D's feature allowance is exactly 540")
     if credits(cfg["session_reserve_credits"]) > credits(cfg["ceiling_credits"]):
         raise StudyError("Session reservation must fit the aggregate ceiling")
     for name, upper in (("max_attempts", 2), ("study_timeout_seconds", 30 * 86400),
@@ -138,6 +146,11 @@ def validate_config(cfg: dict, *, smoke: bool) -> None:
         raise StudyError("seed must be an integer")
     if not isinstance(cfg["freeze_manifest"], str):
         raise StudyError("freeze_manifest must be a relative path")
+    for field in ("calibration_state", "feasibility_receipt"):
+        path = cfg.get(field)
+        if path is not None and (not isinstance(path, str) or Path(path).is_absolute()
+                                 or ".." in Path(path).parts or not path.startswith(".study/")):
+            raise StudyError(f"{field} must be an explicit private .study/ relative path")
 
 
 def fingerprint(root: Path = ROOT) -> str:
@@ -154,7 +167,7 @@ def fingerprint(root: Path = ROOT) -> str:
                 continue
             if path.is_symlink():
                 raise StudyError("Execution inputs must not contain symlinks")
-            if path.is_file() and path != root / "protocol/freeze.json":
+            if path.is_file() and path not in (root / "protocol/freeze.json", root / "protocol/freeze-v5.json"):
                 digest.update(path.relative_to(root).as_posix().encode() + b"\0")
                 digest.update(b"x" if path.stat().st_mode & 0o111 else b"-")
                 digest.update(path.read_bytes())
@@ -169,17 +182,19 @@ def schedule(smoke: bool, phase: str, seed: int) -> list[dict]:
     design = read_json(ROOT / "protocol/pilot-estimation.json")["study"]
     models = design["model_roster"]
     if (not isinstance(models, list) or len(models) != 3
-            or any(not isinstance(model, str) for model in models)
-            or set(models) != {"gpt-6.1-sol", "claude-sonnet-5.5", "gemini-4-argon"}):
+            or any(not isinstance(model, str) for model in models) or set(models) != set(MODELS)):
         raise StudyError("Protocol must declare the three approved model candidates")
+    if design.get("arms") != list(ARMS) or design.get("analysis_design") != BLOCKED_DESIGN:
+        raise StudyError("Prospective scheduling requires the exact five-arm model-blocked-v2 design")
     count = design["calibration_runs_per_arm"] if calibration else design["runs_per_arm"]
-    if type(count) is not int or count != (1 if calibration else 2):
-        raise StudyError("Protocol allocation differs from the approved per-model design")
+    expected = 1 if calibration else sample_size()["trajectories_per_arm_model"]
+    if type(count) is not int or count != expected:
+        raise StudyError("Protocol allocation differs from the computed fixed prospective sample")
     for replicate in range(1, 2 if smoke else count + 1):
         block_models = [None] if smoke else list(models)
         rng.shuffle(block_models)
         for model in block_models:
-            arms = list("ABC")
+            arms = list(ARMS)
             rng.shuffle(arms)
             for arm in arms:
                 prefix = "smoke" if smoke else f"{phase}-{model}"
@@ -236,11 +251,11 @@ def reconcile(ledger: dict, attempt: str, usage: dict | None) -> None:
         raise StudyError("Actual credits exceeded reservation; billing bound is not enforced")
 
 
-def freeze_errors(cfg: dict, root: Path = ROOT) -> list[str]:
+def freeze_errors(cfg: dict, root: Path = ROOT, *, phase: str = "pilot-estimation") -> list[str]:
     """Verify owner-supplied provenance and gates; never create or move a tag."""
     manifest_path = (root / cfg["freeze_manifest"]).resolve()
     if not manifest_path.is_relative_to(root / "protocol") or not manifest_path.is_file():
-        return ["Missing owner-approved protocol/freeze.json (no protocol is declared frozen)"]
+        return [f"Missing owner-approved {cfg['freeze_manifest']} (v5 collection is not declared frozen)"]
     manifest = read_json(manifest_path)
     errors = []
     commit = manifest.get("commit", "")
@@ -265,10 +280,41 @@ def freeze_errors(cfg: dict, root: Path = ROOT) -> list[str]:
     for gate in GATES:
         if not isinstance(manifest.get(gate), str) or not manifest[gate].strip():
             errors.append(f"Owner evidence missing: {gate}")
+    protocol = root / "protocol/pilot-estimation.json"
+    if protocol.is_file() and read_json(protocol)["study"].get("analysis_design") == BLOCKED_DESIGN:
+        canonical_phase = {"pilot": "calibration", "first": "pilot-estimation"}.get(phase, phase)
+        if manifest.get("analysis_design") != BLOCKED_DESIGN or tag == "protocol-frozen-v4":
+            errors.append("v4 does not authorize changed v5 inputs; new exact-source review/freeze required")
+        evidence = manifest.get("candidate_evidence", {})
+        if not isinstance(evidence, dict):
+            errors.append("v5 candidate evidence must be an explicit source-bound ledger")
+            evidence = {}
+        for gate in REQUIRED_GATES:
+            if gate == "cost_only_full_sample_feasibility" and phase in ("pilot", "calibration"):
+                if manifest.get("authorized_phases") == ["calibration"]:
+                    continue
+            item = evidence.get(gate)
+            if (not isinstance(item, dict) or item.get("accepted") is not True
+                    or not item.get("date") or not item.get("evidence")
+                    or item.get("source_commit") != commit
+                    or item.get("inputs_sha256") != manifest.get("inputs_sha256")):
+                errors.append(f"Pending v5 exact-source requirement: {gate}")
+            elif gate in ("exact_source_scientific_review", "five_arm_runtime_boundary_review",
+                          "bounded_mutation_review"):
+                if (item.get("independent") is not True
+                        or not isinstance(item.get("reviewer"), str) or not item["reviewer"].strip()):
+                    errors.append(f"Pending genuine independent reviewer attribution: {gate}")
+        if not (manifest.get("prospective_amendment_completed") is True
+                and manifest.get("owner_launch_authorized") is True):
+            errors.append("v5 prospective OSF amendment and separate owner launch authorization pending")
+        phases = manifest.get("authorized_phases", [])
+        if (not isinstance(phases, list) or any(item not in ("calibration", "pilot-estimation") for item in phases)
+                or canonical_phase not in phases):
+            errors.append("This collection phase is not authorized by the exact-source freeze")
     return errors
 
 
-def preflight(cfg: dict, *, smoke: bool, root: Path = ROOT) -> list[str]:
+def preflight(cfg: dict, *, smoke: bool, root: Path = ROOT, phase: str = "pilot-estimation") -> list[str]:
     """Check prerequisites without launching a model, changing git or printing tokens."""
     errors = []
     try:
@@ -298,13 +344,20 @@ def preflight(cfg: dict, *, smoke: bool, root: Path = ROOT) -> list[str]:
                     matched = re.search(rf"(?<![\d.]){re.escape(version)}(?![\d.])", output)
                 if not matched:
                     errors.append(f"{tool} must be pinned to {version}")
+        if shutil.which("node"):
+            node_version = command(["node", "--version"])
+            match = re.fullmatch(r"v(\d+)\.\d+\.\d+", node_version.strip())
+            if not match or int(match.group(1)) < 24:
+                errors.append("Repository-local SDK requires Node >=24; older Node is not a qualified runtime")
         if isinstance(cfg.get("freeze_manifest"), str):
             try:
-                errors.extend(freeze_errors(cfg, root))
+                errors.extend(freeze_errors(cfg, root, phase=phase))
             except (StudyError, OSError, ValueError, subprocess.TimeoutExpired):
                 errors.append("Freeze evidence unreadable or tag verification failed")
         from isolated_runtime import runtime_errors
         errors.extend(runtime_errors(cfg, root))
+        if phase not in ("pilot", "calibration"):
+            errors.extend(feasibility_errors(cfg, root=root))
     return errors
 
 
@@ -313,6 +366,9 @@ def budget_policy(cfg: dict) -> dict:
     return {
         "session_soft_limit_credits": cfg.get("session_soft_limit_credits"),
         "session_reservation_credits": cfg.get("session_reserve_credits"),
+        "D_feature_soft_limit_credits": (cfg["session_soft_limit_credits"] * 2
+                                         if type(cfg.get("session_soft_limit_credits")) is int else None),
+        "D_feature_nominal_reservation_credits": 600,
         "local_admission_ceiling_credits": cfg.get("ceiling_credits"),
         "registered_ceiling_credits": MAX_CREDITS // NANO,
         "known_prior_credits": cfg.get("prior_credits"),
@@ -421,6 +477,118 @@ def aggregate_usage(attempts: list[dict]) -> dict:
     return result
 
 
+def aggregate_timing(attempts: list[dict]) -> dict:
+    """Preserve each actual attempt's observable timing and unknown provider components."""
+    observed = sum(isinstance(attempt.get("timing"), dict) for attempt in attempts)
+    return {
+        "attempts": [{"attempt_id": attempt["id"], "timing": attempt.get("timing")}
+                     for attempt in attempts],
+        "observed_attempts": observed, "unknown_attempts": len(attempts) - observed,
+        "provider_active_compute_ms": None, "provider_rate_limit_wait_ms": None,
+        "scope": "SDK/host latency observations only; unknown is not zero or provider-active time",
+    }
+
+
+def calibration_budget(cfg: dict, *, root: Path = ROOT) -> dict:
+    """Verify all excluded calibration attempts before carrying their actual cost forward."""
+    relative = cfg.get("calibration_state")
+    if not relative:
+        raise StudyError("Full-study admission requires the separate excluded calibration journal")
+    path = root / relative
+    if not path.is_file() or path.is_symlink():
+        raise StudyError("Excluded v5 calibration state unavailable; full sample remains blocked")
+    state = read_json(path)
+    identity = state["identity"]
+    if (identity.get("analysis_design") != BLOCKED_DESIGN or identity.get("smoke") is not False
+            or identity.get("phase") not in ("pilot", "calibration")
+            or identity.get("inputs_sha256") != fingerprint(root)
+            or identity.get("config") != cfg):
+        raise StudyError("Calibration is historical, diagnostic or bound to different execution inputs")
+    allocation = schedule(False, identity["phase"], cfg["seed"])
+    if (len(state["cells"]) != 15 or state.get("status") != "completed"
+            or any({key: cell.get(key) for key in expected} != expected
+                   or cell["status"] != "completed"
+                   or cell.get("completed_steps") != planned_steps(cell["arm"], 10, False)
+                   for cell, expected in zip(state["cells"], allocation))):
+        raise StudyError("All 15 original excluded calibration trajectories must be complete, without replacement")
+    attempts = [attempt for cell in state["cells"] for attempt in cell["attempts"]]
+    entries = state["ledger"]["entries"]
+    if len({attempt["id"] for attempt in attempts}) != len(attempts) or set(entries) != {item["id"] for item in attempts}:
+        raise StudyError("Calibration attempt and budget journals disagree")
+    actual = 0
+    cells = []
+    metadata_hashes = {}
+    for cell in state["cells"]:
+        metadata_path = path.parent / "runs" / cell["run_id"] / "run.json"
+        metadata = read_json(metadata_path)
+        metadata_hashes[cell["run_id"]] = hashlib.sha256(metadata_path.read_bytes()).hexdigest()
+        assistance = metadata.get("intervention", {})
+        if (metadata.get("assigned_model") != cell["assigned_model"]
+                or assistance.get("coverage_complete") is not True
+                or assistance.get("assisted") is not False or not assistance.get("evidence")):
+            raise StudyError("Complete source-bound unassisted calibration metadata is required for cost projection")
+        cell_actual = 0
+        invocations = cell.get("host_invocation_seconds")
+        if (not isinstance(invocations, list) or not invocations
+                or any(type(seconds) not in (float, int) or not math.isfinite(seconds) or seconds < 0
+                       for seconds in invocations)):
+            raise StudyError("Complete controller/evaluator/calibration wall-time evidence unavailable")
+        duration = sum(invocations)
+        for attempt in cell["attempts"]:
+            usage = accounted_nano(attempt.get("usage"))
+            entry = entries[attempt["id"]]
+            if (usage is None or entry["status"] != "complete" or entry["actual_nano"] != usage
+                    or usage > entry["reserved_nano"]
+                    or attempt.get("actual_models") != [cell["assigned_model"]]
+                    or attempt.get("actual_reasoning_efforts") != ["medium"]):
+                raise StudyError("Missing/overshooting calibration billing or actual model evidence blocks admission")
+            seconds = attempt.get("seconds")
+            if type(seconds) not in (float, int) or not math.isfinite(seconds) or seconds < 0:
+                raise StudyError("Calibration original-attempt timing unavailable")
+            cell_actual += usage
+        actual += cell_actual
+        cells.append({"arm": cell["arm"], "assigned_model": cell["assigned_model"],
+                      "actual_nano": cell_actual, "seconds": duration})
+    return {"state_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "inputs_sha256": identity["inputs_sha256"], "source_commit": identity["commit"],
+            "actual_calibration_nano": actual, "attempt_count": len(attempts), "cells": cells,
+            "run_metadata_sha256": metadata_hashes}
+
+
+def feasibility_errors(cfg: dict, *, root: Path = ROOT) -> list[str]:
+    """Require an exact-source numerical go receipt, not an author approval assertion."""
+    relative = cfg.get("feasibility_receipt")
+    if not relative or not (root / relative).is_file() or (root / relative).is_symlink():
+        return ["Prospective all-495 cost-only feasibility receipt unavailable; collection blocked"]
+    receipt = read_json(root / relative)
+    source = receipt.get("source", {})
+    projection = receipt.get("calibration_feasibility")
+    if (not isinstance(source, dict) or source.get("inputs_sha256") != fingerprint(root)
+            or source.get("working_tree_dirty") is not False
+            or source.get("commit") != command(["git", "rev-parse", "HEAD"], cwd=root)
+            or not isinstance(projection, dict) or projection.get("numerical_go") is not True
+            or receipt.get("planning", {}).get("trajectories_per_arm_model") != sample_size()["trajectories_per_arm_model"]
+            or receipt.get("financial_conversion") is not None):
+        return ["Full-sample feasibility receipt is not a clean exact-source numerical go; halt and amend before collection"]
+    binding = calibration_budget(cfg, root=root)
+    calibration = receipt.get("calibration_source_evidence")
+    if not isinstance(calibration, dict):
+        return ["Numerical feasibility requires its complete outcome-free source evidence"]
+    from feasibility import calibration_projection
+    if projection != calibration_projection(calibration, cfg):
+        return ["Numerical feasibility changed from its deterministic source calculation"]
+    if (receipt.get("calibration_state_sha256") != binding["state_sha256"]
+            or receipt.get("calibration_binding") != binding
+            or credits(projection.get("calibration_actual_credits")) != binding["actual_calibration_nano"]):
+        return ["Feasibility receipt does not match every actual excluded calibration charge"]
+    by_identity = {(item["arm"], item["assigned_model"]): item for item in binding["cells"]}
+    for run in calibration["runs"]:
+        actual = by_identity[(run["arm"], run["assigned_model"])]
+        if credits(run["credits"]) != actual["actual_nano"] or float(run["seconds"]) != actual["seconds"]:
+            return ["Feasibility changed an original calibration cell's actual resources"]
+    return []
+
+
 class StudyRun(Run):
     """Reuse integrity enforcement while journaling disposable-repository steps."""
 
@@ -479,8 +647,9 @@ class StudyRun(Run):
             from isolated_runtime import live_runtime
             return live_runtime(self).run_agent(prompt, step_dir, budget)
         remaining_seconds, remaining_credits = self.remaining_allowance(budget)
-        reserve_buffer = (credits(controller.cfg["session_reserve_credits"])
-                          - credits(controller.cfg["session_soft_limit_credits"]))
+        multiplier = credit_multiplier(self.arm, step_kind(self.arm, self.current_step))
+        reserve_buffer = multiplier * (credits(controller.cfg["session_reserve_credits"])
+                                       - credits(controller.cfg["session_soft_limit_credits"]))
         attempt = controller.new_attempt(self.cell, self.current_step, remaining_credits + reserve_buffer)
         attempt.update(seconds_limit=remaining_seconds, credit_limit_nano=remaining_credits)
         directory = Path(self.dir) / "attempts" / attempt["id"]
@@ -500,12 +669,16 @@ class StudyRun(Run):
                  "tokenDetails": {name: {"tokenCount": 0}
                                   for name in ("input", "output", "cache_read", "cache_write")}}
         attempt.update(status="timeout" if timed_out else "agent_returned", exit_code=status,
-                       seconds=round(seconds, 4), usage=usage)
+                       seconds=round(seconds, 4), usage=usage,
+                       timing={"host_process_wall_ms": seconds * 1000,
+                               "SDK_requests": "not-applicable: zero-model-call diagnostic stub",
+                               "provider_active_compute_ms": None, "provider_rate_limit_wait_ms": None})
         controller.settle_attempt(attempt["id"], usage)
         return {"exit_code": status, "timed_out": timed_out, "seconds": seconds,
                 "usage": usage, "possible_leak": False, "diagnostic_stub": True}
 
     def remaining_allowance(self, budget: int) -> tuple[float, int]:
+        """All retries share this arm/step's original time and soft-credit ceiling."""
         previous = [attempt for attempt in self.cell["attempts"] if attempt["step"] == self.current_step]
         seconds = 0.0
         spent = 0
@@ -521,7 +694,8 @@ class StudyRun(Run):
             seconds += duration
             spent += usage
         remaining_seconds = budget - seconds
-        remaining_credits = credits(self.controller.cfg["session_soft_limit_credits"]) - spent
+        multiplier = credit_multiplier(self.arm, step_kind(self.arm, self.current_step))
+        remaining_credits = multiplier * credits(self.controller.cfg["session_soft_limit_credits"]) - spent
         if remaining_seconds <= 0 or remaining_credits <= 0:
             raise StudyError("Original step time or credit allowance exhausted")
         if not self.controller.smoke and remaining_credits < 30 * NANO:
@@ -617,7 +791,7 @@ class StudyRun(Run):
 
     def record(self, rec: dict) -> None:
         """Fsync the canonical step before marking it complete in controller state."""
-        if not self.controller.smoke and rec.get("kind") == "consolidation":
+        if not self.controller.smoke and rec.get("kind") in ("consolidation", "repair"):
             from isolated_runtime import live_runtime
             runtime = live_runtime(self)
             count = (runtime.last_export or {}).get("commit_count")
@@ -628,6 +802,7 @@ class StudyRun(Run):
         rec["agent"]["usage"] = aggregate_usage(attempts)
         rec["agent"]["seconds"] = (sum(attempt["seconds"] for attempt in attempts)
                                     if all(attempt.get("seconds") is not None for attempt in attempts) else None)
+        rec["agent"]["timing"] = aggregate_timing(attempts)
         rec["attempts"] = [attempt["id"] for attempt in attempts]
         super().record(rec)
         with open(self.steps_path, "a", encoding="utf-8") as stream:
@@ -638,6 +813,8 @@ class StudyRun(Run):
         self.controller.save()
 
     def post_step(self, k: int) -> None:
+        self.released_features = k
+        self.current_kind = descriptor(self.arm).post
         if not self.controller.smoke and self.arm == "C":
             from isolated_runtime import live_runtime
             live_runtime(self).review_step(k)
@@ -683,8 +860,14 @@ class Controller:
                 or any({key: actual.get(key) for key in expected} != expected
                        for actual, expected in zip(self.state["cells"], proposed))):
             raise StudyError("Stored allocation differs from immutable schedule")
+        carried = self.state.get("calibration_binding")
+        prior_nano = 0 if smoke else credits(cfg["prior_credits"])
+        if carried is not None:
+            if smoke or self.phase in ("pilot", "calibration") or carried != calibration_budget(cfg):
+                raise StudyError("Stored calibration budget/source binding changed; no durable resume")
+            prior_nano += carried["actual_calibration_nano"]
         if (self.state["ledger"]["ceiling_nano"] != credits(cfg["ceiling_credits"])
-                or self.state["ledger"]["prior_nano"] != (0 if smoke else credits(cfg["prior_credits"]))
+                or self.state["ledger"]["prior_nano"] != prior_nano
                 or self.state["ledger"].get("historical_credit_provisions", [])
                 != historical_credit_provisions(cfg, smoke=smoke)
                 or self.state["deadline"] > self.state["started"] + cfg["study_timeout_seconds"]):
@@ -697,6 +880,8 @@ class Controller:
         self.state["writer_pid"] = None
         self.runtime_config = directory / "runtime.json"
         runtime = read_json(ROOT / ("harness/config.dry-run.json" if smoke else "harness/config.json"))
+        if not smoke and runtime.get("budgets_seconds") != {"feature": 1800, "post": 900, "change_request": 2700}:
+            raise StudyError("Actual live feature/post/CR1 ceilings differ from the prospective arm descriptors")
         runtime["runs_dir"] = str(directory / "runs")
         runtime["version_commands"] = {}
         atomic_json(self.runtime_config, runtime)
@@ -727,7 +912,8 @@ class Controller:
         if len(previous) >= self.cfg["max_attempts"]:
             raise StudyError("Bounded attempt limit reached; partial cell retained")
         attempt_id = f"{cell['run_id']}-{step}-{len(previous) + 1}"
-        amount = 0 if self.smoke else credits(self.cfg["session_reserve_credits"])
+        multiplier = credit_multiplier(cell["arm"], step_kind(cell["arm"], step))
+        amount = 0 if self.smoke else multiplier * credits(self.cfg["session_reserve_credits"])
         if allowance_nano is not None:
             amount = min(amount, allowance_nano)
         reserve(self.state["ledger"], attempt_id, amount)
@@ -745,6 +931,15 @@ class Controller:
             self.save()
 
     def run_cell(self, cell: dict) -> None:
+        """Record actually occupied controller wall time, including evaluation and recovery."""
+        started = time.monotonic()
+        try:
+            self._run_cell(cell)
+        finally:
+            cell.setdefault("host_invocation_seconds", []).append(time.monotonic() - started)
+            self.save()
+
+    def _run_cell(self, cell: dict) -> None:
         """Resume only unmeasured work, never retry a recorded task failure."""
         args = SimpleNamespace(config=str(self.runtime_config), suite=str(ROOT / "suites/s1-retrofit"),
                                arm=cell["arm"], run_id=cell["run_id"], phase=self.phase,
@@ -784,8 +979,8 @@ class Controller:
         steps = []
         for k, feature in enumerate(run.features, 1):
             steps.append((f"f{k:02d}-feature", run.feature_step, (k, feature)))
-            if run.arm != "A":
-                kind = "consolidation" if run.arm == "B" else "review"
+            if descriptor(run.arm).post:
+                kind = descriptor(run.arm).post
                 steps.append((f"f{k:02d}-{kind}", run.post_step, (k,)))
         if run.do_cr:
             steps.append((f"{run.suite['change_request']['id']}-change", run.change_request, ()))
@@ -815,6 +1010,31 @@ class Controller:
 
     def go(self) -> bool:
         """Keep failures and unattempted cells, then always produce a complete report."""
+        if not self.smoke and self.phase not in ("pilot", "calibration"):
+            errors = feasibility_errors(self.cfg)
+            if errors:
+                self.state.update(status="feasibility_blocked", stop_reason="; ".join(errors))
+                self.save()
+                raise StudyError("; ".join(errors))
+            binding = calibration_budget(self.cfg)
+            prior_binding = self.state.get("calibration_binding")
+            if prior_binding is None:
+                receipt = read_json(ROOT / self.cfg["feasibility_receipt"])
+                projected_seconds = float(receipt["calibration_feasibility"]["projected_main_seconds"])
+                if projected_seconds > self.state["deadline"] - time.time():
+                    raise StudyError("All 495 projected trajectories do not fit the retained absolute deadline; "
+                                     "halt and amend before collection, never reset the deadline")
+            if prior_binding is not None and prior_binding != binding:
+                raise StudyError("Calibration accounting/source changed; durable study remains blocked")
+            self.state["calibration_binding"] = binding
+            self.state["ledger"]["prior_nano"] = credits(self.cfg["prior_credits"]) + binding["actual_calibration_nano"]
+            self.save()
+        if not self.smoke:
+            errors = freeze_errors(self.cfg, phase=self.phase)
+            if errors:
+                self.state.update(status="source_gate_blocked", stop_reason="; ".join(errors))
+                self.save()
+                raise StudyError("; ".join(errors))
         self.state["status"] = "running"
         self.save()
         try:
@@ -860,7 +1080,7 @@ def show_progress(state: dict, current: str = "") -> None:
     """Count durable completed steps, not attempts or inferred successes."""
     total = completed = 0
     for cell in state["cells"]:
-        planned = cell["features"] * (1 if cell["arm"] == "A" else 2) + int(cell["change_request"])
+        planned = planned_steps(cell["arm"], cell["features"], cell["change_request"])
         done = cell.get("completed_steps", planned if cell["status"] == "completed" else 0)
         if type(done) is not int or not 0 <= done <= planned:
             raise StudyError("Invalid saved step progress")
@@ -877,7 +1097,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=ROOT / "harness/study-config.json")
     parser.add_argument("--study-id", default="stub-smoke")
-    parser.add_argument("--smoke", action="store_true", help="one feature per A/B/C, built-in fake agent only")
+    parser.add_argument("--smoke", action="store_true", help="one feature per A/B/C/D/E; fake agent only")
     parser.add_argument("--dry-run", action="store_true", help="read-only preflight and schedule")
     parser.add_argument("--check-vm", action="store_true", help="check prerequisites; never install or run agents")
     parser.add_argument("--phase", choices=["pilot", "first", "calibration", "pilot-estimation"],
@@ -903,13 +1123,16 @@ def main() -> int:
                 print(f"Shareable results: {package_results(directory / 'results', args.study_id)}")
         return 0
     cfg = read_json(args.config)
-    errors = preflight(cfg, smoke=args.smoke)
+    errors = preflight(cfg, smoke=args.smoke, phase=args.phase)
     preview = {"mode": "stub-smoke" if args.smoke else args.phase,
                "inputs_sha256": fingerprint(),
                "schedule": (schedule(args.smoke, args.phase, cfg["seed"])
                             if type(cfg.get("seed")) is int else []),
                "token_present": bool(os.environ.get("COPILOT_GITHUB_TOKEN")),
                "hard_billing_supported": False, "budget_policy": budget_policy(cfg), "errors": errors}
+    if not args.smoke:
+        from feasibility import report as feasibility_report
+        preview["prospective_feasibility"] = feasibility_report(cfg)
     if args.dry_run or args.check_vm:
         print(json.dumps(preview, indent=2))
         return 2 if errors else 0

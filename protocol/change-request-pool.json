@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "status": "prewritten-prospective-follow-up-proposal-not-current-CR1",
+  "scope": "Subsequent main study only; suites/s1-retrofit/cr1 and the current fixed CR1 remain unchanged",
+  "pool_frozen_for_collection": false,
+  "prospective_OSF_follow_up_recorded": false,
+  "power_sample_and_deadline_for_follow_up_approved": false,
+  "randomization": {
+    "seed": 2031,
+    "unit": "model/replicate block; all five arms in a block receive the same request",
+    "rule": "Within each model, randomly permute each three-request deck using the fixed seed and consume without replacement; repeat decks until the prospectively fixed follow-up block count is met",
+    "selection_after_outcomes": false,
+    "release": "Only release the assigned request when its session starts; no pool text in feature/post prompts or candidate seeds",
+    "analysis": "Block by model and request; report all assignments, acquisition strata, missingness, whole-run effects and assistance. Request difficulty is not assumed equal."
+  },
+  "requests": [
+    {
+      "id": "follow-up-priority-v2",
+      "title": "Versioned priority policy",
+      "prerequisites": ["f09", "f10"],
+      "story": "A programme manager needs a second auditable ranking policy without changing existing policy-v1 behavior.",
+      "rules": [
+        "rank_cases(policy_version='v1') remains byte-for-byte compatible in score, codes and ordering.",
+        "Accept policy_version='v2' on the Workbench and every read-only view. V2 changes only VULNERABLE to +60 and PAUSED to -50; retain all other F9 scores, code order, held-first ordering and case-id tie-breaks.",
+        "Any policy version other than v1 or v2 raises ValidationError without changing state.",
+        "Ranking is a read, appends no audit entry and preserves all previously specified permissions, filtering and export behavior."
+      ]
+    },
+    {
+      "id": "follow-up-audit-pagination",
+      "title": "Read-only audit pagination",
+      "prerequisites": ["f09", "f10"],
+      "story": "An auditor needs deterministic incremental audit retrieval without weakening hash verification or mutating the trail.",
+      "rules": [
+        "Keep audit_log() and verify_audit(entries=None) unchanged.",
+        "Add audit_page(after_seq=0, limit=50) on the Workbench, returning copies of entries with seq greater than after_seq in increasing seq order, limited to at most limit entries.",
+        "after_seq must be a nonnegative integer and limit an integer from 1 to 100; reject bools and invalid arguments with ValidationError, without state or audit changes.",
+        "Returned mutations cannot change the source trail. Empty/beyond-end pages return an empty list. Preserve all F9 ranking behavior and existing role/view permissions; do not expose the trail through a view that previously lacked audit access."
+      ]
+    },
+    {
+      "id": "follow-up-ranked-export",
+      "title": "Priority-ordered CSV export",
+      "prerequisites": ["f09", "f10"],
+      "story": "A manager needs a ranked case export while contractors retain the same information minimization.",
+      "rules": [
+        "Keep export_cases_csv(role, **filters) and rank_cases(policy_version='v1') unchanged.",
+        "Add export_ranked_cases_csv(role, policy_version='v1', **filters) on the Workbench. Use the unchanged F10 CSV columns and F9 ranking order, retaining only cases accepted by list_cases(**filters).",
+        "Add the corresponding method on existing read-only views, using their existing role and visibility rules. Contractor vulnerability/contact fields remain empty.",
+        "Unknown roles or policies raise ValidationError; exports are reads and create no audit entries. Preserve all prior writes, audit chaining, permissions and default export order."
+      ]
+    }
+  ],
+  "acceptance_requirements": [
+    "Independent difficulty and visible/hidden oracle review before follow-up source freeze",
+    "New exact-source immutable examples/hidden panels/reference snapshots; triplicate all-pass reference agreement",
+    "Prospective follow-up sample/resource/deadline amendment before collection, no outcome-driven choice of request",
+    "Bounded mutation report with generated/observed/equivalent/unavailable denominators; no universal adequacy claim"
+  ]
+}

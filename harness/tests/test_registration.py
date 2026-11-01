@@ -17,7 +17,7 @@ def registration(monkeypatch):
 
 @pytest.fixture
 def config():
-    config = json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
+    config = historical_config()
     config.pop("scientific_review_policy", None)
     config.pop("runtime_access_review_policy", None)
     for key in ("independent_suite_review", "contract_panel_review", "oracle_stability",
@@ -26,6 +26,18 @@ def config():
         config["required_evidence"][key] = None
     config["owner_approval"] = {"approved": False, "date": None, "evidence": None}
     config["registration"] = {"submitted": False, "url": None, "date": None}
+    return config
+
+
+def historical_config():
+    config = json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
+    config["study"] = dict(config["study"], arms=["A", "B", "C"], runs_per_arm=2)
+    config["study"].pop("analysis_design")
+    config["owner_decisions"] = config["historical_owner_decisions"]
+    config["required_evidence"] = config["historical_required_evidence"]
+    config["owner_approval"] = config["historical_v4_owner_approval"]
+    config["scientific_review_policy"] = config["historical_v4_scientific_review_policy"]
+    config["runtime_access_review_policy"] = config["historical_v4_runtime_access_review_policy"]
     return config
 
 
@@ -155,7 +167,7 @@ def test_unreviewed_plan_can_be_approved_for_submission_without_collection(regis
 
 
 def test_owner_scientific_review_is_explicit_and_does_not_clear_runtime_or_freeze(registration):
-    current = json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
+    current = historical_config()
     current["owner_approval"] = {"approved": False, "date": None, "evidence": None}
     current.pop("runtime_access_review_policy")
     for key in ("local_runtime_evidence", "access_probe_including_cr1_text"):
@@ -182,14 +194,14 @@ def test_owner_scientific_review_is_explicit_and_does_not_clear_runtime_or_freez
     ("independent_review_required_before_collection", True), ("independent_review_completed", True),
 ])
 def test_owner_review_policy_cannot_omit_provenance_or_claim_independence(registration, field, value):
-    current = json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
+    current = historical_config()
     current["scientific_review_policy"][field] = value
     with pytest.raises(registration.StudyError, match="scientific review|Scientific review"):
         registration.readiness(current, {"review": {}})
 
 
 def test_owner_runtime_access_acceptance_does_not_authorize_execution_or_claim_independence(registration):
-    current = json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
+    current = historical_config()
     current["owner_approval"] = {"approved": False, "date": None, "evidence": None}
     current["required_evidence"]["local_runtime_evidence"] = "Synthetic accepted current-source runtime evidence"
     panel = json.loads((ROOT / "protocol/contract-panel.json").read_text())
@@ -216,7 +228,7 @@ def test_owner_runtime_access_acceptance_does_not_authorize_execution_or_claim_i
     ("independent_review_required_before_collection", True), ("independent_review_completed", True),
 ])
 def test_owner_runtime_review_policy_requires_provenance_and_no_independence_claim(registration, field, value):
-    current = json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
+    current = historical_config()
     current["runtime_access_review_policy"][field] = value
     with pytest.raises(registration.StudyError, match="runtime/access|Runtime/access"):
         registration.readiness(current, {"review": {}})

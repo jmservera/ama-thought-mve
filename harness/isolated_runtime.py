@@ -15,6 +15,8 @@ import time
 from pathlib import Path, PurePosixPath
 
 from runner import git, head
+from arms import credit_multiplier, step_kind
+from visible_specifications import note_violations
 from study_io import ROOT, RetryableError, StudyError, atomic_json, read_json
 
 NANO = 1_000_000_000
@@ -253,8 +255,10 @@ class LiveRuntime:
         if errors:
             raise StudyError("; ".join(errors))
         seconds_limit, credit_limit = run.remaining_allowance(budget)
-        buffer = (controller.cfg["session_reserve_credits"]
-                  - controller.cfg["session_soft_limit_credits"]) * NANO
+        kind = step_kind(run.arm, run.current_step)
+        multiplier = credit_multiplier(run.arm, kind)
+        buffer = multiplier * (controller.cfg["session_reserve_credits"]
+                               - controller.cfg["session_soft_limit_credits"]) * NANO
         attempt = controller.new_attempt(run.cell, run.current_step, credit_limit + buffer)
         attempt.update(seconds_limit=seconds_limit, credit_limit_nano=credit_limit)
         directory = Path(run.dir) / "attempts" / attempt["id"]
@@ -291,6 +295,8 @@ class LiveRuntime:
                                         controller.state["deadline"] - time.time()),
                 "maxAiCredits": credit_limit / NANO, "cliPath": shutil.which("copilot"),
                 "baseDirectory": str(directory / "sdk"),
+                "arm": run.arm, "stepKind": kind,
+                "originalMaxAiCredits": multiplier * controller.cfg["session_soft_limit_credits"],
             }
             if request["remainingSeconds"] <= 0:
                 raise StudyError("Original step allowance exhausted before SDK startup")
@@ -324,7 +330,8 @@ class LiveRuntime:
                     "runtime": {"sdk": "1.0.28", "cli": "1.0.105",
                                 "image": self.receipt["image"], "isolated_tools": True},
                     "actual_models": receipt["actual_models"],
-                    "actual_reasoning_efforts": receipt["actual_reasoning_efforts"]}
+                    "actual_reasoning_efforts": receipt["actual_reasoning_efforts"],
+                    "timing": receipt.get("timing")}
         except (RuntimeError, OSError):
             controller.state["oracle_halt"] = True
             controller.save()
@@ -332,6 +339,10 @@ class LiveRuntime:
         finally:
             attempt.update(seconds=round(time.monotonic() - started, 4), usage=usage,
                            status="agent_returned" if result is not None else "interrupted")
+            if result is not None and isinstance(result.get("receipt"), dict):
+                attempt["timing"] = result["receipt"].get("timing")
+                attempt["actual_models"] = result["receipt"].get("actual_models")
+                attempt["actual_reasoning_efforts"] = result["receipt"].get("actual_reasoning_efforts")
             controller.settle_attempt(attempt["id"], usage)
 
     def publish_committed(self, exported: dict) -> None:
@@ -378,8 +389,14 @@ class LiveRuntime:
             except UnicodeError as error:
                 raise StudyError("Isolated review is not UTF-8 text") from error
             (Path(run.repo) / "REVIEW.md").write_text(content, encoding="utf-8")
-            git(run.repo, "add", "REVIEW.md")
-            git(run.repo, "commit", "-q", "-m", "runner: review notes", check=False)
+            note_errors = note_violations(Path(run.repo), "REVIEW.md")
+            violations += note_errors
+            if note_errors:
+                git(run.repo, "reset", "-q", "--hard", before)
+                git(run.repo, "clean", "-qfd")
+            else:
+                git(run.repo, "add", "REVIEW.md")
+                git(run.repo, "commit", "-q", "-m", "runner: review notes", check=False)
         measurement = run.measure(k, step_dir, before)
         count = int(git(run.repo, "rev-list", "--count", f"{before}..HEAD").stdout.strip())
         run.record({"step": step, "k": k, "kind": "review", "agent": result,
@@ -399,7 +416,8 @@ class LiveRuntime:
         tools = kit / "skeleton/tools"
         harness.mkdir(parents=True, exist_ok=True)
         tools.mkdir(parents=True, exist_ok=True)
-        for name in ("measure.py", "stdlib_tests.py", "failure_attribution.py", "evaluation_env.py"):
+        for name in ("measure.py", "stdlib_tests.py", "failure_attribution.py", "evaluation_env.py",
+                     "fidelity.py", "quality-policy.json"):
             shutil.copyfile(ROOT / "harness" / name, harness / name)
         shutil.copyfile(ROOT / "skeleton/tools/metrics_core.py", tools / "metrics_core.py")
         mounts = {snapshot: "/work", kit: "/kit"}
@@ -473,6 +491,12 @@ class LiveRuntime:
                 or result.get("hidden_passed") != sum(status == "passed" for status in hidden.values())
                 or result.get("head") != head(run.repo) or result.get("k") != k or result.get("cr") is not cr
                 or result.get("diff") != diff_stats(run.repo, prev_ref)
+                or not isinstance(result.get("fidelity"), dict)
+                or result["fidelity"].get("head") != head(run.repo)
+                or result["fidelity"].get("policy_sha256") != hashlib.sha256(
+                    (ROOT / "harness/quality-policy.json").read_bytes()).hexdigest()
+                or result["fidelity"].get("ruff_isolated") is not True
+                or result["fidelity"].get("ruff_ignore_noqa") is not True
                 or not isinstance(result.get("metrics"), dict)
                 or result["metrics"].get("backends") != {
                     "complexity": "lizard", "duplication": "jscpd", "lint": "ruff"}):

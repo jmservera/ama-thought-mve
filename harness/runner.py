@@ -18,9 +18,15 @@ import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 from evaluation_env import evaluation_environment
 from pilot_analysis import collection_role
+from arms import ARMS, credit_multiplier, descriptor, feature_seconds
+from visible_specifications import (
+    intervention_evidence, note_violations, restore as restore_specifications, stage as stage_specifications,
+    test_changes, visible_files,
+)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
@@ -71,6 +77,7 @@ class Run:
         self.suite_dir = os.path.abspath(a.suite)
         self.suite = json.load(open(os.path.join(self.suite_dir, "suite.json"), encoding="utf-8"))
         self.arm = a.arm
+        self.treatment = descriptor(self.arm)
         self.run_id = a.run_id
         self.phase = a.phase
         self.assigned_model = getattr(a, "assigned_model", None)
@@ -98,6 +105,9 @@ class Run:
         os.environ.setdefault("MVE_HARNESS", HERE)
         self.env_extra = {k: os.path.expandvars(v) for k, v in self.cfg.get("env", {}).items()}
         self.steps_path = os.path.join(self.dir, "steps.jsonl")
+        self.current_kind = "feature"
+        self.released_features = 0
+        self.cr_released = False
 
     # ------------------------------------------------------------------ setup
     def setup(self, *, existing_metadata=False):
@@ -176,6 +186,19 @@ class Run:
                     changed.append(os.path.basename(p))
         return changed
 
+    def released_files(self):
+        """Expose only specifications/examples released by the current schedule."""
+        return visible_files(Path(self.suite_dir), self.features[:self.released_features],
+                             self.suite["change_request"] if self.cr_released else None)
+
+    def restore_visible_specifications(self):
+        """Protect visible source authority separately from accepted green tests."""
+        return restore_specifications(Path(self.repo), self.released_files())
+
+    def note_violations(self, name):
+        """Check a bounded treatment note without silently truncating candidate text."""
+        return note_violations(Path(self.repo), name)
+
     def run_agent(self, prompt, step_dir, budget):
         os.makedirs(step_dir, exist_ok=True)
         for sub in ("home", "copilot-home", "logs"):
@@ -186,6 +209,9 @@ class Run:
                   "copilot_home": os.path.join(step_dir, "copilot-home"), "suite": self.suite_dir, "harness": HERE,
                   "uid": str(os.getuid()), "gid": str(os.getgid()),
                   **{k: str(v) for k, v in self.cfg.get("agent_values", {}).items()}}
+        if "max_credits" in values:
+            values["max_credits"] = str(int(values["max_credits"])
+                                        * credit_multiplier(self.arm, self.current_kind))
         cmd = [render(x, values) for x in self.cfg["agent_command"]]
         env = self.env()
         env.update({k: render(v, values) for k, v in self.cfg.get("agent_env", {}).items()})
@@ -250,6 +276,9 @@ class Run:
 
     # ------------------------------------------------------------------ steps
     def feature_step(self, k, feat):
+        self.current_kind = "feature"
+        self.released_features = k
+        stage_specifications(Path(self.repo), self.released_files())
         step = f"f{k:02d}-feature"
         sd = os.path.join(self.dir, "steps", step)
         names = self.copy_examples(feat)
@@ -260,16 +289,25 @@ class Run:
         rules = "\n".join(f"- {r}" for r in feat["rules"] + [f"API: {x}" for x in feat.get("api", [])])
         prompt = render(load_prompt("feature-step.prompt.md"), {
             "k": k, "N": self.n, "title": feat["title"], "user story": feat["story"], "rules": rules,
-            "k:02d": f"{k:02d}", "feature_budget": fmt_minutes(self.budgets["feature"])})
-        res = self.run_agent(prompt, sd, self.budgets["feature"])
+            "k:02d": f"{k:02d}", "feature_budget": fmt_minutes(feature_seconds(self.arm, self.budgets)),
+            "arm": self.arm, "arm_description": self.treatment.description})
+        res = self.run_agent(prompt, sd, feature_seconds(self.arm, self.budgets))
         self.discard_uncommitted()
         violations = []
+        spec_changes = self.restore_visible_specifications()
+        if spec_changes:
+            violations.append("immutable visible specifications/examples modified: " + ", ".join(spec_changes))
+            git(self.repo, "add", "-A")
+            git(self.repo, "commit", "-q", "-m", "runner: restore visible specifications")
+        _, modified_tests = test_changes(Path(self.repo), start, git)
         restored = self.restore_examples([f["id"] for f in self.features[:k]])
         if restored:
             violations.append(f"examples modified: {', '.join(restored)}")
             git(self.repo, "add", "-A")
             git(self.repo, "commit", "-q", "-m", "runner: restore example tests")
-        delivered = head(self.repo) != start and self.is_green()
+        if modified_tests:
+            violations.append("accepted agent-authored tests changed: " + ", ".join(modified_tests))
+        delivered = not modified_tests and head(self.repo) != start and self.is_green()
         if not delivered:
             if head(self.repo) != start:
                 violations.append("committed while tests failed; reset")
@@ -284,13 +322,15 @@ class Run:
                      "violations": violations, "measure": m})
 
     def post_step(self, k):
-        if self.arm == "A":
+        self.released_features = k
+        if self.treatment.post is None:
             return
-        kind = "consolidation" if self.arm == "B" else "review"
+        kind = self.treatment.post
+        self.current_kind = kind
         step = f"f{k:02d}-{kind}"
         sd = os.path.join(self.dir, "steps", step)
         before = head(self.repo)
-        tmpl = "consolidation-step.prompt.md" if self.arm == "B" else "review-only-step.prompt.md"
+        tmpl = self.treatment.post_prompt
         prompt = render(load_prompt(tmpl), {"consolidation_budget": fmt_minutes(self.budgets["post"])})
         res = self.run_agent(prompt, sd, self.budgets["post"])
         violations = []
@@ -299,6 +339,10 @@ class Run:
             p = os.path.join(self.repo, "REVIEW.md")
             if os.path.exists(p):
                 review = open(p, encoding="utf-8").read()
+                note_errors = self.note_violations("REVIEW.md")
+                violations += note_errors
+                if note_errors:
+                    review = None
             changed = set(git(self.repo, "diff", "--name-only", before, "HEAD").stdout.split())
             changed |= {line[3:].strip() for line in git(self.repo, "status", "--porcelain").stdout.splitlines() if line.strip()}
             changed.discard("REVIEW.md")
@@ -312,18 +356,32 @@ class Run:
                 git(self.repo, "commit", "-q", "-m", "runner: review notes", check=False)
         else:
             self.discard_uncommitted()
+            spec_changes = self.restore_visible_specifications()
             restored = self.restore_examples([f["id"] for f in self.features[:k]])
-            if restored:
-                violations.append(f"examples modified: {', '.join(restored)}; consolidation reset")
+            evidence_violations, evidence = intervention_evidence(
+                Path(self.repo), before, kind, self.released_files(), self.features[:k], git)
+            violations += evidence_violations
+            note_errors = self.note_violations("DESIGN.md" if kind == "consolidation" else "REPAIR.md")
+            violations += note_errors
+            if restored or spec_changes:
+                violations.append(f"immutable visible material modified: {', '.join(restored + spec_changes)}; {kind} reset")
+                git(self.repo, "reset", "-q", "--hard", before)
+            elif evidence_violations or note_errors:
                 git(self.repo, "reset", "-q", "--hard", before)
             elif not self.is_green():
-                violations.append("consolidation left the head red; reset")
+                violations.append(f"{kind} left the head red; reset")
                 git(self.repo, "reset", "-q", "--hard", before)
+            self.discard_uncommitted()
         m = self.measure(k, sd, before)
         self.record({"step": step, "k": k, "kind": kind, "agent": res, "violations": violations, "measure": m,
+                     "visible_change_evidence": evidence if kind != "review" else None,
                      "commits": int(git(self.repo, "rev-list", "--count", f"{before}..HEAD").stdout.strip() or 0)})
 
     def change_request(self):
+        self.current_kind = "change_request"
+        self.released_features = self.n
+        self.cr_released = True
+        stage_specifications(Path(self.repo), self.released_files())
         cr = self.suite["change_request"]
         step = f"{cr['id']}-change"
         sd = os.path.join(self.dir, "steps", step)
@@ -338,12 +396,20 @@ class Run:
         res = self.run_agent(prompt, sd, self.budgets["change_request"])
         self.discard_uncommitted()
         violations = []
+        spec_changes = self.restore_visible_specifications()
+        if spec_changes:
+            violations.append("immutable visible specifications/examples modified: " + ", ".join(spec_changes))
+            git(self.repo, "add", "-A")
+            git(self.repo, "commit", "-q", "-m", "runner: restore visible specifications")
+        _, modified_tests = test_changes(Path(self.repo), start, git)
         restored = self.restore_examples([f["id"] for f in self.features] + [cr["id"]])
         if restored:
             violations.append(f"examples modified: {', '.join(restored)}")
             git(self.repo, "add", "-A")
             git(self.repo, "commit", "-q", "-m", "runner: restore example tests")
-        delivered = head(self.repo) != start and self.is_green()
+        if modified_tests:
+            violations.append("accepted agent-authored tests changed: " + ", ".join(modified_tests))
+        delivered = not modified_tests and head(self.repo) != start and self.is_green()
         if not delivered:
             git(self.repo, "reset", "-q", "--hard", start)
         m = self.measure(self.n, sd, start, cr=True)
@@ -351,6 +417,10 @@ class Run:
                      "violations": violations, "measure": m, "examples": names})
 
     def go(self):
+        with open(os.path.join(HERE, "config.dry-run.json"), encoding="utf-8") as source:
+            diagnostic = json.load(source)
+        if self.cfg.get("agent_command") != diagnostic["agent_command"]:
+            sys.exit("Standalone live runner is disabled. Use the source-bound gated isolated study controller.")
         self.setup()
         for k, feat in enumerate(self.features, 1):
             self.feature_step(k, feat)
@@ -367,7 +437,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
     ap.add_argument("--suite", required=True)
-    ap.add_argument("--arm", required=True, choices=["A", "B", "C"])
+    ap.add_argument("--arm", required=True, choices=list(ARMS))
     ap.add_argument("--run-id", required=True)
     ap.add_argument("--features", type=int)
     ap.add_argument("--phase", default="pilot-estimation",

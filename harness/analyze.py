@@ -19,6 +19,7 @@ import statistics as st
 from collections import defaultdict
 from fractions import Fraction
 from pathlib import Path
+from arms import cycle_kinds, endpoint_kind
 
 METRICS = ["mean_ccn", "share_ccn_over_10", "dup_pct", "lint_per_kloc"]
 
@@ -157,10 +158,10 @@ def summarise_run(run, cost_unit):
     recs = [record if isinstance(record, dict) else {"record_error": "Non-object step record"}
             for record in run["recs"]]
     arm = run["meta"]["arm"]
-    post_kind = {"A": "feature", "B": "consolidation", "C": "review"}[arm]
+    post_kind = endpoint_kind(arm)
     scheduled_features = feature_index(run["meta"].get("features"))
     scheduled = set(range(1, scheduled_features + 1)) if scheduled_features is not None else set()
-    required_kinds = ("feature",) if arm == "A" else ("feature", post_kind)
+    required_kinds = cycle_kinds(arm)
     required_steps = [(kind, index) for index in sorted(scheduled) for kind in required_kinds]
     delivery_records = [record for record in recs if record.get("kind") != "change_request"]
     observed_steps = [(record.get("kind"), feature_index(record.get("k"))) for record in delivery_records]

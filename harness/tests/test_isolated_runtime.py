@@ -393,27 +393,30 @@ def test_ambiguous_broker_failure_stops_admission_even_after_usage_is_known(runt
 
 
 @pytest.mark.parametrize("outcome", ["complete", "unknown", "wrong_model", "bad_export"])
+@pytest.mark.parametrize("arm", ["B", "D", "E"])
 def test_live_attempt_reserves_before_transport_and_preserves_charge_on_failure(
-    runtime, tmp_path, monkeypatch, outcome,
+    runtime, tmp_path, monkeypatch, outcome, arm,
 ):
     study = importlib.import_module("study")
     config = study.read_json(study.ROOT / "harness/study-config.json")
     current = study.Controller(tmp_path / "private", config,
                                smoke=False, phase="first", study_id="offline-transport-fixture")
-    cell = current.state["cells"][0]
+    cell = next(cell for cell in current.state["cells"] if cell["arm"] == arm)
+    multiplier = 2 if arm == "D" else 1
+    budget = 2700 if arm == "D" else 1800
     repo = trusted_repo(runtime, tmp_path)
     live = object.__new__(runtime.LiveRuntime)
     live.run = SimpleNamespace(
         controller=current, cell=cell, current_step="f01-feature", repo=repo,
-        dir=str(current.directory / "fixture"), assigned_model=cell["assigned_model"],
-        remaining_allowance=lambda budget: (budget, 270 * runtime.NANO))
+        dir=str(current.directory / "fixture"), assigned_model=cell["assigned_model"], arm=arm,
+        remaining_allowance=lambda budget: (budget, multiplier * 270 * runtime.NANO))
     live.receipt = {"image": "sha256:" + "0" * 64}
     live.last_checkpoint = None
     monkeypatch.setattr(runtime, "runtime_errors", lambda cfg: [])
 
     def seed(files, *, git_bundle):
         stored = runtime.read_json(current.path)["ledger"]["entries"]
-        assert next(iter(stored.values()))["reserved_nano"] == 300 * runtime.NANO
+        assert next(iter(stored.values()))["reserved_nano"] == multiplier * 300 * runtime.NANO
         assert git_bundle and files
         return "opaque-fixture-state"
 
@@ -423,7 +426,9 @@ def test_live_attempt_reserves_before_transport_and_preserves_charge_on_failure(
                 ".git/config" if outcome == "bad_export" else "src/code.py", "VALUE = 2\n")]})
 
     def bridge(request, directory, tool, **callbacks):
-        assert request["maxAiCredits"] == 270 and 0 < request["remainingSeconds"] <= 900
+        assert request["maxAiCredits"] == multiplier * 270 and 0 < request["remainingSeconds"] <= budget
+        assert request["originalMaxAiCredits"] == multiplier * 270
+        assert request["arm"] == arm and request["stepKind"] == "feature"
         assert runtime.read_json(directory.parent / "request.json")["prompt"] == "offline fixture prompt"
         callbacks["on_start"](123)
         callbacks["on_stop"]()
@@ -436,11 +441,11 @@ def test_live_attempt_reserves_before_transport_and_preserves_charge_on_failure(
 
     monkeypatch.setattr(runtime, "run_bridge", bridge)
     if outcome == "complete":
-        live.run_agent("offline fixture prompt", str(tmp_path / "steps"), 900)
+        live.run_agent("offline fixture prompt", str(tmp_path / "steps"), budget)
         assert (repo / "src/code.py").read_text() == "VALUE = 2\n"
     else:
         with pytest.raises(runtime.StudyError):
-            live.run_agent("offline fixture prompt", str(tmp_path / "steps"), 900)
+            live.run_agent("offline fixture prompt", str(tmp_path / "steps"), budget)
         assert (repo / "src/code.py").read_text() == "VALUE = 1\n"
     entry = next(iter(current.state["ledger"]["entries"].values()))
     if outcome == "unknown":

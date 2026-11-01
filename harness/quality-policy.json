@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "classification": "treatment-fidelity-not-independent-efficacy",
+  "ruff_select": "E,F,W,C90,B,SIM",
+  "ruff_isolated": true,
+  "ruff_ignore_noqa": true,
+  "max_complexity": 10,
+  "jscpd_min_tokens": 50,
+  "jscpd_min_lines": 5,
+  "candidate_configuration_has_authority_over_external_measurement": false
+}

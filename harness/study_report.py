@@ -23,12 +23,15 @@ from analyze import (
     summarise_run,
 )
 from pilot_analysis import analyze_pilot
+from arms import BLOCKED_DESIGN
+from feasibility import sample_size
 from study_io import ROOT, StudyError, atomic_json, command, read_json
 
 EXPORTS = (
     "summary.json", "summary.md", "series.csv", "hypotheses.csv", "intervals.csv",
     "runs.csv", "attempts.csv", "availability.json", "report.md", "trajectories.svg",
     "hypotheses.tex", "trajectories.tex", "provenance.json", "retention.csv", "episodes.csv",
+    "cr1.csv", "fidelity.csv", "timing.csv", "planning.json",
 )
 UNAVAILABLE = {
     "H4": "Formal joint size/accuracy/time claim deferred; comprehension include/defer decision pending.",
@@ -40,6 +43,8 @@ UNAVAILABLE = {
     "currency": "No verified AI-credit-to-currency conversion.",
     "hard_billing": "CLI credit limits are soft; owner accepts residual overshoot risk with operational buffers. "
                     "No study-specific provider hard cap or guaranteed billed ceiling is claimed.",
+    "provider_active_time": "SDK request/dispatch latency and host tool/send wait are not active compute; provider-active/rate-limit components are unknown.",
+    "review_repairs": "Only external C annotations with genuine review/diff locators can be observed; file overlap alone proves no repair.",
 }
 
 
@@ -92,9 +97,9 @@ def figure(runs: list[dict], out: Path, *, diagnostic: bool) -> None:
     latex = [r"\begingroup", r"\setlength{\unitlength}{0.15mm}",
              r"\begin{picture}(900,340)",
              r"\put(30,320){\makebox(0,0)[l]{\scriptsize " + tex(title) + "}}"]
-    colours = {"A": "#c0392b", "B": "#2471a3", "C": "#666666"}
+    colours = {"A": "#c0392b", "B": "#2471a3", "C": "#666666", "D": "#956000", "E": "#27643c"}
     for panel, (metric, label) in enumerate((("pass_rate", "Hidden pass rate (%)"),
-                                           ("mean_ccn", "Mean cyclomatic complexity"))):
+                                           ("mean_ccn", "Complexity (backend recorded; fidelity)"))):
         left, top, width, height = 60 + 440 * panel, 65, 350, 210
         values = [row[metric] for run in runs for row in run["series"] if row.get(metric) is not None]
         ymax = 100 if metric == "pass_rate" else max(values + [1]) * 1.1
@@ -125,7 +130,7 @@ def figure(runs: list[dict], out: Path, *, diagnostic: bool) -> None:
                     y2 = top + height * (1 - second[metric] / ymax)
                     svg.append(f'<path d="M{x1:.2f},{y1:.2f} L{x2:.2f},{y2:.2f}" '
                                f'stroke="{colours[run["arm"]]}" fill="none"/>')
-    svg.append('<text x="60" y="330" font-size="11">A: red; B: blue; C: grey. Missing checkpoints are not imputed.</text></svg>')
+    svg.append('<text x="60" y="330" font-size="11">A: red; B: blue; C: grey; D: ochre; E: green. Missing checkpoints are not imputed.</text></svg>')
     latex += [r"\end{picture}", r"\endgroup"]
     (out / "trajectories.svg").write_text("\n".join(svg) + "\n", encoding="utf-8")
     (out / "trajectories.tex").write_text("\n".join(latex) + "\n", encoding="utf-8")
@@ -168,6 +173,8 @@ def legacy_export(directory: Path, state: dict, study_id: str) -> None:
     atomic_json(out / "availability.json", {"unavailable": UNAVAILABLE,
                                            "diagnostic_stub": diagnostic,
                                            "zero_intervention_inferred": False})
+    atomic_json(out / "planning.json", {"status": "historical-proposal-diagnostics-not-v2",
+                                                                  "normal_planning": None, "source": provenance})
     hypothesis_rows = []
     interval_rows = []
     for name, result in sorted(hypotheses.items()):
@@ -296,6 +303,9 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
     provenance = provenance or {"diagnostic_stub": diagnostic,
                                 "collection_role": result["collection_role"],
                                 "registered_or_frozen_by_runner": False}
+    if result.get("frame") == BLOCKED_DESIGN:
+        provenance = dict(provenance, analysis_design=BLOCKED_DESIGN,
+                          allocated_trajectories=495 if result["collection_role"] == "pilot-estimation" else 15)
     dispositions = dispositions if dispositions is not None else [
         {"run_id": run["run_id"], "arm": run["arm"],
          "model": run.get("assigned_model"), "replicate": run.get("replicate"),
@@ -311,6 +321,11 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
                 "panel_accepted": result["panel_accepted"], "diagnostic_stub": diagnostic,
                 "primary_estimates_available": result["primary_estimates_available"],
                 "zero_intervention_inferred": False})
+    atomic_json(out / "planning.json", {"analysis_design": result.get("frame"),
+                "normal_planning": sample_size() if result.get("frame") == BLOCKED_DESIGN else None,
+                "historical_v1_runs_per_arm_model": 2 if result.get("frame") == "model-stratified-v1" else None,
+                "scope": "Never apply prospective 33/cell or five arms to historical data",
+                "source": provenance})
     estimates = [dict(hypothesis=name, field=field, value=value,
                       available=value is not None, interpretation="estimate-only")
                  for name, endpoint in result["endpoints"].items()
@@ -338,16 +353,45 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
                      for row in run["retention"]["episodes"]]
     write_csv(out / "retention.csv", ["run_id", "arm", "model", "replicate", "k", "checkpoint", "eligible",
               "ever_passed", "never_passed", "currently_passing", "risk_set", "risk_complete", "open_losses",
-              "density", "same_cycle_post_losses", "observation_complete", "groups"], paired)
+              "observed_risk_set", "missing_risk_set", "observed_open_losses", "density", "full_risk_density",
+              "same_cycle_post_losses", "observation_complete", "groups"], paired)
     write_csv(out / "episodes.csv", ["run_id", "arm", "model", "replicate", "contract", "feature", "onset_cycle",
               "onset_checkpoint", "recovery_cycle", "recovery_checkpoint", "recurrence",
               "duration_cycles", "uncertain", "censored"], episodes)
-    heading = "STUB DIAGNOSTIC: NOT STUDY RESULTS" if diagnostic else "Pilot / estimation report"
+    cr_rows = [
+        {"run_id": run["run_id"], "arm": run["arm"], "model": run.get("assigned_model"),
+         "replicate": run.get("replicate"), "binary_success": run["cr_success"],
+         "F9_F10_pre_CR1_stratum": run["pre_cr1_prerequisite_acquisition"],
+         "F9_F10_P10_availability": run["pre_cr1_prerequisite_availability"],
+         **{f"graded_{key}": value for key, value in run["cr1_graded"].items() if key != "scope"},
+         **{f"retained_{key}": value for key, value in run["cr1_retained_losses"].items()}}
+        for run in runs]
+    write_csv(out / "cr1.csv", list(cr_rows[0]) if cr_rows else ["run_id"], cr_rows)
+    fidelity_rows = [
+        {"run_id": run["run_id"], "arm": run["arm"], "model": run.get("assigned_model"),
+         "replicate": run.get("replicate"), "step": item["step"], "k": item["k"], "kind": item["kind"],
+         "classification": "treatment-fidelity-not-independent-efficacy",
+         "external_metrics": json.dumps(item["fidelity"], sort_keys=True),
+         "visible_change_evidence": json.dumps(item["visible_change_evidence"], sort_keys=True),
+         "C_follow_through": json.dumps(run["review_follow_through"], sort_keys=True)}
+        for run in runs for item in run["treatment_fidelity"]]
+    write_csv(out / "fidelity.csv", list(fidelity_rows[0]) if fidelity_rows else ["run_id"], fidelity_rows)
+    timing_rows = [
+        {"run_id": run["run_id"], "arm": run["arm"], "model": run.get("assigned_model"),
+         "step": item["step"], "observations": json.dumps(item["observed"], sort_keys=True),
+         "provider_active_compute_ms": None, "provider_rate_limit_wait_ms": None,
+         "scope": "observable SDK/host latency, not active compute"}
+        for run in runs for item in run["timing"]]
+    write_csv(out / "timing.csv", list(timing_rows[0]) if timing_rows else ["run_id"], timing_rows)
+    heading = ("STUB DIAGNOSTIC: NOT STUDY RESULTS" if diagnostic else
+               "Prospective five-arm coverage report" if result.get("frame") == BLOCKED_DESIGN else
+               "Historical pilot / estimation diagnostics")
     lines = [f"# {heading}", "", f"Design: {description}.",
              f"Collection role: {result['collection_role']}; allocated metadata: {len(runs)}.",
              f"Cost unit: {result['cost_unit']}; no automatic unit fallback or currency conversion.",
              "All allocations retained, including assisted, incomplete and zero-step trajectories.",
-             "H1/H2/H6 are endpoint labels, not hypothesis decisions. Formal H4/H7 claims deferred.",
+             "B-D final coverage is the sole prospective v2 primary comparison; per-model and B-A/B-C/E-B/E-D are descriptive secondary.",
+             "Binary CR1 is secondary, not powered by the coverage calculation. Structural metrics are fidelity checks, not independent efficacy.",
              "Each primary contrast requires its full allocated unassisted frame; unknown assistance is not unassisted.",
              "H2 paired F/P values from an unaccepted panel are diagnostics only.",
              "Missing observations/accounting are unavailable, never zero or last-observed final values.",
@@ -363,8 +407,16 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
     latex.append(r"\end{tabular}")
     (out / "hypotheses.tex").write_text("\n".join(latex) + "\n", encoding="utf-8")
     lines += ["", "## Methods and unavailable scope", ""]
-    lines += [f"- {key}: {value}" for key, value in result["methods"].items()]
-    lines += [f"- {key}: {value}" for key, value in UNAVAILABLE.items()]
+    lines += [f"* {key}: {value}" for key, value in result["methods"].items()]
+    lines += [f"* {key}: {value}" for key, value in UNAVAILABLE.items()]
+    if result.get("pooled_within_cell_final_coverage"):
+        variance = result["pooled_within_cell_final_coverage"]
+        lines += ["", "## Run-level within-cell planning variance", "",
+                  f"Pooled variance: {fmt(variance['variance_pp_squared'])} pp squared; "
+                  f"SD: {fmt(variance['sd_pp'])} pp; residual df: {variance['df']}; "
+                  f"planned complete df: {variance['planned_complete_df']}.",
+                  f"Observed {variance['observed_trajectories']}/{variance['allocated_trajectories']} trajectories; "
+                  "partial variance is descriptive and never changes the fixed sample."]
     lines += ["", "## All run values and dispositions", "",
               "| Run | Arm | Model | Replicate | Intervention | Coverage (%) | CR1 | Delivery cost | CR1 cost |",
               "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
@@ -373,6 +425,9 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
               f"{fmt((run['end'] or {}).get('pass_rate'))} | {fmt(run['cr_success'])} | "
               f"{fmt(run['all_attempt_delivery_cost'])} | {fmt(run['all_attempt_cr_cost'])} |" for run in runs]
     lines += ["", "See retention.csv and episodes.csv for paired losses and uncertainty; "
+              "cr1.csv includes tests passed/15, lost pre-CR1-passed contracts and observed/missing risk denominators. "
+              "F9/F10 conditional strata are selected post-treatment, not randomized causal comparisons. "
+              "fidelity.csv/timing.csv preserve observed/unknown coverage. "
               "runs.csv and attempts.csv preserve dispositions/accounting. No raw logs are published.", ""]
     for name in ("summary.md", "report.md"):
         (out / name).write_text("\n".join(lines), encoding="utf-8")
@@ -395,6 +450,11 @@ def export(directory: Path, state: dict, study_id: str) -> None:
              "attempted_cycles": len(attempted), "unattempted_cycles": cell["features"] - len(attempted),
              "sequence_complete": run["sequence_complete"], "intervention": run["intervention"],
              "end_pass_rate": (run["end"] or {}).get("pass_rate"), "cr_success": run["cr_success"],
+             "F9_F10_pre_CR1_stratum": run["pre_cr1_prerequisite_acquisition"],
+             "F9_F10_P10_availability": run["pre_cr1_prerequisite_availability"],
+             "CR1_passed": run["cr1_graded"]["passed"],
+             "CR1_observed_denominator": run["cr1_graded"]["observed_denominator"],
+             "CR1_missing_denominator": run["cr1_graded"]["missing_denominator"],
              "all_attempt_delivery_cost": run["all_attempt_delivery_cost"],
              "all_attempt_cr_cost": run["all_attempt_cr_cost"], "HIR": None, "IDR": None})
         for attempt in cell["attempts"]:
@@ -407,12 +467,16 @@ def export(directory: Path, state: dict, study_id: str) -> None:
     provenance = {"study_id": study_id, "diagnostic_stub": state["identity"]["smoke"],
                   "phase": state["identity"]["phase"], "collection_role": result["collection_role"],
                   "source_commit": state["identity"]["commit"],
+                  "analysis_design": state["identity"].get("analysis_design"),
+                  "allocated_trajectories": len(state["cells"]),
+                  "primary_comparison": "B-D" if state["identity"].get("analysis_design") == BLOCKED_DESIGN else None,
                   "inputs_sha256": state["identity"]["inputs_sha256"],
                   "seed": state["identity"]["config"]["seed"], "registered_or_frozen_by_runner": False,
                   "inference": "diagnostic" if state["identity"]["smoke"] else "pilot estimates only",
                   "ceiling_nano": state["ledger"]["ceiling_nano"], "prior_nano": state["ledger"]["prior_nano"],
                   **historical_budget_provenance(state["ledger"]),
                   "session_soft_limit_credits": state["identity"]["config"].get("session_soft_limit_credits", 300),
+                  "D_feature_soft_limit_credits": 2 * state["identity"]["config"].get("session_soft_limit_credits", 300),
                   "billing_limit_kind": "local admission plus per-session soft caps; not guaranteed billed consumption"}
     write_pilot(directory / "results", result, provenance=provenance, dispositions=dispositions, attempts=attempts)
 
@@ -434,16 +498,25 @@ def validated_artifacts(directory: Path) -> list[Path]:
         raise StudyError("Results contain missing or non-allowlisted files")
     paths = [directory / name for name in EXPORTS]
     total = 0
+    provenance = read_provenance(directory)
+    large_design = provenance.get("analysis_design") == BLOCKED_DESIGN
+    allocation = provenance.get("allocated_trajectories")
+    if large_design and (type(allocation) is not int or allocation not in (15, 495)):
+        raise StudyError("v2 result bounds require the exact prospective 15/495 allocation, not a generic cap bypass")
+    per_run = {"summary.json": 512 * 1024, "retention.csv": 128 * 1024, "episodes.csv": 128 * 1024,
+               "series.csv": 32 * 1024, "fidelity.csv": 64 * 1024, "timing.csv": 64 * 1024,
+               "attempts.csv": 32 * 1024}
     for path in paths:
-        if path.is_symlink() or not path.is_file() or path.stat().st_size > 512 * 1024:
-            raise StudyError("Result is linked, non-regular, or exceeds 512 KiB file cap")
+        limit = max(512 * 1024, allocation * per_run.get(path.name, 0)) if large_design else 512 * 1024
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > limit:
+            raise StudyError("Result is linked, non-regular, or exceeds its source-bound derived-file cap")
         payload = path.read_bytes()
         total += len(payload)
         text = payload.decode("utf-8")
         check_credentials(text)
-    if total > 4 * 1024 * 1024:
-        raise StudyError("Results exceed 4 MiB aggregate publication cap")
-    provenance = read_provenance(directory)
+    aggregate_limit = 512 * 1024 * 1024 if large_design else 4 * 1024 * 1024
+    if total > aggregate_limit:
+        raise StudyError("Results exceed the bounded aggregate publication cap")
     if provenance.get("registered_or_frozen_by_runner") is not False:
         raise StudyError("Invalid result provenance")
     return paths
@@ -483,6 +556,10 @@ def publish(directory: Path, study_id: str, root: Path = ROOT) -> str:
     """Commit only fixed results in a temporary worktree, push normally, upsert PR."""
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", study_id):
         raise StudyError("Invalid publication study ID")
+    protocol_path = root / "protocol/pilot-estimation.json"
+    if protocol_path.is_file() and read_json(protocol_path)["study"].get("analysis_design") == BLOCKED_DESIGN:
+        if read_json(protocol_path).get("sharing", {}).get("publication_release_authorized") is not True:
+            raise StudyError("v5 publication is pending collection, paper release and explicit owner authorization")
     paths = validated_artifacts(directory)
     provenance = read_provenance(directory)
     if provenance.get("study_id") != study_id:

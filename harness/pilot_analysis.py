@@ -10,6 +10,7 @@ from analyze import (
     summarise_run,
 )
 from contract_panel import accepted, checked_panel
+from arms import ARMS, BLOCKED_DESIGN, LEGACY_DESIGN, MODELS, endpoint_kind
 
 ROOT = Path(__file__).resolve().parents[1]
 ROLES = {"pilot": "calibration", "calibration": "calibration",
@@ -22,8 +23,10 @@ def _read_protocol() -> dict:
     return json.loads((ROOT / "protocol/pilot-estimation.json").read_text(encoding="utf-8"))
 
 
-def load_roster() -> dict:
+def load_roster(design: str = BLOCKED_DESIGN) -> dict:
     """Read the authoritative model roster/per-cell counts; independent of study.py."""
+    if design == LEGACY_DESIGN:
+        return {"models": list(MODELS), "runs_per_arm": 2, "calibration_runs_per_arm": 1}
     study = _read_protocol()["study"]
     return {"models": list(study["model_roster"]), "runs_per_arm": study["runs_per_arm"],
             "calibration_runs_per_arm": study["calibration_runs_per_arm"]}
@@ -53,7 +56,7 @@ def retention(run: dict, panel: dict) -> dict:
     """Track only inherited P-passed unchanged contracts, with paired observations."""
     meta = run["meta"]
     n = feature_index(meta.get("features")) or 0
-    post_kind = {"A": "feature", "B": "consolidation", "C": "review"}[meta["arm"]]
+    post_kind = endpoint_kind(meta["arm"])
     records = {}
     malformed = False
     for record in run["recs"]:
@@ -79,6 +82,9 @@ def retention(run: dict, panel: dict) -> dict:
         for checkpoint, observed in (("F", f), ("P", p)):
             known = {test: observed.get(test) if observed else None for test in eligible}
             valid = not malformed and all(outcome in ("passed", "failed") for outcome in known.values())
+            observed_risk = {test for test in risk
+                             if not malformed and known[test] in ("passed", "failed")}
+            observed_losses = sum(known[test] == "failed" for test in observed_risk)
             complete &= valid and cohort_complete
             losses = sum(known[test] == "failed" for test in risk) if valid and cohort_complete else None
             same_cycle = (sum(f.get(test) == "passed" and known[test] == "failed"
@@ -93,6 +99,9 @@ def retention(run: dict, panel: dict) -> dict:
                     "never_passed": len(ids - ever) if cohort_complete else None,
                     "currently_passing": sum(known[test] == "passed" for test in ids) if valid else None,
                     "risk_set": len(ids & risk),
+                    "observed_risk_set": len(ids & observed_risk),
+                    "missing_risk_set": len((ids & risk) - observed_risk),
+                    "observed_open_losses": sum(known[test] == "failed" for test in ids & observed_risk),
                     "open_losses": sum(known[test] == "failed" for test in ids & risk)
                     if valid and cohort_complete else None,
                 }
@@ -101,8 +110,13 @@ def retention(run: dict, panel: dict) -> dict:
                          "never_passed": len(eligible.keys() - ever) if cohort_complete else None,
                          "currently_passing": sum(value == "passed" for value in known.values()) if valid else None,
                          "risk_set": len(risk), "risk_complete": cohort_complete,
+                         "observed_risk_set": len(observed_risk),
+                         "missing_risk_set": len(risk - observed_risk),
+                         "observed_open_losses": observed_losses,
                          "open_losses": losses,
-                         "density": losses / len(risk) if losses is not None and risk else None,
+                         "density": observed_losses / len(observed_risk) if observed_risk else None,
+                         "full_risk_density": losses / len(risk) if losses is not None and risk else None,
+                         "density_scope": "observed inherited-risk outcomes only; acquisition/history uncertainty retained",
                          "same_cycle_post_losses": same_cycle, "groups": groups,
                          "observation_complete": valid, "oracle_versions": sorted({
                              item["oracle_version"] for item in eligible.values()})})
@@ -164,7 +178,7 @@ def summarise_pilot(run: dict, panel: dict, cost_unit: str = "credits", cell: di
     n = summary["scheduled_features"] or 0
     expected_features = {item["id"] for item in panel["contracts"]
                          if item["role"] == "feature" and item["from_cycle"] <= n <= item["through_cycle"]}
-    post_kind = {"A": "feature", "B": "consolidation", "C": "review"}[summary["arm"]]
+    post_kind = endpoint_kind(summary["arm"])
     endpoints = [record for record in run["recs"] if isinstance(record, dict)
                  and record.get("kind") == post_kind and record.get("k") == n]
     final_hidden = measured_hidden(endpoints[0]) if len(endpoints) == 1 else None
@@ -178,6 +192,69 @@ def summarise_pilot(run: dict, panel: dict, cost_unit: str = "credits", cell: di
                   and record.get("kind") == "change_request"]
     cr_hidden = measured_hidden(cr_records[0]) if len(cr_records) == 1 else None
     expected_cr = {item["id"] for item in panel["contracts"] if item["role"] == "cr1"}
+    valid_cr_record = (len(cr_records) == 1 and cr_records[0].get("k") == n
+                       and run["recs"][-1] is cr_records[0])
+    observed_cr = {test: cr_hidden[test] for test in expected_cr
+                   if valid_cr_record and cr_hidden and cr_hidden.get(test) in ("passed", "failed")}
+    observed_pre = {test: final_hidden[test] for test in expected_features
+                    if final_hidden and final_hidden.get(test) in ("passed", "failed")}
+    pre_passed = {test for test, outcome in observed_pre.items() if outcome == "passed"}
+    retained_observed = {test for test in pre_passed
+                         if valid_cr_record and cr_hidden and cr_hidden.get(test) in ("passed", "failed")}
+    retained_lost = sum(cr_hidden[test] == "failed" for test in retained_observed)
+    summary["cr1_graded"] = {
+        "passed": sum(value == "passed" for value in observed_cr.values()),
+        "contracts_total": len(expected_cr), "observed_denominator": len(observed_cr),
+        "missing_denominator": len(expected_cr) - len(observed_cr),
+        "passed_fraction": (sum(value == "passed" for value in observed_cr.values()) / len(expected_cr)
+                            if expected_cr and len(observed_cr) == len(expected_cr) else None),
+        "scope": "CR1 contracts only; current fixed panel has 15, not a powered binary endpoint",
+    }
+    summary["cr1_retained_losses"] = {
+        "pre_observed_denominator": len(observed_pre),
+        "pre_missing_denominator": len(expected_features) - len(observed_pre),
+        "pre_passed_risk_set": len(pre_passed),
+        "pre_risk_complete": final_valid,
+        "observed_risk_set": len(retained_observed),
+        "missing_risk_set": len(pre_passed - retained_observed),
+        "lost_observed": retained_lost,
+        "lost_complete": retained_lost if final_valid and len(retained_observed) == len(pre_passed) else None,
+        "density": retained_lost / len(retained_observed) if retained_observed else None,
+    }
+    prerequisites = [{item["id"] for item in panel["contracts"]
+                      if item["role"] == "feature" and item["feature"] == feature}
+                     for feature in ("f09", "f10")]
+    required_prerequisites = set().union(*prerequisites)
+    if (not all(prerequisites) or not summary["sequence_complete"]):
+        availability = "unknown"
+    elif any(observed_pre.get(test) == "failed" for test in required_prerequisites):
+        availability = "not-both"
+    elif all(observed_pre.get(test) == "passed" for test in required_prerequisites):
+        availability = "both"
+    else:
+        availability = "unknown"
+    acquired = []
+    for start, tests in zip((9, 10), prerequisites):
+        observations = []
+        for cycle in range(start, n + 1):
+            for kind in dict.fromkeys(("feature", post_kind)):
+                checkpoints = [record for record in run["recs"] if isinstance(record, dict)
+                               and record.get("kind") == kind and record.get("k") == cycle]
+                hidden = measured_hidden(checkpoints[0]) if len(checkpoints) == 1 else None
+                if (tests and hidden and all(hidden.get(test) in ("passed", "failed") for test in tests)):
+                    observations.append(all(hidden[test] == "passed" for test in tests))
+                else:
+                    observations.append(None)
+        acquired.append(True if any(value is True for value in observations) else
+                        False if observations and all(value is False for value in observations) else None)
+    acquisition = ("both" if all(value is True for value in acquired) else
+                   "not-both" if any(value is False for value in acquired) else "unknown")
+    summary["pre_cr1_prerequisite_acquisition"] = acquisition
+    summary["pre_cr1_prerequisite_availability"] = availability
+    summary["pre_cr1_prerequisite_definition"] = (
+        "Each F9/F10 fixed contract group passed in full at a unique observed pre-CR1 F/P checkpoint "
+        "after its specification release; missing acquisition opportunities remain unknown. "
+        "Current P10 availability is separate; these are post-treatment selection strata, not randomized comparisons")
     summary["cr_success"] = None
     if (final_valid and summary["change_request_planned"] is True and expected_cr
             and cr_hidden is not None and set(cr_hidden) == expected_cr | expected_features
@@ -219,6 +296,17 @@ def summarise_pilot(run: dict, panel: dict, cost_unit: str = "credits", cell: di
     summary["observed_cr_cost"] = summary["cr_cost"]
     summary["attempt_journal_supplied"] = cell is not None
     summary["cr_cost"] = summary["all_attempt_cr_cost"]
+    from fidelity import review_follow_through
+    summary["review_follow_through"] = review_follow_through(run)
+    summary["treatment_fidelity"] = [
+        {"step": record.get("step"), "k": record.get("k"), "kind": record.get("kind"),
+         "fidelity": (record.get("measure") or {}).get("fidelity"),
+         "visible_change_evidence": record.get("visible_change_evidence")}
+        for record in run["recs"] if isinstance(record, dict)]
+    summary["timing"] = [
+        {"step": record.get("step"), "observed": (record.get("agent") or {}).get("timing"),
+         "provider_active_compute_ms": None, "provider_rate_limit_wait_ms": None}
+        for record in run["recs"] if isinstance(record, dict)]
     return summary
 
 
@@ -234,7 +322,7 @@ def journal_cells(raw_runs: list[dict], cells: list[dict]) -> dict:
         identity = ("assigned_model", "analysis_design", "replicate")
         current = any(key in source for source in (cell, run["meta"]) for key in identity)
         if current and (any(key not in source for source in (cell, run["meta"]) for key in identity)
-                        or cell["analysis_design"] != "model-stratified-v1"
+                        or cell["analysis_design"] not in (LEGACY_DESIGN, BLOCKED_DESIGN)
                         or type(cell["replicate"]) is not int):
             raise ValueError("Attempt journal allocation fields lack complete current model identity")
         keys = ["arm", "features", "change_request"] + (list(identity) if current else [])
@@ -271,8 +359,15 @@ def analyze_pilot(raw_runs: list[dict], *, panel: dict | None = None, seed: int 
         identity = ("assigned_model", "analysis_design", "replicate")
         if (any(key in meta for key in identity)
                 and (any(key not in meta for key in identity)
-                     or meta["analysis_design"] != "model-stratified-v1")):
+                     or meta["analysis_design"] not in (LEGACY_DESIGN, BLOCKED_DESIGN))):
             raise ValueError("Invalid or partial current model identity; never treat it as historical")
+        if (meta.get("analysis_design") == LEGACY_DESIGN and meta["arm"] not in "ABC"):
+            raise ValueError("Historical model-stratified-v1 has only A/B/C")
+        if meta["arm"] not in ARMS:
+            raise ValueError("Unknown arm identity")
+    designs = {run["meta"].get("analysis_design") for run in raw_runs}
+    if BLOCKED_DESIGN in designs and len(designs) > 1:
+        raise ValueError("Mixed v2 and historical designs; analyse separately, never reinterpret old data")
     roles = {collection_role(run["meta"]) for run in raw_runs}
     if len(roles) > 1:
         raise ValueError("Mixed collection roles: analyse calibration, estimation and diagnostics separately")
@@ -281,6 +376,10 @@ def analyze_pilot(raw_runs: list[dict], *, panel: dict | None = None, seed: int 
     runs = [summarise_pilot(run, panel, cost_unit, cell=by_id.get(run["meta"]["run_id"])) for run in raw_runs]
     if len({run["run_id"] for run in runs}) != len(runs):
         raise ValueError("Duplicate trajectory identities")
+    if BLOCKED_DESIGN in designs:
+        from blocked_analysis import analyze_blocked
+        return analyze_blocked(runs, panel=panel, seed=seed, n=n, role=role, cost_unit=cost_unit,
+                               roster=load_roster())
     stratified = [run for run in runs if run["analysis_design"] == "model-stratified-v1"]
     legacy = [run for run in runs if run["analysis_design"] != "model-stratified-v1"]
     if stratified and legacy:
@@ -288,14 +387,16 @@ def analyze_pilot(raw_runs: list[dict], *, panel: dict | None = None, seed: int 
     if stratified:
         return _analyze_pilot_model_stratified(stratified, panel, seed, n, role, cost_unit)
     expected = 4 if role == "pilot-estimation" else 1
-    frame = (len(runs) == 3 * expected and {run["suite"] for run in runs} == {panel["suite"]}
+    diagnostic_five = role == "diagnostic" and any(run["arm"] in "DE" for run in runs)
+    arm_names = list(ARMS) if diagnostic_five else list("ABC")
+    frame = (len(runs) == len(arm_names) * expected and {run["suite"] for run in runs} == {panel["suite"]}
              and (role != "pilot-estimation" or all(run["scheduled_features"] == 10
                   and run["change_request_planned"] is True for run in runs))
-             and all(sum(run["arm"] == arm for run in runs) == expected for arm in "ABC"))
+             and all(sum(run["arm"] == arm for run in runs) == expected for arm in arm_names))
     unassisted = frame and all(run["intervention"] == "unassisted" for run in runs)
     primary = role == "pilot-estimation" and unassisted
     arms = {}
-    for arm in "ABC":
+    for arm in arm_names:
         rows = [run for run in runs if run["arm"] == arm]
         denominator = max(expected, len(rows))
         successes = sum(run["cr_success"] is True for run in rows)
@@ -363,7 +464,7 @@ def analyze_pilot(raw_runs: list[dict], *, panel: dict | None = None, seed: int 
 def _analyze_pilot_model_stratified(stratified: list[dict], panel: dict, seed: int, n: int,
                                     role: str, cost_unit: str) -> dict:
     """Model-stratified-v1 primary analysis: per-model only, never pooled, never inferred."""
-    roster = load_roster()
+    roster = load_roster(LEGACY_DESIGN)
     models = roster["models"]
     expected_per_cell = roster["runs_per_arm"] if role == "pilot-estimation" else roster["calibration_runs_per_arm"]
     valid_replicates = {1, 2} if role == "pilot-estimation" else {1}
@@ -426,7 +527,11 @@ def _analyze_pilot_model_stratified(stratified: list[dict], panel: dict, seed: i
             b = [field(run) for run in _runs if run["arm"] == "B"]
             point, ci = (boot_diff({panel["suite"]: a}, {panel["suite"]: b}, n=n, seed=seed)
                         if available else (None, (None, None)))
-            return {"difference": point, "ci": ci, "available": point is not None}
+            return {"difference": point, "ci": (None, None), "available": point is not None,
+                    "four_pairwise_differences": [y - x for y in b for x in a]
+                    if len(a) == len(b) == 2 and all(value is not None for value in a + b) else None,
+                    "descriptive_percentile_interval": ci,
+                    "interval_scope": "n=2 diagnostic only; no nominal 95% coverage claim"}
 
         model_endpoints = {"H1": {}, "H2": {}, "H6": {}, "resources": {}}
         for other in "AC":
@@ -452,16 +557,19 @@ def _analyze_pilot_model_stratified(stratified: list[dict], panel: dict, seed: i
                 "delivery": contrast(lambda run: run["all_attempt_delivery_cost"], other),
                 "cr1": contrast(lambda run: run["all_attempt_cr_cost"], other)}
         endpoints[model] = model_endpoints
-    overall_summary = _read_protocol()["analysis"]["overall_summary"]
+    overall_summary = "Exploratory only; equal model weights; do not silently pool model-specific runs"
+    from blocked_analysis import pooled_within_cell
     return {"mode": "pilot-estimation", "collection_role": role, "cost_unit": cost_unit,
             "frame": "model-stratified-v1",
-            "design_description": "Current model-stratified frame",
+            "design_description": "Historical model-stratified-v1 n=2/cell frame; descriptive diagnostics",
+            "pooled_within_cell_final_coverage": pooled_within_cell(stratified, list("ABC"), models,
+                                                                  expected_per_cell),
             "allocation_complete": frame, "primary_unassisted_frame_complete": unassisted,
             "primary_estimates_available": any(value["primary_estimates_available"] for value in model_frames.values()),
             "model_frames": model_frames,
             "panel_accepted": accepted(panel), "endpoints": endpoints, "arms": arms, "runs": stratified,
             "overall_summary": overall_summary,
-            "methods": {"bootstrap": f"{n} whole-run stratified draws; seed {seed}; pointwise 95%; undefined draws retained as unavailable",
+            "methods": {"bootstrap": f"{n} whole-run diagnostic draws; seed {seed}; n=2 percentile endpoints have no nominal 95% coverage claim; four cross-arm pairwise differences retained",
                         "H2": "Final P10 open-loss count is primary; accumulated test-cycle losses are descriptive companions",
                         "costs": "All-attempt consumption requires an explicit matching journal; measured-step costs alone are descriptive; empty attempts are not presumed free",
                         "cr1": "97.5% equal-tailed Clopper-Pearson components; opposite endpoints; at least 95% per comparison, not family-wide",
