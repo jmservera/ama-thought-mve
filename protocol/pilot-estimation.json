@@ -153,5 +153,11 @@
     "date": "2026-11-02",
     "evidence": "Owner requested12/21/33(default12), then 'implement D & E then', then 'the vm stopped, is there anything we need to continue or can you create a new release to register it on OSF?'. Authorizes completing offline validation and publishing verified source/freeze/release and prospective OSF packet, conditional on actual success. protocol/five-arm-amendment-2026-11-02.json records scope/limits. Exact source/tag/image/receipt must be bound in protocol/freeze.json; no historical tags/assets rewritten, new paid calls, OSF action or collection permission inferred."
   },
-  "registration": {"submitted": true, "url": "https://osf.io/ywsrv/", "date": "2026-10-28"}
+  "registration": {"submitted": false, "url": null, "date": null},
+  "original_registration": {
+    "submitted": true,
+    "url": "https://osf.io/ywsrv/",
+    "date": "2026-10-28",
+    "semantics": "Owner-reported historical763945bregistration only; does not register v4 or the current five-arm source. Preserve its attachments and record current prospective completion separately."
+  }
 }

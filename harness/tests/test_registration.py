@@ -70,6 +70,15 @@ def test_draft_complete_is_separate_from_submission_registration_and_execution(r
     assert not report["execution_ready"]
 
 
+def test_current_five_arm_registration_is_not_inferred_from_original_registration(registration):
+    current = json.loads((ROOT / "protocol/pilot-estimation.json").read_text())
+    report = registration.readiness(current, {"review": {"accepted": False}})
+    assert current["original_registration"]["submitted"] is True
+    assert report["draft_complete"] and report["author_submission_ready"]
+    assert report["registration_recorded"] is False
+    assert report["execution_ready"] is False
+
+
 def test_explicit_secondary_exclusion_resolves_only_its_alternative_gate(registration, config):
     config["required_evidence"] = dict.fromkeys(registration.EVIDENCE)
     pending = registration.readiness(config, {"review": {"accepted": False}})
