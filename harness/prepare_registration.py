@@ -27,8 +27,10 @@ SUBMISSION_FILES = (
     "protocol/security-hardening-2026-10-30.json",
     "protocol/security-alpine-adoption.json",
     "protocol/security-expat-removal-2026-10-31.json",
+    "protocol/five-arm-amendment-2026-11-02.json",
     "harness/prompts/feature-step.prompt.md", "harness/prompts/consolidation-step.prompt.md",
     "harness/prompts/review-only-step.prompt.md", "harness/prompts/change-request.prompt.md",
+    "harness/prompts/repair-step.prompt.md",
 )
 DECISIONS = {
     "post_after_failed_feature", "prerequisite_continuation_and_later_recovery",
@@ -87,7 +89,10 @@ def readiness(config: dict, panel: dict) -> dict:
     resources = config["resources"]
     models = study.get("model_roster")
     design = (study["purpose"] == "pilot-estimation" and study["suite"] == "s1-retrofit"
-              and study["arms"] == ["A", "B", "C"] and study["runs_per_arm"] == 2
+              and study["arms"] == ["A", "B", "C", "D", "E"] and study["runs_per_arm"] == 12
+              and study.get("analysis_design") == "model-stratified-v2-five-arm"
+              and study.get("replicate_options") == [12, 21, 33]
+              and resolved(study.get("replicate_selection_policy"))
               and isinstance(models, list) and len(models) == 3
               and all(isinstance(model, str) for model in models)
               and set(models) == {"gpt-6.1-sol", "claude-sonnet-5.5", "gemini-4-argon"}
@@ -98,6 +103,10 @@ def readiness(config: dict, panel: dict) -> dict:
               and resources["credit_ceiling"] == 300000
               and resources.get("pilot_session_credit_cap") == 300
               and resources["calibration_session_credit_cap"] == 300
+              and resources.get("D_feature_seconds") == 2700
+              and resources.get("D_feature_credit_cap") == 600
+              and resources.get("D_feature_soft_limit_credits") == 540
+              and config["analysis"].get("primary_comparison") == "B-D"
               and resources["separate_monetary_budget_usd"] is None
               and [resources[name] for name in ("feature_seconds", "post_seconds", "change_request_seconds")]
               == [1800, 900, 2700])

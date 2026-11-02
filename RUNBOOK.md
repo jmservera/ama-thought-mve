@@ -29,9 +29,11 @@ is implied; all execution gates below remain in force.
 See [CONTRIBUTOR.md](CONTRIBUTOR.md) for the complete separate source bundle,
 accepted soft-limit policy, optional budget audit and retained final freeze requirements.
 The owner-amended first pass is an estimation pilot, not confirmatory testing:
-GPT 6.1 Sol, Sonnet 5.5 and Gemini 4 Argon, each with two trajectories per A/B/C
-arm (18 pilot, plus nine excluded calibration). There are 318 pilot and 150
-calibration sessions, at most 193.5 combined agent-hours. The current total
+GPT 6.1 Sol, Sonnet 5.5 and Gemini 4 Argon, each with 12/21/33 trajectories per
+A/B/C/D/E arm, default 12 (180 study, plus 15 excluded calibration).
+The default has 3060 study and 240 calibration sessions, at most 1500 combined
+agent-hours. D extends uninterrupted feature delivery to 45 minutes/600 nominal
+credits (540 soft); E adds 15-minute visible-specification repair. The current total
 registered envelope is **300,000 AI Credits**, prior spend/calibration included.
 The owner accepted soft-limit overshoot risk on 29 October: supplied operational
 settings are **270 credits/session** and a **270,000-credit local admission stop**,
@@ -88,10 +90,12 @@ It never installs anything, invokes sudo, changes groups or provisions services.
 If using a virtual environment, activate it or set `PYTHON=/path/to/python`;
 keep required executables on PATH.
 
-`./run-study.sh --dry-run --phase pilot-estimation` (legacy `first`) prints an 18-cell
-schedule (two runs per A/B/C per model, ten features and CR1, 318 sessions) and all
+`./run-study.sh --dry-run --phase pilot-estimation` (legacy `first`) prints a 180-cell
+default schedule (12 runs per A/B/C/D/E per model, ten features and CR1, 3060 sessions) and all
 preflight blockers. `--phase calibration` (legacy `pilot`) proposes one run/arm/model,
-ten features and no CR1: nine trajectories/150 sessions, excluded from the eighteen.
+ten features and no CR1: 15 trajectories/240 sessions, excluded from the study.
+Use `--replicates 21` or `--replicates 33` for the other prespecified allocations;
+record the choice before collection and never change it on resume.
 Replicate numbers are unique within each arm/model pair and intentionally repeat
 across other arms/models. Counts are planned sessions: permitted infrastructure
 retries can add calls but share the original step's time/credit allowance.

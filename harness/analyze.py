@@ -157,10 +157,11 @@ def summarise_run(run, cost_unit):
     recs = [record if isinstance(record, dict) else {"record_error": "Non-object step record"}
             for record in run["recs"]]
     arm = run["meta"]["arm"]
-    post_kind = {"A": "feature", "B": "consolidation", "C": "review"}[arm]
+    post_kind = {"A": "feature", "B": "consolidation", "C": "review",
+                 "D": "feature", "E": "repair"}[arm]
     scheduled_features = feature_index(run["meta"].get("features"))
     scheduled = set(range(1, scheduled_features + 1)) if scheduled_features is not None else set()
-    required_kinds = ("feature",) if arm == "A" else ("feature", post_kind)
+    required_kinds = ("feature",) if arm in ("A", "D") else ("feature", post_kind)
     required_steps = [(kind, index) for index in sorted(scheduled) for kind in required_kinds]
     delivery_records = [record for record in recs if record.get("kind") != "change_request"]
     observed_steps = [(record.get("kind"), feature_index(record.get("k"))) for record in delivery_records]

@@ -92,7 +92,7 @@ def figure(runs: list[dict], out: Path, *, diagnostic: bool) -> None:
     latex = [r"\begingroup", r"\setlength{\unitlength}{0.15mm}",
              r"\begin{picture}(900,340)",
              r"\put(30,320){\makebox(0,0)[l]{\scriptsize " + tex(title) + "}}"]
-    colours = {"A": "#c0392b", "B": "#2471a3", "C": "#666666"}
+    colours = {"A": "#c0392b", "B": "#2471a3", "C": "#666666", "D": "#b9770e", "E": "#148f77"}
     for panel, (metric, label) in enumerate((("pass_rate", "Hidden pass rate (%)"),
                                            ("mean_ccn", "Mean cyclomatic complexity"))):
         left, top, width, height = 60 + 440 * panel, 65, 350, 210
@@ -125,7 +125,7 @@ def figure(runs: list[dict], out: Path, *, diagnostic: bool) -> None:
                     y2 = top + height * (1 - second[metric] / ymax)
                     svg.append(f'<path d="M{x1:.2f},{y1:.2f} L{x2:.2f},{y2:.2f}" '
                                f'stroke="{colours[run["arm"]]}" fill="none"/>')
-    svg.append('<text x="60" y="330" font-size="11">A: red; B: blue; C: grey. Missing checkpoints are not imputed.</text></svg>')
+    svg.append('<text x="60" y="330" font-size="11">A: red; B: blue; C: grey; D: amber; E: green. Missing checkpoints are not imputed.</text></svg>')
     latex += [r"\end{picture}", r"\endgroup"]
     (out / "trajectories.svg").write_text("\n".join(svg) + "\n", encoding="utf-8")
     (out / "trajectories.tex").write_text("\n".join(latex) + "\n", encoding="utf-8")
@@ -296,6 +296,8 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
     provenance = provenance or {"diagnostic_stub": diagnostic,
                                 "collection_role": result["collection_role"],
                                 "registered_or_frozen_by_runner": False}
+    if result.get("replicates_per_model_arm") is not None:
+        provenance = dict(provenance, replicates_per_model_arm=result["replicates_per_model_arm"])
     dispositions = dispositions if dispositions is not None else [
         {"run_id": run["run_id"], "arm": run["arm"],
          "model": run.get("assigned_model"), "replicate": run.get("replicate"),
@@ -408,6 +410,7 @@ def export(directory: Path, state: dict, study_id: str) -> None:
                   "phase": state["identity"]["phase"], "collection_role": result["collection_role"],
                   "source_commit": state["identity"]["commit"],
                   "inputs_sha256": state["identity"]["inputs_sha256"],
+                  "replicates_per_model_arm": state["identity"].get("replicates_per_model_arm"),
                   "seed": state["identity"]["config"]["seed"], "registered_or_frozen_by_runner": False,
                   "inference": "diagnostic" if state["identity"]["smoke"] else "pilot estimates only",
                   "ceiling_nano": state["ledger"]["ceiling_nano"], "prior_nano": state["ledger"]["prior_nano"],

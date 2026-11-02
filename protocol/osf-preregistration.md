@@ -8,6 +8,12 @@ amendment completion unset until the actual OSF update is recorded.
 Preserve the original attachment and record
 [the prospective clarification](prospective-corrections-2026-10-28.md)
 before affected collection.
+The current five-arm/replicate-selection release is separately documented in
+[the 2 November amendment record](five-arm-amendment-2026-11-02.json).
+Historical v2/v3 were not registered; neither v4 nor the new release is
+asserted registered here. Use the actual new OSF reference/date once completed,
+preserving all historical attachments. The owner requested release preparation,
+not paid collection.
 Use the general-purpose **OSF Preregistration** form. Field wording may change:
 transfer these answers into the live form and attach the approved protocol,
 decision ledger, candidate contract panel and checksums. The panel is not
@@ -17,7 +23,7 @@ do not upload private session logs or the private reviewer bundle.
 ## Metadata
 
 **Title:** Scheduled consolidation during agentic feature delivery:
-an eighteen-trajectory, three-model S1 pilot/estimation study.
+a five-arm, three-model S1 pilot/estimation study.
 
 **Contributors and affiliations:** owner confirmed authorship and permissions
 are settled; enter personal details directly in OSF. Do not infer identities
@@ -34,9 +40,17 @@ relicensed by this selection.
 or completed registration is claimed.
 
 **Description:** We compare feature-only delivery (A), consolidation after each
-feature (B), and read-only review (C), fully crossed with GPT 6.1 Sol, Sonnet 5.5
-and Gemini 4 Argon: two independent trajectories per arm/model, eighteen
-ten-feature S1 trajectories in total. The pilot estimates final behavioural coverage,
+feature (B), read-only review (C), longer uninterrupted delivery (D) and
+visible-specification behavioural repair (E), fully crossed with GPT 6.1 Sol, Sonnet 5.5
+and Gemini 4 Argon:12,21or33 independent trajectories per arm/model,
+default 12, yielding 180, 315 or 495 ten-feature S1 trajectories. The researcher
+selects and records the allocation prospectively before collection. The launcher
+persists it in immutable study identity and all run metadata; resume cannot
+change it and observed results cannot determine it. Calibration remains1per
+arm/model. B-D is the primary equal-model-weighted practical coverage comparison.
+This is not a guaranteed 80% power claim: 12/21/33 correspond to assumed
+15/20/25-point within-cell SDs for a ten-point effect, not measured variability.
+The pilot estimates final behavioural coverage,
 retained-contract losses, final CR1 success and consumption; it checks feasibility,
 variation and failure modes for a later separately planned study. Consolidation
 includes extra resources, permission to edit/add tests and a different note.
@@ -44,7 +58,7 @@ includes extra resources, permission to edit/add tests and a different note.
 ## Registration type and existing data
 
 Prospective **pilot/estimation** preregistration, not a confirmatory seven-test
-study or a registered report with journal acceptance. The intended eighteen-run
+study or a registered report with journal acceptance. The intended selected
 cohort has not been run by this work.
 
 **Data already exist:** yes, separate development diagnostics exist. Tracked
@@ -52,7 +66,7 @@ cohort has not been run by this work.
 14.54 credits) and discloses observed performance/usage; its stored phase label
 does not make it an estimation replicate. Offline reference/stub diagnostics
 also exist and their outcomes have been used to check tooling. Neither is pooled
-into the eighteen trajectories. The owner confirmed on 27 October that the
+into the selected study trajectories. The owner confirmed on 27 October that the
 registered study has not run and will start only after registration; earlier
 manual work was unmeasured, and the measured smoke is disclosed as excluded
 development diagnostics. On 28 October the owner confirmed this disclosed inventory is complete, with no
@@ -118,27 +132,33 @@ gates. The owner explicitly excluded HIR/IDR outcomes on 28 October;
 unavailable fields are not zero intervention. Comprehension assessment is deferred; no comprehension-effect
 claim will be made.
 Earlier numeric thresholds do not decide adoption or seven hypothesis verdicts.
+The primary resource measure is certified AI credits. Complete
+input/output/cache token telemetry is not currently supplied by the isolated
+bridge, so token comparisons are explicitly unavailable, not zero.
 
 ## Study design, sampling and randomisation
 
 Controlled repeated-trajectory software experiment; synthetic data, one S1
 suite, three deliberately selected model candidates: `gpt-6.1-sol`,
-`claude-sonnet-5.5`, `gemini-4-argon`. Two fresh repositories per A/B/C arm
-within each model, ten sequential features and full CR1: eighteen independent
+`claude-sonnet-5.5`, `gemini-4-argon`. Select 12, 21 or 33 fresh repositories per A/B/C/D/E arm
+within each model, default 12, ten sequential features and full CR1: 180, 315 or 495 independent
 units. Arm order is randomised within model/replicate blocks, seed 2027. Same machine,
-skeleton, specifications, tools and feature budgets. B adds consolidation and
-C adds read-only review; B-C is not pure refactoring or equal realised compute.
+skeleton, specifications and tools. B adds consolidation, C read-only review,
+D extends each feature session to 45 minutes/600 nominal credits without a
+post-step, and E adds 15-minute visible-specification repair. B and D share
+total cycle time/nominal credits, not session count or realised consumption.
+B-C is not pure refactoring or equal realised compute.
 
-Separate budget calibration: one trajectory per arm/model (nine total), ten
-features, no CR1, excluded from the eighteen. CLI `calibration`/legacy `pilot` refers to this
-excluded stage; `pilot-estimation`/legacy `first` refers to the eighteen.
-The three-model/two-per-cell design is an explicit owner amendment to the
-paper's original single-model/four-per-arm pilot. Replication tests robustness
+Separate budget calibration: one trajectory per arm/model (15 total), ten
+features, no CR1, excluded from the study. CLI `calibration`/legacy `pilot` refers to this
+excluded stage; `pilot-estimation`/legacy `first` refers to the selected study.
+The older three-model/two-per-cell ABC design remains historical, not approved
+collection under this new allocation. Replication tests robustness
 to these models, not independence from model choice or all-model generality.
 No optional stopping, outcome-based replacements or sample enlargement.
 All incomplete, assisted, failed and unattempted allocated trajectories remain.
 Owner choices are recorded in the attached ledger: continue scheduled work,
-including B/C post-steps on retained green state after unsuccessful feature
+including B/C/E post-steps on retained green state after unsuccessful feature
 delivery, with no replay/make-up; incidental recovery within existing step
 permissions is allowed. At most one documented infrastructure-only retry per
 step from its pre-attempt snapshot may use the remaining original aggregate
@@ -146,6 +166,13 @@ step budget; all attempts/charges count. Poor outcomes never justify retry.
 Retry an infrastructure-failed measurement once on the same immutable snapshot;
 contradictory valid outcomes halt collection for oracle investigation.
 Final source approval is still required before submission.
+Accepted Python test files are immutable, with additions in new files only.
+E's explicit exception supports only literal expected-value corrections in
+equality assertions of agent-authored tests, retaining all other bytes.
+Require old/new blob hashes, exact visible-specification quote/identifier and
+explanation in `REPAIR.json` and the private journal. Immutable examples and
+skeleton tests have no exception. Provenance checks are not independent
+semantic adjudication; review the alleged contradiction before interpreting it.
 
 ## Blinding and inclusion/exclusion
 
@@ -181,16 +208,20 @@ descriptive ranges; no unvalidated composite decay score.
 
 ## Analysis, transformations, missing data and inference
 
-All run-level outcomes/ranges precede model-specific B-A and B-C differences.
-Each arm/model has two trajectories. Any equal-model-weighted overall summary
-is explicitly exploratory, not a silently pooled primary contrast. No feature or
+All run-level outcomes/ranges accompany the primary B-D difference, equally
+weighted across three within-model means, and secondary model-specific
+B-D/B-A/B-C/E-B differences. Each arm/model has the same selected 12, 21 or 33
+trajectories. The primary requires the complete allocated unassisted five-arm
+frame and observed final coverage; no observed-model pooling or complete-case
+substitution. Report pooled within-cell SD and its degrees of freedom.
+No feature or
 test is an independent inference unit. H1 and resource comparisons use mean
 differences and pointwise whole-run bootstrap intervals within arm within model
 (10,000 draws, seed 2027).
 Insufficient strata or any undefined draw makes the affected interval unavailable;
 do not discard undefined draws or impute last-observed final outcomes.
-Two runs/arm/model permits only very limited feasibility/variation estimates,
-not stable precision or a completed power simulation.
+Historical two-run ABC cohorts remain separate under their historical analysis;
+they are not relabelled as the new primary design.
 
 H2 reports paired F/P histories; inherited risk requires a pass at an earlier P.
 Its final contrast uses P_10 open-loss counts; accumulated test-cycle losses
@@ -205,7 +236,7 @@ CR1 denominator: all allocated runs. Adjudicated agent-caused terminal inability
 is unsuccessful; unobserved infrastructure/unknown cases remain missing.
 With missing outcomes, show lower/upper success and contrast bounds instead of
 complete-case point estimates. With complete outcomes, use 97.5% equal-tailed
-Clopper-Pearson component intervals and opposite-endpoint B-A/B-C bounds,
+Clopper-Pearson component intervals and opposite-endpoint B-D/B-A/B-C/E-B bounds,
 at least 95% coverage per comparison, not across the whole endpoint family.
 Successful-only CR1 cost is secondary/conditional, undefined with zero successes;
 all-attempt consumption is interpreted jointly with success, not as success cost.
@@ -217,14 +248,16 @@ policy deviations and unplanned analyses are versioned and labelled exploratory.
 
 ## Resources, provenance and approval checklist
 
-30/15/45-minute limits; 318 pilot sessions/133.5 maximum agent-hours,
-150 excluded calibration sessions/60 hours; combined 468 sessions/193.5 hours
+30-minute ordinary feature, 45-minute D feature, 15-minute post and 45-minute CR1
+limits; default 12 has 3060 estimation sessions/1395 maximum agent-hours;
+21 has 5355 sessions/2441.25 hours; 33 has 8415 sessions/3836.25 hours.
+240 excluded calibration sessions/105 hours; default combined 3300 sessions/1500 hours
 excluding non-agent overhead. Counts are planned sessions; allowed infrastructure retries can add
 calls but share the original step's aggregate time and credit allowance.
-Nominal registered 300-AI-Credit/session soft cap for both
+Nominal 300-AI-Credit/session allowance (600 for D feature sessions) for both
 stages; **300,000 AI Credits total**, including prior spend and calibration.
 The owner's 29 October prospective policy accepts soft-limit overshoot risk:
-supplied operational settings use a 10% buffer, **270/session** and **270,000
+supplied operational settings use a 10% buffer, **270/session (540 for D features)** and **270,000
 local admission**, without changing allocation or the nominal registered envelope.
 An in-flight response can exceed the CLI threshold; neither buffer guarantees
 actual billed consumption. The company hard limit of 1,000,000/collaborator is
@@ -232,6 +265,13 @@ owner-reported, not independently verified or a study-specific stop. A separate
 provider study hard cap is no longer a project prerequisite. Record this
 addendum prospectively before affected collection; the original OSF attachment
 is unchanged.
+Combined nominal allowances including calibration are 85500*n + 81000:
+1,107,000 / 1,876,500 / 2,902,500 credits for n=12/21/33. These summed
+allowances are not permitted spending. The fixed selected allocation must pass
+cost-only affordability/deadline checks; otherwise halt and prospectively amend,
+never silently reduce sample size. The published v4 does not contain this
+five-arm amendment; new exact-source qualification, approval, freeze and
+prospective OSF recording remain required before collection.
 The owner's approximately $3,000 equivalent is unverified, not a conversion or
 separate precise monetary limit. A cost-only full-design affordability check
 after calibration must pass; otherwise halt and amend rather than reduce sample

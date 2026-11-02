@@ -115,6 +115,9 @@ def test_draft_rejects_old_allocation_budget_or_singular_runtime(registration, c
         config[section][key] = wrong
         assert not registration.readiness(config, {"review": {}})["draft_complete"]
         config[section][key] = original
+    for options in ([12, 21], [12, 21, 33, 40], [33, 21, 12]):
+        config["study"]["replicate_options"] = options
+        assert not registration.readiness(config, {"review": {}})["draft_complete"]
 
 
 def test_both_stage_session_caps_are_required_by_approved_draft(registration, config):

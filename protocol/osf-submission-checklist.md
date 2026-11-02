@@ -17,6 +17,16 @@ All actual runtime safeguards and final freeze/OSF requirements remain.
 
 ## What is ready and what remains
 
+The current candidate is the prospective five-arm release, not the historical
+eighteen-trajectory ABC plan. D/E and 12/21/33 replicates (default 12) are
+specified in [the amendment record](five-arm-amendment-2026-11-02.json).
+On 2 November the owner requested completing interrupted offline checks and
+a new release for registration. Publication is conditional on successful final
+validation; it does not register anything or authorize paid work/collection.
+The default is 180 study trajectories/3060 sessions, plus 15 excluded
+calibration trajectories/240 sessions. Historical source acceptances below
+retain their original scope; they do not imply five-arm paid validation.
+
 The design, analysis, operational choices, secondary scope and prior-data
 disclosure are specified in the attached protocol. The six scientific scopes
 and corrected `1120002` runtime/access evidence are owner-accepted, not
@@ -59,8 +69,8 @@ Personal contributor/affiliation details must be entered directly in OSF.
    dates, not verified historical collection/first-inspection dates.
 4. Transfer questions, design/randomisation, inclusion/exclusion, outcomes,
    missingness/analysis and resource rules from the corresponding sections.
-   This is an eighteen-trajectory pilot/estimation plan with nine excluded
-   calibration trajectories, not seven confirmatory hypothesis tests.
+   This is a five-arm pilot/estimation plan: 12/21/33 trajectories per model/arm,
+   default 12, with 15 excluded calibration trajectories, not seven confirmatory tests.
 5. Include the pending-review/runtime statement above. No completed independent
    review or model access is claimed; any necessary substantive method change
    will be documented prospectively before collecting affected data.
@@ -112,6 +122,11 @@ The current paid backend remains disabled even with complete registration.
 If review requires substantive changes, document them prospectively in OSF and
 version the affected source/panel/analysis before collecting affected data.
 Preserve the original registration and disclose amendments; do not backdate.
+The five-arm policy uses 540 soft / 600 nominal credits for D feature sessions;
+all other sessions retain 270 soft / 300 nominal. Resolve excluded calibration,
+whole-selected-design affordability/deadline and explicit launch permission
+before collection. Complete token comparisons remain unavailable from the
+current isolated bridge; credits are primary, not a substitute token estimate.
 
 Guidance: [official OSF guide](https://help.osf.io/article/330-welcome-to-registrations),
 [COS preregistration](https://www.cos.io/initiatives/prereg), and

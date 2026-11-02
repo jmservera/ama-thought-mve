@@ -366,6 +366,7 @@ export async function runTransport({ input = process.stdin, output = process.std
   runtimeFactory = makeRuntime, limits = LIMITS } = {}) {
   let runtime;
   let pending;
+  let toolQueue = Promise.resolve();
   let evidence;
   let timer;
   let deadline = Date.now() + 30000;
@@ -436,7 +437,6 @@ export async function runTransport({ input = process.stdin, output = process.std
     const status = await Promise.race([assertRuntime(client), failed]);
     if (!status.isAuthenticated || !status.userAuthentication) throw fault('host_user_auth_unavailable');
     const config = sessionConfig(request, evidence.sessionId, async (args, invocation) => {
-      const remaining = (deadline - Date.now()) / 1000;
       if (failure) return { textResultForLlm: 'Tool unavailable.', resultType: 'failure' };
       if (!keysOnly(invocation, ['sessionId', 'toolCallId', 'toolName', 'arguments',
         'availableTools', 'traceparent', 'tracestate', 'signal', 'agentId', 'requestId']) ||
@@ -445,13 +445,9 @@ export async function runTransport({ input = process.stdin, output = process.std
         fail(fault('tool_identity_mismatch'));
         return { textResultForLlm: 'Tool denied.', resultType: 'denied' };
       }
-      if (!validateArguments(args, remaining))
+      if (!validateArguments(args, (deadline - Date.now()) / 1000))
         return { textResultForLlm: 'Invalid command or timeout; timeout must fit remaining time.',
           resultType: 'rejected' };
-      if (pending) {
-        fail(fault('pending_tool_limit'));
-        return { textResultForLlm: 'Concurrent tool denied.', resultType: 'denied' };
-      }
       const id = invocation.toolCallId;
       if (!text(id) || id.length > 200 || toolIds.has(id)) {
         fail(fault('invalid_tool_call_id'));
@@ -464,14 +460,33 @@ export async function runTransport({ input = process.stdin, output = process.std
         return { textResultForLlm: 'Tool interrupted.', resultType: 'failure' };
       }
       invocation.signal?.addEventListener('abort', onAbort, { once: true });
-      const result = await new Promise(resolveResult => {
-        pending = { id, resolve: resolveResult };
-        try { writer.write({ type: 'tool', id, arguments: args }); }
-        catch (error) { fail(error); }
-      });
-      invocation.signal?.removeEventListener('abort', onAbort);
-      return { textResultForLlm: JSON.stringify(result),
-        resultType: result.exit_code === 0 ? 'success' : 'failure' };
+      const previous = toolQueue;
+      let release;
+      toolQueue = new Promise(resolveTurn => { release = resolveTurn; });
+      try {
+        // SDK calls may overlap; only one correlated request may reach the isolated executor.
+        await Promise.race([previous, failed]);
+        if (failure) return { textResultForLlm: 'Tool unavailable.', resultType: 'failure' };
+        if (!validateArguments(args, (deadline - Date.now()) / 1000))
+          return { textResultForLlm: 'Timeout must fit remaining time.', resultType: 'rejected' };
+        if (pending) {
+          fail(fault('pending_tool_limit'));
+          return { textResultForLlm: 'Concurrent tool denied.', resultType: 'denied' };
+        }
+        const result = await new Promise(resolveResult => {
+          pending = { id, resolve: resolveResult };
+          try { writer.write({ type: 'tool', id, arguments: args }); }
+          catch (error) { fail(error); }
+        });
+        return { textResultForLlm: JSON.stringify(result),
+          resultType: result.exit_code === 0 ? 'success' : 'failure' };
+      } catch (error) {
+        fail(error);
+        return { textResultForLlm: 'Tool interrupted.', resultType: 'failure' };
+      } finally {
+        invocation.signal?.removeEventListener('abort', onAbort);
+        release();
+      }
     }, event => {
       try {
         writer.write({ type: 'event', sessionId: evidence.sessionId, event });

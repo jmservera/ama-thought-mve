@@ -12,6 +12,7 @@ from analyze import (
 from contract_panel import accepted, checked_panel
 
 ROOT = Path(__file__).resolve().parents[1]
+MODEL_DESIGNS = ("model-stratified-v1", "model-stratified-v2-five-arm")
 ROLES = {"pilot": "calibration", "calibration": "calibration",
          "first": "pilot-estimation", "pilot-estimation": "pilot-estimation",
          "dry": "diagnostic"}
@@ -53,7 +54,8 @@ def retention(run: dict, panel: dict) -> dict:
     """Track only inherited P-passed unchanged contracts, with paired observations."""
     meta = run["meta"]
     n = feature_index(meta.get("features")) or 0
-    post_kind = {"A": "feature", "B": "consolidation", "C": "review"}[meta["arm"]]
+    post_kind = {"A": "feature", "B": "consolidation", "C": "review",
+                 "D": "feature", "E": "repair"}[meta["arm"]]
     records = {}
     malformed = False
     for record in run["recs"]:
@@ -161,10 +163,12 @@ def summarise_pilot(run: dict, panel: dict, cost_unit: str = "credits", cell: di
     summary["assigned_model"] = model_identity(run["meta"], roster)
     summary["analysis_design"] = run["meta"].get("analysis_design")
     summary["replicate"] = run["meta"].get("replicate")
+    summary["replicates_per_model_arm"] = run["meta"].get("replicates_per_model_arm")
     n = summary["scheduled_features"] or 0
     expected_features = {item["id"] for item in panel["contracts"]
                          if item["role"] == "feature" and item["from_cycle"] <= n <= item["through_cycle"]}
-    post_kind = {"A": "feature", "B": "consolidation", "C": "review"}[summary["arm"]]
+    post_kind = {"A": "feature", "B": "consolidation", "C": "review",
+                 "D": "feature", "E": "repair"}[summary["arm"]]
     endpoints = [record for record in run["recs"] if isinstance(record, dict)
                  and record.get("kind") == post_kind and record.get("k") == n]
     final_hidden = measured_hidden(endpoints[0]) if len(endpoints) == 1 else None
@@ -234,10 +238,12 @@ def journal_cells(raw_runs: list[dict], cells: list[dict]) -> dict:
         identity = ("assigned_model", "analysis_design", "replicate")
         current = any(key in source for source in (cell, run["meta"]) for key in identity)
         if current and (any(key not in source for source in (cell, run["meta"]) for key in identity)
-                        or cell["analysis_design"] != "model-stratified-v1"
+                        or cell["analysis_design"] not in MODEL_DESIGNS
                         or type(cell["replicate"]) is not int):
             raise ValueError("Attempt journal allocation fields lack complete current model identity")
         keys = ["arm", "features", "change_request"] + (list(identity) if current else [])
+        if current and ("replicates_per_model_arm" in cell or "replicates_per_model_arm" in run["meta"]):
+            keys.append("replicates_per_model_arm")
         if any(cell.get(key) != run["meta"].get(key) for key in keys):
             raise ValueError("Attempt journal allocation fields differ from run metadata")
         attempts = cell.get("attempts")
@@ -271,8 +277,11 @@ def analyze_pilot(raw_runs: list[dict], *, panel: dict | None = None, seed: int 
         identity = ("assigned_model", "analysis_design", "replicate")
         if (any(key in meta for key in identity)
                 and (any(key not in meta for key in identity)
-                     or meta["analysis_design"] != "model-stratified-v1")):
+                     or meta["analysis_design"] not in MODEL_DESIGNS)):
             raise ValueError("Invalid or partial current model identity; never treat it as historical")
+        allowed_arms = "ABCDE" if meta.get("analysis_design") == MODEL_DESIGNS[1] else "ABC"
+        if meta["arm"] not in allowed_arms:
+            raise ValueError("Arm differs from declared analysis design")
     roles = {collection_role(run["meta"]) for run in raw_runs}
     if len(roles) > 1:
         raise ValueError("Mixed collection roles: analyse calibration, estimation and diagnostics separately")
@@ -281,11 +290,13 @@ def analyze_pilot(raw_runs: list[dict], *, panel: dict | None = None, seed: int 
     runs = [summarise_pilot(run, panel, cost_unit, cell=by_id.get(run["meta"]["run_id"])) for run in raw_runs]
     if len({run["run_id"] for run in runs}) != len(runs):
         raise ValueError("Duplicate trajectory identities")
-    stratified = [run for run in runs if run["analysis_design"] == "model-stratified-v1"]
-    legacy = [run for run in runs if run["analysis_design"] != "model-stratified-v1"]
+    stratified = [run for run in runs if run["analysis_design"] in MODEL_DESIGNS]
+    legacy = [run for run in runs if run["analysis_design"] not in MODEL_DESIGNS]
     if stratified and legacy:
         raise ValueError("Mixed model-stratified and legacy-identity runs; analyse separately")
     if stratified:
+        if len({run["analysis_design"] for run in stratified}) != 1:
+            raise ValueError("Mixed model-stratified designs; analyse separately")
         return _analyze_pilot_model_stratified(stratified, panel, seed, n, role, cost_unit)
     expected = 4 if role == "pilot-estimation" else 1
     frame = (len(runs) == 3 * expected and {run["suite"] for run in runs} == {panel["suite"]}
@@ -362,41 +373,55 @@ def analyze_pilot(raw_runs: list[dict], *, panel: dict | None = None, seed: int 
 
 def _analyze_pilot_model_stratified(stratified: list[dict], panel: dict, seed: int, n: int,
                                     role: str, cost_unit: str) -> dict:
-    """Model-stratified-v1 primary analysis: per-model only, never pooled, never inferred."""
+    """Keep historical ABC separate from the prospectively declared five-arm frame."""
     roster = load_roster()
     models = roster["models"]
-    expected_per_cell = roster["runs_per_arm"] if role == "pilot-estimation" else roster["calibration_runs_per_arm"]
-    valid_replicates = {1, 2} if role == "pilot-estimation" else {1}
+    design = stratified[0]["analysis_design"]
+    five_arm = design == MODEL_DESIGNS[1]
+    arm_names = "ABCDE" if five_arm else "ABC"
+    counts = {run["replicates_per_model_arm"] for run in stratified}
+    if role == "pilot-estimation":
+        if counts == {None} and not five_arm:
+            expected_per_cell = 2  # Historical v1 cohorts predate prespecified replicate selection.
+        elif len(counts) != 1 or any(type(count) is not int or count not in (12, 21, 33) for count in counts):
+            raise ValueError("Mixed or invalid replicate allocation; never infer sample size from observed runs")
+        else:
+            expected_per_cell = counts.pop()
+    else:
+        if counts != {None}:
+            raise ValueError("Calibration must not override its fixed replicate allocation")
+        expected_per_cell = roster["calibration_runs_per_arm"]
+    valid_replicates = set(range(1, expected_per_cell + 1))
     for run in stratified:
         if run["assigned_model"] is None or run["assigned_model"] not in models:
             raise ValueError("Unapproved or missing model identity in model-stratified run")
         replicate = run["replicate"]
         if not isinstance(replicate, int) or isinstance(replicate, bool) or replicate not in valid_replicates:
             raise ValueError("Invalid or missing replicate for model-stratified run")
-    total_expected = len(models) * 3 * expected_per_cell
+    total_expected = len(models) * len(arm_names) * expected_per_cell
     frame = (len(stratified) == total_expected and {run["suite"] for run in stratified} == {panel["suite"]}
              and (role != "pilot-estimation" or all(run["scheduled_features"] == 10
                   and run["change_request_planned"] is True for run in stratified))
              and all(sum(1 for run in stratified if run["arm"] == arm and run["assigned_model"] == model)
-                     == expected_per_cell for arm in "ABC" for model in models))
+                     == expected_per_cell for arm in arm_names for model in models))
     unassisted = frame and all(run["intervention"] == "unassisted" for run in stratified)
-    arms = {arm: {} for arm in "ABC"}
+    arms = {arm: {} for arm in arm_names}
     endpoints = {}
     model_frames = {}
     seen = set()
     for model in models:
         model_runs = [run for run in stratified if run["assigned_model"] == model]
-        model_frame = (len(model_runs) == 3 * expected_per_cell
+        model_frame = (len(model_runs) == len(arm_names) * expected_per_cell
                        and {run["suite"] for run in model_runs} == {panel["suite"]}
                        and (role != "pilot-estimation" or all(run["scheduled_features"] == 10
                             and run["change_request_planned"] is True for run in model_runs))
-                       and all(sum(run["arm"] == arm for run in model_runs) == expected_per_cell for arm in "ABC"))
+                       and all(sum(run["arm"] == arm for run in model_runs) == expected_per_cell for arm in arm_names))
         model_unassisted = model_frame and all(run["intervention"] == "unassisted" for run in model_runs)
         primary = role == "pilot-estimation" and model_unassisted
         model_frames[model] = {"allocation_complete": model_frame,
                                "primary_unassisted_frame_complete": model_unassisted,
                                "primary_estimates_available": primary}
-        for arm in "ABC":
+        for arm in arm_names:
             rows = [run for run in model_runs if run["arm"] == arm]
             for run in rows:
                 triple = (arm, model, run["replicate"])
@@ -421,26 +446,29 @@ def _analyze_pilot_model_stratified(stratified: list[dict], panel: dict, seed: i
                          "intervention": {label: sum(run["intervention"] == label for run in rows)
                                           for label in ("unassisted", "assisted", "unknown")}}
 
-        def contrast(field, other, available=primary, _runs=model_runs):
+        def contrast(field, other, available=primary, focal="B", _runs=model_runs):
             a = [field(run) for run in _runs if run["arm"] == other]
-            b = [field(run) for run in _runs if run["arm"] == "B"]
+            b = [field(run) for run in _runs if run["arm"] == focal]
             point, ci = (boot_diff({panel["suite"]: a}, {panel["suite"]: b}, n=n, seed=seed)
                         if available else (None, (None, None)))
             return {"difference": point, "ci": ci, "available": point is not None}
 
         model_endpoints = {"H1": {}, "H2": {}, "H6": {}, "resources": {}}
-        for other in "AC":
-            key = f"B-{other}"
-            model_endpoints["H1"][key] = contrast(lambda run: (run["end"] or {}).get("pass_rate"), other)
+        comparisons = [("B", "D"), ("B", "A"), ("B", "C"), ("E", "B")] if five_arm else [("B", "A"), ("B", "C")]
+        for focal, other in comparisons:
+            key = f"{focal}-{other}"
+            model_endpoints["H1"][key] = contrast(lambda run: (run["end"] or {}).get("pass_rate"),
+                                                other, focal=focal)
             model_endpoints["H2"][key] = {
                 "final_P10_count": contrast(lambda run: (run["end"] or {}).get("open_regressions"), other,
-                                           primary and accepted(panel)),
+                                           primary and accepted(panel), focal=focal),
                 "descriptive_accumulated_test_cycles": contrast(
-                    lambda run: run["retention"]["post_loss_test_cycles"], other, primary and accepted(panel)),
+                    lambda run: run["retention"]["post_loss_test_cycles"], other,
+                    primary and accepted(panel), focal=focal),
             }
-            a, b = arms[other][model], arms["B"][model]
+            a, b = arms[other][model], arms[focal][model]
             outcomes_a = [run["cr_success"] for run in model_runs if run["arm"] == other]
-            outcomes_b = [run["cr_success"] for run in model_runs if run["arm"] == "B"]
+            outcomes_b = [run["cr_success"] for run in model_runs if run["arm"] == focal]
             point, ci = (success_difference({panel["suite"]: outcomes_a}, {panel["suite"]: outcomes_b})
                          if primary else (None, (None, None)))
             model_endpoints["H6"][key] = {"difference_points": point, "ci": ci,
@@ -449,15 +477,34 @@ def _analyze_pilot_model_stratified(stratified: list[dict], panel: dict, seed: i
                                         100 * (b["success_bounds"][1] - a["success_bounds"][0])],
                                     "available": point is not None}
             model_endpoints["resources"][key] = {
-                "delivery": contrast(lambda run: run["all_attempt_delivery_cost"], other),
-                "cr1": contrast(lambda run: run["all_attempt_cr_cost"], other)}
+                "delivery": contrast(lambda run: run["all_attempt_delivery_cost"], other, focal=focal),
+                "cr1": contrast(lambda run: run["all_attempt_cr_cost"], other, focal=focal)}
         endpoints[model] = model_endpoints
-    overall_summary = _read_protocol()["analysis"]["overall_summary"]
+    overall_summary = "Exploratory only; equal model weights; do not silently pool model-specific runs"
+    if five_arm:
+        eligible = role == "pilot-estimation" and unassisted
+        groups = {arm: {model: [(run["end"] or {}).get("pass_rate") for run in stratified
+                                if run["arm"] == arm and run["assigned_model"] == model]
+                         for model in models} for arm in "BD"}
+        point, ci = (boot_diff(groups["D"], groups["B"], n=n, seed=seed)
+                     if eligible else (None, (None, None)))
+        endpoints["primary"] = {"contrast": "B-D", "difference": point, "ci": ci,
+                                "available": point is not None, "unit": "percentage points",
+                                "model_weights": {model: 1 / len(models) for model in models}}
+        cell_values = [arms[arm][model]["coverage_values"] for arm in arm_names for model in models]
+        df = sum(len(values) - 1 for values in cell_values)
+        sd = ((sum((len(values) - 1) * st.variance(values) for values in cell_values) / df) ** 0.5
+              if frame and df > 0 and all(len(values) >= 2 and None not in values
+                                         for values in cell_values) else None)
+        overall_summary = {"interpretation": "Primary B-D: equal weights across all three model strata",
+                           "pooled_within_cell_sd": sd, "degrees_of_freedom": df if sd is not None else None}
     return {"mode": "pilot-estimation", "collection_role": role, "cost_unit": cost_unit,
-            "frame": "model-stratified-v1",
-            "design_description": "Current model-stratified frame",
+            "frame": design,
+            "replicates_per_model_arm": expected_per_cell,
+            "design_description": "Prospective five-arm model-stratified frame" if five_arm else "Historical ABC model-stratified frame",
             "allocation_complete": frame, "primary_unassisted_frame_complete": unassisted,
-            "primary_estimates_available": any(value["primary_estimates_available"] for value in model_frames.values()),
+            "primary_estimates_available": (endpoints["primary"]["available"] if five_arm else
+                                           any(value["primary_estimates_available"] for value in model_frames.values())),
             "model_frames": model_frames,
             "panel_accepted": accepted(panel), "endpoints": endpoints, "arms": arms, "runs": stratified,
             "overall_summary": overall_summary,
@@ -469,8 +516,13 @@ def _analyze_pilot_model_stratified(stratified: list[dict], panel: dict, seed: i
                         "reference_gaps": "Unavailable without accepted compatible reference metrics and complete feature coverage",
                         "H4_H7": "Formal claims deferred; no pilot hypothesis decisions",
                         "missing": "All allocations retained; no complete-case substitution; no last-observed final endpoints",
-                        "model_stratification": "Primary eligibility is per full allocated unassisted model frame; "
+                        "model_stratification": ("Primary B-D equally weights all three models; resample whole "
+                                                "trajectories within model and arm. Any incomplete or assisted "
+                                                "allocated frame makes the primary unavailable; model-specific "
+                                                "and other contrasts are secondary, never substitutes."
+                                                if five_arm else
+                                                "Primary eligibility is per full allocated unassisted model frame; "
                                                 "model_frames records each model and primary_estimates_available means "
                                                 "at least one eligible model. Overall allocation/unassisted flags audit "
                                                 "the full design. No pooled/overall numeric endpoint is computed "
-                                                "(see overall_summary); never borrow runs across models"}}
+                                                "(see overall_summary); never borrow runs across models")}}

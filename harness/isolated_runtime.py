@@ -11,6 +11,7 @@ import selectors
 import shutil
 import signal
 import subprocess
+import sys
 import time
 from pathlib import Path, PurePosixPath
 
@@ -253,7 +254,7 @@ class LiveRuntime:
         if errors:
             raise StudyError("; ".join(errors))
         seconds_limit, credit_limit = run.remaining_allowance(budget)
-        buffer = (controller.cfg["session_reserve_credits"]
+        buffer = run.credit_multiplier() * (controller.cfg["session_reserve_credits"]
                   - controller.cfg["session_soft_limit_credits"]) * NANO
         attempt = controller.new_attempt(run.cell, run.current_step, credit_limit + buffer)
         attempt.update(seconds_limit=seconds_limit, credit_limit_nano=credit_limit)
@@ -588,6 +589,7 @@ def run_bridge(request: dict, directory: Path, tool, *, on_start=None, on_stop=N
     except UnicodeError as error:
         raise StudyError("SDK control text is not valid UTF-8") from error
     finally:
+        primary_error = sys.exc_info()[0] is not None
         selector.close()
         try:
             os.killpg(process.pid, signal.SIGTERM)
@@ -602,8 +604,16 @@ def run_bridge(request: dict, directory: Path, tool, *, on_start=None, on_stop=N
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
+        close_error = None
         for stream in (process.stdin, process.stdout, process.stderr):
-            stream.close()
-        (directory / "stderr.txt").write_bytes(buffers["stderr"])
-        if on_stop:
-            on_stop()
+            try:
+                stream.close()
+            except OSError as error:
+                close_error = close_error or error
+        try:
+            (directory / "stderr.txt").write_bytes(buffers["stderr"])
+        finally:
+            if on_stop:
+                on_stop()
+        if close_error is not None and not primary_error:
+            raise StudyError("SDK stream cleanup failed") from close_error

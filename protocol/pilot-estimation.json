@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "expat-free-runtime-owner-authorized-final-verification-freeze-and-prospective-osf-recording",
+  "status": "five-arm-owner-requested-verified-release-pending-prospective-osf-recording",
   "readiness_policy": "Owner authorised separation of OSF submission from collection readiness on2026-10-28. On2026-10-30 the owner individually accepted all six scientific scopes for90e393e, then corrected1120002 runtime/access evidence, selecting documented owner review without independent reviewers for this first exploratory study. No independent scientific or access/security review is claimed; the separate experiment executor supplies operational separation only. Legacy independent-named evidence keys retain their names but record owner acceptance explicitly. Actual information boundaries, permissions, isolation, unknown-usage stops, final source-bound owner freeze and prospective existing-registration OSF update remain mandatory. No agent permission, trust or sandbox safeguard changes. Soft-limit overshoot risk remains owner-accepted with buffers, not billing guarantees. Record the review-policy changes and other corrections prospectively before affected collection; no new paid calls or collection authorized.",
   "scientific_review_policy": {
     "mode": "owner-reviewed-exploratory-pilot",
@@ -30,7 +30,7 @@
     "additional_preregistration_approvals": "Owner confirmed none are required",
     "prior_data_reconfirmation": "Owner reconfirmed 2026-10-28 that the disclosed inventory is accurate and complete, with no additional work/data exposure or calibration/registered pilot collected",
     "pending_checks_disclosure": "Owner explicitly approved preregistration with independent reviews and runtime/access checks disclosed as pending; all collection safeguards retained",
-    "osf_configuration_status": "Owner confirmed original registration https://osf.io/ywsrv/ approved following submission on 2026-10-28 with all extracted osf-final-763945b files unchanged. Exact approval timestamp and live OSF configuration are not independently verified. Subsequent corrections require prospective recording before affected collection."
+    "osf_configuration_status": "Owner confirmed original registration https://osf.io/ywsrv/ approved following submission on2026-10-28; historical attachments remain unchanged. Owner later confirmed v2/v3 were not registered and requested a working release to register directly. No registration of v4 or the five-arm release is asserted; record the actual current prospective OSF reference/date before affected collection."
   },
   "paper": {
     "repository": "jmservera/ama",
@@ -45,10 +45,25 @@
     "authorizes_current_protocol": false
   },
   "study": {
+    "prospective_five_arm_amendment": {
+      "owner_instruction": "implement D & E then",
+      "date": "2026-11-01",
+      "paper_commit": "a56df54979ad080821de79426c68c0266fa87549",
+      "paper_protocol_blob": "deb4961fe363ab1f7a9d087b1f7336f99887a767",
+      "paper_protocol_path": "docs/capstone/thought-leadership/everything-but-the-software/anc/experiment-protocol.tex",
+      "published_v4_contains_amendment": false,
+      "registered_or_collection_authorized": false,
+      "amendment_record": "protocol/five-arm-amendment-2026-11-02.json",
+      "remaining_gates": ["renewed five-arm runtime/access and analysis acceptance", "full-design cost-only calibration affordability and deadline check", "final source approval and replacement freeze", "prospective OSF recording and explicit launch permission"],
+      "E_test_correction_policy": "Only literal expected values on the right of equality assertions in agent-authored accepted tests may change. All other bytes, imports, fixtures, constants and immutable example/skeleton tests remain protected. Require exact old/new blobs, already-visible specification id/quote and explanation; retain private journal evidence. Quote and provenance validation is not independent semantic adjudication."
+    },
     "purpose": "pilot-estimation",
     "suite": "s1-retrofit",
-    "arms": ["A", "B", "C"],
-    "runs_per_arm": 2,
+    "arms": ["A", "B", "C", "D", "E"],
+    "analysis_design": "model-stratified-v2-five-arm",
+    "runs_per_arm": 12,
+    "replicate_options": [12, 21, 33],
+    "replicate_selection_policy": "Researcher selects one prespecified replicate count per model/arm before collection; default12. Record it in immutable study identity and every run. Never change sample size on resume or from observed outcomes; record the selected allocation prospectively.",
     "model_roster": ["gpt-6.1-sol", "claude-sonnet-5.5", "gemini-4-argon"],
     "features": 10,
     "change_request": true,
@@ -67,6 +82,9 @@
   },
   "resources": {
     "feature_seconds": 1800,
+    "D_feature_seconds": 2700,
+    "D_feature_credit_cap": 600,
+    "D_feature_soft_limit_credits": 540,
     "post_seconds": 900,
     "change_request_seconds": 2700,
     "credit_ceiling": 300000,
@@ -74,7 +92,7 @@
     "pilot_session_credit_cap": 300,
     "operational_session_soft_limit_credits": 270,
     "operational_admission_ceiling_credits": 270000,
-    "soft_limit_risk_policy": "Owner accepts residual in-flight-response overshoot. Uniform 10% buffer selected as implementation assumption on 2026-10-29, pending prospective recording. Original registered 300/session and 300000 total remain nominal maxima, not guaranteed provider-enforced stops. Known prior21.79019 (historical smoke14.54324 plus excluded backend checks3.05509 and audited P1 check4.19186), calibration, probes and every attempt count; historical1200held remains separate from actual spending. Retries share remaining original time/soft allowance and are not topped up below CLI minimum30.",
+    "soft_limit_risk_policy": "Owner accepts residual in-flight-response overshoot. Uniform 10% buffer selected as implementation assumption on2026-10-29, pending prospective recording. Ordinary300nominal/270soft sessions and prospective D600nominal/540soft feature sessions share unchanged300000total/270000local admission; these are not guaranteed provider-enforced stops. Known prior49.74337 plus1500unknown historical holds, calibration, probes and every attempt count; holds remain separate from actual spending. Retries share remaining original time/soft allowance and are not topped up below CLI minimum30.",
     "company_hard_limit_credits_owner_reported": 1000000,
     "company_hard_limit_independently_verified": false,
     "study_specific_provider_hard_cap_required": false,
@@ -100,14 +118,15 @@
     "seed": 2027,
     "bootstrap_interval": "pointwise 95% percentile; whole runs within arm within model; no undefined draws discarded",
     "cr_interval": "97.5% equal-tailed Clopper-Pearson per arm; opposite endpoints give at least 95% per-comparison coverage",
-    "comparisons": ["B-A", "B-C"],
+    "comparisons": ["B-D", "B-A", "B-C", "E-B"],
+    "primary_comparison": "B-D",
     "primary_stratification": "model",
-    "overall_summary": "Exploratory only; equal model weights; do not silently pool model-specific runs",
+    "overall_summary": "Primary B-D equally weights all three within-model differences; whole-trajectory bootstrap within model and arm. No observed-model pooling or complete-case substitution. Model-specific and other contrasts are secondary.",
     "multiplicity": "No family-wide or confirmatory coverage claim",
     "power_simulation_completed": false
   },
   "owner_decisions": {
-    "post_after_failed_feature": "Owner selected 2026-10-27: after a completed unsuccessful feature attempt, retain green-only rollback and run scheduled B/C post-step on the last retained green state without replaying the failed feature request; A has no extra session.",
+    "post_after_failed_feature": "Owner selected 2026-10-27: after a completed unsuccessful feature attempt, retain green-only rollback and run the scheduled post-step on the last retained green state without replaying the failed feature request. Owner requested paper D/E implementation on2026-11-01: B/C/E have post-steps; A/D have none. E uses only already-visible specifications/examples, never hidden feedback.",
     "prerequisite_continuation_and_later_recovery": "Owner selected 2026-10-27: continue scheduled later features and CR1 from retained state; allow incidental recovery only within normal prompts, permissions and budgets; no dedicated make-up attempts or replacement trajectories.",
     "evaluator_information_boundary": "Owner selected 2026-10-27: task specifications and approved visible examples only; hidden evaluator scores, identities, messages and reference solutions stay external and are never fed back; withhold CR1 text until its session. Owner accepted corrected1120002 controlled access evidence on2026-10-30 and explicitly selected owner review without independent reviewers for this first study; separate executor provides operational separation, not independent technical review. Earlier independent-access-review requirement is prospectively superseded, not reported completed. All actual information-boundary and isolation safeguards remain.",
     "outage_retry_and_missing_measurement_rules": "Owner selected 2026-10-27: at most one documented infrastructure-only retry per step from its pre-attempt snapshot within the original aggregate time/credit allowance; log all attempts and charges, never retry poor outcomes. Retry infrastructure-failed measurement once on the same immutable snapshot; contradictory valid outcomes halt collection for oracle investigation. Exhausted/unrecoverable observations remain missing, never replacements. Owner approved prospective correction on 2026-10-28: positively established candidate-caused mandatory API/import, source-loader syntax or product exception nonpasses are failed outcomes with raw private provenance retained; true infrastructure, oracle and unclassified exceptions remain unknown. Both runners use the same policy. See protocol/prospective-corrections-2026-10-28.md; OSF recording is pending before affected collection.",
@@ -131,8 +150,8 @@
   },
   "owner_approval": {
     "approved": true,
-    "date": "2026-10-31",
-    "evidence": "Owner response: '1. approve, 2. go ahead, 3. accept automatically, 4. do it, 5. I will do it when you do 4'. Authorizes production adoption, verified commit/push, exact final-source/image acceptance after successful verification, and replacement freeze; protocol/security-expat-removal-2026-10-31.json. Commit/tag/image/final-source receipt must be bound and verified in protocol/freeze.json; failed verification blocks freeze. Historical v2/original attachments and all accounting evidence preserved. OSF amendment is owner-operated afterward, not recorded or backdated; no new paid calls or collection authorized."
+    "date": "2026-11-02",
+    "evidence": "Owner requested12/21/33(default12), then 'implement D & E then', then 'the vm stopped, is there anything we need to continue or can you create a new release to register it on OSF?'. Authorizes completing offline validation and publishing verified source/freeze/release and prospective OSF packet, conditional on actual success. protocol/five-arm-amendment-2026-11-02.json records scope/limits. Exact source/tag/image/receipt must be bound in protocol/freeze.json; no historical tags/assets rewritten, new paid calls, OSF action or collection permission inferred."
   },
   "registration": {"submitted": true, "url": "https://osf.io/ywsrv/", "date": "2026-10-28"}
 }

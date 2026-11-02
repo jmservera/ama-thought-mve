@@ -1,5 +1,55 @@
 # Existing data and repository chronology
 
+## Subsequent v4 transport diagnostic and excluded continuation
+
+The owner requested one paid P1 pass for each configured model. The first
+GPT6.1Sol/medium attempt at manifest-only source03c5085 stopped after25.4182s,
+before verified measurement or journal production. Sonnet/Gemini were not
+attempted. Two isolated_exec requests in the second GPT turn overlapped; the
+single-pending transport guard aborted, followed by BrokenPipe during reply
+and stream cleanup. The second isolated execution itself completed with exit0.
+The raw CLI routine shutdown reports1.29137credits across2model requests, but
+there is no certified guarded terminal receipt. Do not treat it as zero or
+release the300reservation. Original audit SHA256:
+`1919669aa97a2ef092048ee6e217a55875be806235e2c14e9a5e699863c3cf3e`.
+Separate private closeout binds retained SDK/broker/transport evidence and
+verified absence of owned processes/containers. No original evidence rewritten.
+
+The owner then directed autonomous implementation and completion. The local
+correction queues validated model tool calls into one active isolated executor
+and preserves cleanup bookkeeping despite broken stdin. Existing permission,
+identity, correlation, original deadline, credit and evaluator limits remain.
+The exact failed attempt is carried as a fifth source/evidence-bound historical
+hold under that continuation; future unknown usage still stops admission.
+Before corrected checks, known21.79019 plus1500held =1521.79019 accounted,
+with268478.20981local room. These are not maximum guaranteed charges.
+
+A new excluded batch is limited to one corrected P1 attempt per configured
+model, medium, under a private actual-source canary/manifest binding. It is not
+calibration, pilot collection, independent scientific acceptance or a rewrite of
+the published v4 freeze/release. Candidate and test information is retained
+privately for diagnosis/output-production verification and constitutes disclosed
+pre-study exposure, not registered observations. Verified spending and completion
+are recorded below, without relabelling the original failed attempt.
+
+The corrected batch completed one uninterrupted P1 feature cycle each for
+GPT6.1Sol, Sonnet5.5 and Gemini4Argon, medium. Native measure.json/steps.jsonl,
+assigned model/effort and complete guarded usage receipts were verified for all3.
+Certified charges are13.92847,3.96143 and10.06328 respectively:27.95318total.
+No additional unknown reservation was created by this corrected batch; the
+original failed attempt and all five earlier300holds remain unchanged.
+Known usage is now49.74337, with1500held separately,1549.74337 conservatively
+accounted and268450.25663local room. Diagnostic code, metrics and transcripts
+remain private/excluded, and the paid-source patch/canary/manifest are retained.
+Corrected-batch audit SHA256:
+`f1e6aec1b280d22b6150aff6196df1821e43027000c937159f808ef18b635d04`.
+A separate private verification binds that audit, source and transport/result hashes.
+Inspected candidate and test outputs constitute disclosed pre-study exposure;
+these are not registered pilot trajectories or an outcome-blind preparation claim.
+The public v4 packet is the earlier snapshot and does not contain this source
+correction or the subsequent charges; prospective collection requires a new
+appropriately qualified publication/freeze and registration evidence.
+
 ## 31 October excluded paid P1 diagnostics and v4 correction
 
 The owner authorized one Sonnet5.5/medium P1 feature-only output check at
@@ -30,7 +80,7 @@ excluded and unavailable for registered analysis. Output/test information was
 inspected for tooling diagnosis; this is disclosed exposure, not outcome-blind
 preparation. No calibration or registered pilot trajectory was collected.
 
-Current known usage is21.79019, comprising17.59833previous known plus4.19186.
+At v4 publication known usage was21.79019, comprising17.59833previous known plus4.19186.
 Four unknown300-credit reservations total1200held separately:1221.79019
 conservatively accounted and268778.20981remaining under local270000admission.
 These holds are not measured charges or guaranteed maximum bills. Owner's

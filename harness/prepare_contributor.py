@@ -44,7 +44,7 @@ Offline checks (Python 3.11+, git, make):
 
 The archive path in the first command is illustrative; use its actual location.
 Smoke spends zero model credits. The owner accepts soft-credit-limit overshoot
-risk: settings are buffered to 270/session and 270000 local admission, not
+risk: settings are buffered to 270/session (540 for D features) and 270000 local admission, not
 guaranteed billed limits. The reported company 1M/collaborator hard cap is not
 independently verified. See CONTRIBUTOR.md before any authorized paid work.
 The isolated live backend is a candidate, not collection approval. Install its

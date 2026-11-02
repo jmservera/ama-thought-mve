@@ -21,7 +21,7 @@ from types import SimpleNamespace
 
 from analyze import step_usage
 from pilot_analysis import collection_role
-from runner import Run, git, head
+from runner import POST_KINDS, Run, git, head
 from study_io import ROOT, RetryableError, StudyError, atomic_json, command, read_json
 
 NANO = 1_000_000_000
@@ -58,7 +58,15 @@ APPROVED_FEATURE_DIAGNOSTIC_PROVISION = {
     "evidence_sha256": "84177c3a4a11e29dc4016ba20b686df8628aab13c0c598d5e77a69c4bf8acba4",
     "approval": "owner-approved-diagnostic-carry-forward-2026-10-31",
 }
-MODEL_DESIGN = "model-stratified-v1"
+APPROVED_V4_DIAGNOSTIC_PROVISION = {
+    "attempt_id": "excluded-v4-p1-gpt-6.1-sol-20261031-f01-feature-1",
+    "reserved_credits": 300,
+    "actual_credits": None,
+    "source_commit": "03c50856838b539780d57216af2a4cf6744187d7",
+    "evidence_sha256": "1919669aa97a2ef092048ee6e217a55875be806235e2c14e9a5e699863c3cf3e",
+    "approval": "owner-authorized-test-continuation-2026-10-31",
+}
+MODEL_DESIGN = "model-stratified-v2-five-arm"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
@@ -91,7 +99,10 @@ def historical_credit_provisions(cfg: dict, *, smoke: bool = False) -> list[dict
                           [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION,
                            APPROVED_RENEWED_PROVISION],
                           [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION,
-                           APPROVED_RENEWED_PROVISION, APPROVED_FEATURE_DIAGNOSTIC_PROVISION]):
+                           APPROVED_RENEWED_PROVISION, APPROVED_FEATURE_DIAGNOSTIC_PROVISION],
+                          [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION,
+                           APPROVED_RENEWED_PROVISION, APPROVED_FEATURE_DIAGNOSTIC_PROVISION,
+                           APPROVED_V4_DIAGNOSTIC_PROVISION]):
         raise StudyError("Historical provision must match the exact owner-approved attempt and evidence")
     if smoke:
         return []
@@ -118,7 +129,7 @@ def validate_config(cfg: dict, *, smoke: bool) -> None:
     if prior > credits(cfg["ceiling_credits"]):
         raise StudyError("Prior pilot spending exceeds aggregate ceiling")
     provisions = historical_credit_provisions(cfg, smoke=smoke)
-    minimum_prior = "21.79019" if len(provisions) == 4 else "17.59833"
+    minimum_prior = "21.79019" if len(provisions) >= 4 else "17.59833"
     if provisions and prior < credits(minimum_prior):
         raise StudyError("Historical provision requires the confirmed known prior spending")
     if prior + sum(item["reserved_nano"] for item in provisions) > credits(cfg["ceiling_credits"]):
@@ -161,25 +172,43 @@ def fingerprint(root: Path = ROOT) -> str:
     return digest.hexdigest()
 
 
-def schedule(smoke: bool, phase: str, seed: int) -> list[dict]:
+REPLICATE_OPTIONS = (12, 21, 33)
+
+
+def selected_replicates(value=None) -> int:
+    """Validate the prespecified per-model/per-arm allocation."""
+    design = read_json(ROOT / "protocol/pilot-estimation.json")["study"]
+    if design.get("replicate_options") != list(REPLICATE_OPTIONS):
+        raise StudyError("Protocol replicate options differ from the supported allocation")
+    count = design["runs_per_arm"] if value is None else value
+    if type(count) is not int or count not in REPLICATE_OPTIONS:
+        raise StudyError("Replicates must be 12, 21 or 33 per model/arm")
+    return count
+
+
+def schedule(smoke: bool, phase: str, seed: int, replicates: int | None = None) -> list[dict]:
     """Randomise arm order in fixed replicate blocks; smoke is never study data."""
     rng = random.Random(seed)
     cells = []
     calibration = phase in ("pilot", "calibration")
     design = read_json(ROOT / "protocol/pilot-estimation.json")["study"]
+    if design.get("arms") != list(POST_KINDS) or design.get("analysis_design") != MODEL_DESIGN:
+        raise StudyError("Protocol arms differ from the supported five-arm design")
     models = design["model_roster"]
     if (not isinstance(models, list) or len(models) != 3
             or any(not isinstance(model, str) for model in models)
             or set(models) != {"gpt-6.1-sol", "claude-sonnet-5.5", "gemini-4-argon"}):
         raise StudyError("Protocol must declare the three approved model candidates")
-    count = design["calibration_runs_per_arm"] if calibration else design["runs_per_arm"]
-    if type(count) is not int or count != (1 if calibration else 2):
+    if replicates is not None and (smoke or calibration):
+        raise StudyError("Replicate selection applies only to estimation, not calibration or smoke")
+    count = design["calibration_runs_per_arm"] if calibration else selected_replicates(replicates)
+    if calibration and (type(count) is not int or count != 1):
         raise StudyError("Protocol allocation differs from the approved per-model design")
     for replicate in range(1, 2 if smoke else count + 1):
         block_models = [None] if smoke else list(models)
         rng.shuffle(block_models)
         for model in block_models:
-            arms = list("ABC")
+            arms = list("ABC" if smoke else "ABCDE")
             rng.shuffle(arms)
             for arm in arms:
                 prefix = "smoke" if smoke else f"{phase}-{model}"
@@ -188,6 +217,8 @@ def schedule(smoke: bool, phase: str, seed: int) -> list[dict]:
                         "change_request": not smoke and not calibration}
                 if not smoke:
                     cell.update(assigned_model=model, analysis_design=MODEL_DESIGN, replicate=replicate)
+                    if not calibration:
+                        cell["replicates_per_model_arm"] = count
                 cells.append(cell)
     return cells
 
@@ -313,6 +344,8 @@ def budget_policy(cfg: dict) -> dict:
     return {
         "session_soft_limit_credits": cfg.get("session_soft_limit_credits"),
         "session_reservation_credits": cfg.get("session_reserve_credits"),
+        "D_feature_soft_limit_credits": 2 * cfg["session_soft_limit_credits"],
+        "D_feature_reservation_credits": 2 * cfg["session_reserve_credits"],
         "local_admission_ceiling_credits": cfg.get("ceiling_credits"),
         "registered_ceiling_credits": MAX_CREDITS // NANO,
         "known_prior_credits": cfg.get("prior_credits"),
@@ -428,6 +461,7 @@ class StudyRun(Run):
         super().__init__(args)
         self.controller = controller
         self.cell = cell
+        self.replicates_per_model_arm = cell.get("replicates_per_model_arm")
         self.current_step = ""
 
     def setup(self) -> None:
@@ -479,8 +513,8 @@ class StudyRun(Run):
             from isolated_runtime import live_runtime
             return live_runtime(self).run_agent(prompt, step_dir, budget)
         remaining_seconds, remaining_credits = self.remaining_allowance(budget)
-        reserve_buffer = (credits(controller.cfg["session_reserve_credits"])
-                          - credits(controller.cfg["session_soft_limit_credits"]))
+        reserve_buffer = self.credit_multiplier() * (credits(controller.cfg["session_reserve_credits"])
+                                                     - credits(controller.cfg["session_soft_limit_credits"]))
         attempt = controller.new_attempt(self.cell, self.current_step, remaining_credits + reserve_buffer)
         attempt.update(seconds_limit=remaining_seconds, credit_limit_nano=remaining_credits)
         directory = Path(self.dir) / "attempts" / attempt["id"]
@@ -505,6 +539,9 @@ class StudyRun(Run):
         return {"exit_code": status, "timed_out": timed_out, "seconds": seconds,
                 "usage": usage, "possible_leak": False, "diagnostic_stub": True}
 
+    def credit_multiplier(self) -> int:
+        return 2 if self.arm == "D" and self.current_step.endswith("-feature") else 1
+
     def remaining_allowance(self, budget: int) -> tuple[float, int]:
         previous = [attempt for attempt in self.cell["attempts"] if attempt["step"] == self.current_step]
         seconds = 0.0
@@ -521,7 +558,7 @@ class StudyRun(Run):
             seconds += duration
             spent += usage
         remaining_seconds = budget - seconds
-        remaining_credits = credits(self.controller.cfg["session_soft_limit_credits"]) - spent
+        remaining_credits = self.credit_multiplier() * credits(self.controller.cfg["session_soft_limit_credits"]) - spent
         if remaining_seconds <= 0 or remaining_credits <= 0:
             raise StudyError("Original step time or credit allowance exhausted")
         if not self.controller.smoke and remaining_credits < 30 * NANO:
@@ -617,7 +654,7 @@ class StudyRun(Run):
 
     def record(self, rec: dict) -> None:
         """Fsync the canonical step before marking it complete in controller state."""
-        if not self.controller.smoke and rec.get("kind") == "consolidation":
+        if not self.controller.smoke and rec.get("kind") in ("consolidation", "repair"):
             from isolated_runtime import live_runtime
             runtime = live_runtime(self)
             count = (runtime.last_export or {}).get("commit_count")
@@ -648,20 +685,29 @@ class StudyRun(Run):
 class Controller:
     """Own one immutable schedule and exactly one analysis unit per cell."""
 
-    def __init__(self, directory: Path, cfg: dict, *, smoke: bool, phase: str, study_id: str):
+    def __init__(self, directory: Path, cfg: dict, *, smoke: bool, phase: str, study_id: str,
+                 replicates: int | None = None):
         self.directory = directory
         self.cfg = cfg
         self.smoke = smoke
         self.phase = "dry" if smoke else phase
         self.study_id = study_id
         self.path = directory / "state.json"
+        estimation = not smoke and phase not in ("pilot", "calibration")
+        if not estimation and replicates is not None:
+            raise StudyError("Replicate selection applies only to estimation, not calibration or smoke")
+        if estimation and replicates is None and self.path.exists():
+            replicates = read_json(self.path)["identity"].get("replicates_per_model_arm")
+        count = selected_replicates(replicates) if estimation else None
         identity = {"study_id": study_id, "config": cfg, "smoke": smoke, "phase": self.phase,
                     "inputs_sha256": fingerprint(),
                     "commit": command(["git", "rev-parse", "HEAD"])}
-        proposed = schedule(smoke, phase, cfg["seed"])
+        proposed = schedule(smoke, phase, cfg["seed"], count)
         if not smoke:
             identity.update(analysis_design=MODEL_DESIGN,
                             model_roster=read_json(ROOT / "protocol/pilot-estimation.json")["study"]["model_roster"])
+        if estimation:
+            identity["replicates_per_model_arm"] = count
         if self.path.exists():
             self.state = read_json(self.path)
             if self.state["identity"] != identity:
@@ -710,6 +756,8 @@ class Controller:
                                  "diagnostic": smoke, "study_id": study_id}
             if not smoke:
                 expected_metadata.update({key: cell[key] for key in ("assigned_model", "analysis_design", "replicate")})
+                if estimation:
+                    expected_metadata["replicates_per_model_arm"] = count
             if not metadata.exists():
                 atomic_json(metadata, expected_metadata)
             else:
@@ -727,7 +775,8 @@ class Controller:
         if len(previous) >= self.cfg["max_attempts"]:
             raise StudyError("Bounded attempt limit reached; partial cell retained")
         attempt_id = f"{cell['run_id']}-{step}-{len(previous) + 1}"
-        amount = 0 if self.smoke else credits(self.cfg["session_reserve_credits"])
+        multiplier = 2 if cell["arm"] == "D" and step.endswith("-feature") else 1
+        amount = 0 if self.smoke else multiplier * credits(self.cfg["session_reserve_credits"])
         if allowance_nano is not None:
             amount = min(amount, allowance_nano)
         reserve(self.state["ledger"], attempt_id, amount)
@@ -750,7 +799,8 @@ class Controller:
                                arm=cell["arm"], run_id=cell["run_id"], phase=self.phase,
                                features=cell["features"], no_cr=not cell["change_request"], allow_draft=False,
                                assigned_model=cell.get("assigned_model"), analysis_design=cell.get("analysis_design"),
-                               replicate=cell.get("replicate"), study_id=self.study_id, diagnostic=self.smoke)
+                               replicate=cell.get("replicate"), study_id=self.study_id, diagnostic=self.smoke,
+                               replicates_per_model_arm=cell.get("replicates_per_model_arm"))
         run = StudyRun(args, self, cell)
         run.setup()
         records = []
@@ -784,8 +834,8 @@ class Controller:
         steps = []
         for k, feature in enumerate(run.features, 1):
             steps.append((f"f{k:02d}-feature", run.feature_step, (k, feature)))
-            if run.arm != "A":
-                kind = "consolidation" if run.arm == "B" else "review"
+            if POST_KINDS[run.arm] is not None:
+                kind = POST_KINDS[run.arm]
                 steps.append((f"f{k:02d}-{kind}", run.post_step, (k,)))
         if run.do_cr:
             steps.append((f"{run.suite['change_request']['id']}-change", run.change_request, ()))
@@ -860,7 +910,7 @@ def show_progress(state: dict, current: str = "") -> None:
     """Count durable completed steps, not attempts or inferred successes."""
     total = completed = 0
     for cell in state["cells"]:
-        planned = cell["features"] * (1 if cell["arm"] == "A" else 2) + int(cell["change_request"])
+        planned = cell["features"] * (1 if POST_KINDS[cell["arm"]] is None else 2) + int(cell["change_request"])
         done = cell.get("completed_steps", planned if cell["status"] == "completed" else 0)
         if type(done) is not int or not 0 <= done <= planned:
             raise StudyError("Invalid saved step progress")
@@ -870,6 +920,47 @@ def show_progress(state: dict, current: str = "") -> None:
     print(f"Progress: {completed}/{total} steps completed; {total - completed} remaining | "
           f"{finished}/{len(state['cells'])} trajectories complete"
           + (f" | {current}" if current else ""), flush=True)
+
+
+def planned_resources(cells: list[dict]) -> dict:
+    """Expose the actual selected schedule, not the aggregate spending permission."""
+    sessions = seconds = nominal = 0
+    for cell in cells:
+        post = POST_KINDS[cell["arm"]] is not None
+        longer = cell["arm"] == "D"
+        features, cr = cell["features"], int(cell["change_request"])
+        sessions += features * (1 + post) + cr
+        seconds += features * (1800 + 900 * (post or longer)) + 2700 * cr
+        nominal += features * (300 + 300 * (post or longer)) + 300 * cr
+    return {"trajectories": len(cells), "planned_sessions": sessions,
+            "maximum_agent_hours": seconds / 3600,
+            "nominal_session_allowance_credits_not_permitted_spending": nominal}
+
+
+def launch_replicates(args, directory: Path) -> int | None:
+    """Select once before collection; read-only commands never prompt."""
+    if args.smoke or args.phase in ("pilot", "calibration"):
+        if args.replicates is not None:
+            raise StudyError("Replicate selection applies only to estimation, not calibration or smoke")
+        return None
+    saved = directory / "state.json"
+    if saved.exists():
+        count = read_json(saved)["identity"].get("replicates_per_model_arm")
+        if args.replicates is not None and args.replicates != count:
+            raise StudyError("Cannot change replicates on resume; preserve the original allocation")
+        return selected_replicates(count)
+    if args.replicates is not None:
+        return selected_replicates(args.replicates)
+    default = selected_replicates()
+    if not (args.dry_run or args.check_vm) and sys.stdin.isatty():
+        print("Choose replicates per model/arm before collection: 12, 21 or 33. "
+              "Record this allocation prospectively; it cannot change on resume.", flush=True)
+        answer = input(f"Replicates [{default}]: ").strip()
+        if answer:
+            if answer not in {str(value) for value in REPLICATE_OPTIONS}:
+                raise StudyError("Replicates must be 12, 21 or 33 per model/arm")
+            return selected_replicates(int(answer))
+    return default
 
 
 def main() -> int:
@@ -882,6 +973,8 @@ def main() -> int:
     parser.add_argument("--check-vm", action="store_true", help="check prerequisites; never install or run agents")
     parser.add_argument("--phase", choices=["pilot", "first", "calibration", "pilot-estimation"],
                         default="pilot-estimation")
+    parser.add_argument("--replicates", type=int, choices=REPLICATE_OPTIONS,
+                        help="replicates per model/arm; new estimation default 12, immutable on resume")
     parser.add_argument("--publish", action="store_true", help="push only derived results and create/update a PR")
     saved = parser.add_mutually_exclusive_group()
     saved.add_argument("--status", action="store_true", help="show saved progress without authentication or model calls")
@@ -903,11 +996,14 @@ def main() -> int:
                 print(f"Shareable results: {package_results(directory / 'results', args.study_id)}")
         return 0
     cfg = read_json(args.config)
+    replicates = launch_replicates(args, directory)
     errors = preflight(cfg, smoke=args.smoke)
+    cells = schedule(args.smoke, args.phase, cfg["seed"], replicates) if type(cfg.get("seed")) is int else []
     preview = {"mode": "stub-smoke" if args.smoke else args.phase,
+               "replicates_per_model_arm": replicates,
                "inputs_sha256": fingerprint(),
-               "schedule": (schedule(args.smoke, args.phase, cfg["seed"])
-                            if type(cfg.get("seed")) is int else []),
+               "schedule": cells,
+               "planned_resources": planned_resources(cells) if not args.smoke else None,
                "token_present": bool(os.environ.get("COPILOT_GITHUB_TOKEN")),
                "hard_billing_supported": False, "budget_policy": budget_policy(cfg), "errors": errors}
     if args.dry_run or args.check_vm:
@@ -920,7 +1016,8 @@ def main() -> int:
         check_host_auth(ROOT)
         print("Authentication: signed-in host Copilot user; no credentials enter candidate containers.", flush=True)
     with study_lock(directory):
-        controller = Controller(directory, cfg, smoke=args.smoke, phase=args.phase, study_id=args.study_id)
+        controller = Controller(directory, cfg, smoke=args.smoke, phase=args.phase, study_id=args.study_id,
+                                replicates=replicates)
         success = controller.go()
         from study_report import package_results
         print(f"Shareable results: {package_results(directory / 'results', args.study_id)}")

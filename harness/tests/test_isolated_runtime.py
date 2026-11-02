@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import time
+import traceback
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -160,6 +161,66 @@ print(json.dumps({"type":"complete","receipt":{"session_id":"other"}}),flush=Tru
         assert (tmp_path / str(index) / "events.jsonl").stat().st_size <= 250
 
 
+@pytest.mark.parametrize("primary_failure", [True, False])
+def test_bridge_broken_pipe_cleanup_preserves_primary_error_and_stops_writer(
+        runtime, tmp_path, monkeypatch, primary_failure):
+    process_holder, callbacks = [], []
+    program = """
+import json, sys, time
+sys.stdin.readline()
+sys.stderr.write("bounded diagnostic\\n")
+sys.stderr.flush()
+time.sleep(0.05)
+"""
+    if primary_failure:
+        program += """
+print(json.dumps({"type":"tool","id":"one","arguments":{"command":"pwd","timeoutSeconds":1}}),flush=True)
+"""
+    else:
+        program += """
+print(json.dumps({"type":"event","sessionId":"owned"}),flush=True)
+print(json.dumps({"type":"complete","receipt":{"session_id":"owned"}}),flush=True)
+"""
+
+    class BrokenClose:
+        def __init__(self, stream):
+            self.stream = stream
+
+        def __getattr__(self, name):
+            return getattr(self.stream, name)
+
+        def close(self):
+            self.stream.close()
+            raise BrokenPipeError("cleanup-only broken pipe")
+
+    def spawn(*args, **kwargs):
+        process = _REAL_POPEN([sys.executable, "-c", program], **kwargs)
+        if not primary_failure:
+            process.stdin = BrokenClose(process.stdin)
+        process_holder.append(process)
+        return process
+
+    def tool(*args):
+        process_holder[0].wait(timeout=2)
+        return {"stdout": "", "stderr": "", "exit_code": 0}
+
+    monkeypatch.setattr(runtime.subprocess, "Popen", spawn)
+    with pytest.raises(BrokenPipeError if primary_failure else runtime.StudyError) as failure:
+        runtime.run_bridge({"remainingSeconds": 5}, tmp_path, tool,
+                           on_start=lambda pid: callbacks.append(pid),
+                           on_stop=lambda: callbacks.append("stopped"))
+    if primary_failure:
+        assert traceback.extract_tb(failure.value.__traceback__)[-1].line == "process.stdin.flush()"
+    else:
+        assert "stream cleanup failed" in str(failure.value)
+    process = process_holder[0]
+    assert callbacks == [process.pid, "stopped"]
+    assert all(stream.closed for stream in (process.stdin, process.stdout, process.stderr))
+    assert (tmp_path / "stderr.txt").read_bytes() == b"bounded diagnostic\n"
+    with pytest.raises(ProcessLookupError):
+        os.killpg(process.pid, 0)
+
+
 def test_fingerprint_ignores_only_generated_sdk_tree_not_its_pin(runtime, tmp_path):
     study = importlib.import_module("study")
     sdk = tmp_path / "harness/copilot-sdk"
@@ -228,6 +289,9 @@ def test_current_host_user_auth_is_checked_before_controller_or_credit_reservati
     if authenticated and user_authentication:
         runtime.check_host_auth(tmp_path)
     else:
+        (tmp_path / "protocol").mkdir()
+        shutil.copy2(runtime.ROOT / "protocol/pilot-estimation.json",
+                     tmp_path / "protocol/pilot-estimation.json")
         monkeypatch.setattr(study, "ROOT", tmp_path)
         monkeypatch.setattr(study, "preflight", lambda *args, **kwargs: [])
         monkeypatch.setattr(study, "schedule", lambda *args, **kwargs: [])
@@ -393,27 +457,29 @@ def test_ambiguous_broker_failure_stops_admission_even_after_usage_is_known(runt
 
 
 @pytest.mark.parametrize("outcome", ["complete", "unknown", "wrong_model", "bad_export"])
+@pytest.mark.parametrize("arm,multiplier", [("A", 1), ("D", 2)])
 def test_live_attempt_reserves_before_transport_and_preserves_charge_on_failure(
-    runtime, tmp_path, monkeypatch, outcome,
+    runtime, tmp_path, monkeypatch, outcome, arm, multiplier,
 ):
     study = importlib.import_module("study")
     config = study.read_json(study.ROOT / "harness/study-config.json")
     current = study.Controller(tmp_path / "private", config,
                                smoke=False, phase="first", study_id="offline-transport-fixture")
-    cell = current.state["cells"][0]
+    cell = next(cell for cell in current.state["cells"] if cell["arm"] == arm)
     repo = trusted_repo(runtime, tmp_path)
     live = object.__new__(runtime.LiveRuntime)
     live.run = SimpleNamespace(
         controller=current, cell=cell, current_step="f01-feature", repo=repo,
         dir=str(current.directory / "fixture"), assigned_model=cell["assigned_model"],
-        remaining_allowance=lambda budget: (budget, 270 * runtime.NANO))
+        credit_multiplier=lambda: multiplier,
+        remaining_allowance=lambda budget: (budget, multiplier * 270 * runtime.NANO))
     live.receipt = {"image": "sha256:" + "0" * 64}
     live.last_checkpoint = None
     monkeypatch.setattr(runtime, "runtime_errors", lambda cfg: [])
 
     def seed(files, *, git_bundle):
         stored = runtime.read_json(current.path)["ledger"]["entries"]
-        assert next(iter(stored.values()))["reserved_nano"] == 300 * runtime.NANO
+        assert next(iter(stored.values()))["reserved_nano"] == multiplier * 300 * runtime.NANO
         assert git_bundle and files
         return "opaque-fixture-state"
 
@@ -423,7 +489,7 @@ def test_live_attempt_reserves_before_transport_and_preserves_charge_on_failure(
                 ".git/config" if outcome == "bad_export" else "src/code.py", "VALUE = 2\n")]})
 
     def bridge(request, directory, tool, **callbacks):
-        assert request["maxAiCredits"] == 270 and 0 < request["remainingSeconds"] <= 900
+        assert request["maxAiCredits"] == multiplier * 270 and 0 < request["remainingSeconds"] <= 2700
         assert runtime.read_json(directory.parent / "request.json")["prompt"] == "offline fixture prompt"
         callbacks["on_start"](123)
         callbacks["on_stop"]()
@@ -445,6 +511,7 @@ def test_live_attempt_reserves_before_transport_and_preserves_charge_on_failure(
     entry = next(iter(current.state["ledger"]["entries"].values()))
     if outcome == "unknown":
         assert entry["status"] == "unknown" and entry["actual_nano"] is None
+        assert entry["reserved_nano"] == multiplier * 300 * runtime.NANO
         with pytest.raises(runtime.StudyError, match="Unknown usage"):
             current.new_attempt(cell, "f02-feature")
     else:

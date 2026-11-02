@@ -436,6 +436,83 @@ def model_cohort():
             for model in MODEL_ROSTER for arm in "ABC" for replicate in (1, 2)]
 
 
+def five_arm_cohort(count=12):
+    runs = []
+    for model in MODEL_ROSTER:
+        for arm in "ABCDE":
+            for replicate in range(1, count + 1):
+                records = []
+                for k in range(1, 11):
+                    records.append(rec("feature", k))
+                    if arm not in "AD":
+                        records.append(rec({"B": "consolidation", "C": "review", "E": "repair"}[arm], k))
+                records.append(rec("change_request", 10, cr="passed"))
+                run = raw(records, arm, 10, f"v2-{model}-{arm}-{replicate}",
+                          assigned_model=model, analysis_design="model-stratified-v2-five-arm", replicate=replicate)
+                run["meta"]["replicates_per_model_arm"] = count
+                runs.append(run)
+    return runs
+
+
+@pytest.mark.parametrize("count", [12, 21, 33])
+def test_five_arm_frame_primary_b_d_and_export(pilot, panel, tmp_path, count):
+    runs = five_arm_cohort(count)
+    cells = cells_for(runs)
+    for cell in cells:
+        cell["replicates_per_model_arm"] = count
+    result = pilot.analyze_pilot(runs, panel=panel, cells=cells, n=10)
+    assert result["allocation_complete"] and result["primary_estimates_available"]
+    assert result["endpoints"]["primary"]["difference"] == 0
+    assert result["endpoints"]["primary"]["ci"] == (0, 0)
+    assert result["overall_summary"]["degrees_of_freedom"] == 15 * (count - 1)
+    assert result["endpoints"][MODEL_ROSTER[0]]["H1"]["E-B"]["difference"] == 0
+    report = importlib.import_module("study_report")
+    report.write_pilot(tmp_path, result)
+    assert "B-D" in (tmp_path / "report.md").read_text()
+    assert "E: green" in (tmp_path / "trajectories.svg").read_text()
+    partial = pilot.analyze_pilot(runs[:-1], panel=panel, n=10)
+    assert not partial["primary_estimates_available"]
+    assert partial["endpoints"]["primary"]["difference"] is None
+
+
+def test_five_arm_equal_model_weighting_never_relabels_historical_or_pools_missing(pilot, panel):
+    runs = five_arm_cohort()
+    for run in runs:
+        if run["meta"]["arm"] == "D":
+            loss = {"gpt-6.1-sol": (True, True), "claude-sonnet-5.5": (False, True),
+                    "gemini-4-argon": (False, False)}[run["meta"]["assigned_model"]]
+            run["recs"][-2] = rec("feature", 10, x="failed" if loss[0] else "passed",
+                                 y="failed" if loss[1] else "passed")
+    result = pilot.analyze_pilot(runs, panel=panel, n=10)
+    assert result["endpoints"]["primary"]["difference"] == 50
+    assert result["endpoints"]["primary"]["ci"] == (50, 50)
+    with pytest.raises(ValueError, match="analyse separately"):
+        pilot.analyze_pilot(runs + model_cohort(), panel=panel, n=10)
+    runs[0]["meta"]["intervention"]["assisted"] = True
+    result = pilot.analyze_pilot(runs, panel=panel, n=10)
+    assert not result["primary_estimates_available"]
+
+
+@pytest.mark.parametrize("count", [12, 21, 33])
+def test_selected_replicates_define_full_frame_not_observed_run_count(pilot, panel, count):
+    runs = []
+    for model in MODEL_ROSTER:
+        for arm in "ABC":
+            for replicate in range(1, count + 1):
+                run = stratified_run(model, arm, replicate)
+                run["meta"]["replicates_per_model_arm"] = count
+                runs.append(run)
+    result = pilot.analyze_pilot(runs, panel=panel, n=10)
+    assert result["allocation_complete"] and result["primary_estimates_available"]
+    assert len(result["runs"]) == 9 * count
+    partial = pilot.analyze_pilot(runs[:-1], panel=panel, n=10)
+    assert not partial["allocation_complete"]
+    assert not partial["model_frames"][MODEL_ROSTER[-1]]["primary_estimates_available"]
+    runs[-1]["meta"]["replicates_per_model_arm"] = next(value for value in (12, 21, 33) if value != count)
+    with pytest.raises(ValueError, match="replicate allocation"):
+        pilot.analyze_pilot(runs, panel=panel, n=10)
+
+
 def test_legacy_unmarked_runs_keep_existing_frame_and_shape(pilot, panel):
     result = pilot.analyze_pilot(cohort(), panel=panel, n=100)
     assert "frame" not in result

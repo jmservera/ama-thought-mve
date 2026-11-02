@@ -63,9 +63,9 @@ def test_unknown_usage_holds_reservation_and_blocks(study, usage):
         study.reserve(ledger, "next", 0)
 
 
-@pytest.mark.parametrize("provision_count", [1, 2, 3, 4])
+@pytest.mark.parametrize("provision_count", [1, 2, 3, 4, 5])
 def test_historical_hold_counts_against_admission_but_future_unknown_still_stops(study, tmp_path, provision_count):
-    cfg = study.read_json(ROOT / "harness/study-config.json")
+    cfg = dict(study.read_json(ROOT / "harness/study-config.json"), prior_credits=21.79019)
     cfg["historical_credit_provisions"] = cfg["historical_credit_provisions"][:provision_count]
     study.validate_config(cfg, smoke=False)
     current = study.Controller(tmp_path, cfg, smoke=False, phase="pilot-estimation", study_id="historical-hold")
@@ -75,7 +75,8 @@ def test_historical_hold_counts_against_admission_but_future_unknown_still_stops
     assert all(item["actual_nano"] is None and item["status"] == "unknown" for item in provisions)
     room = ledger["ceiling_nano"] - ledger["prior_nano"] - sum(item["reserved_nano"] for item in provisions)
     assert room == study.credits({1: "269678.20981", 2: "269378.20981",
-                                 3: "269078.20981", 4: "268778.20981"}[provision_count])
+                                 3: "269078.20981", 4: "268778.20981",
+                                 5: "268478.20981"}[provision_count])
     study.reserve(ledger, "new", room)
     with pytest.raises(study.StudyError, match="ceiling"):
         study.reserve(ledger, "extra", 1)
@@ -233,24 +234,89 @@ def test_valid_freeze_hash_tag_and_commit_are_checked(study, config, tmp_path, m
     assert any("hash mismatch" in error for error in study.freeze_errors(config, tmp_path))
 
 
-def test_schedule_matches_model_matrix_and_excludes_calibration_cr(study):
-    cells = study.schedule(False, "first", 2027)
-    assert len(cells) == 18
-    assert sum(cell["features"] * (1 if cell["arm"] == "A" else 2) + cell["change_request"]
-               for cell in cells) == 318
-    assert len(study.schedule(False, "pilot", 2027)) == 9
+@pytest.mark.parametrize("count", [12, 21, 33])
+def test_schedule_matches_model_matrix_and_excludes_calibration_cr(study, count):
+    cells = study.schedule(False, "first", 2027, count)
+    assert len(cells) == 15 * count
+    assert sum(cell["features"] * (1 if cell["arm"] in "AD" else 2) + cell["change_request"]
+               for cell in cells) == 255 * count
+    assert len(study.schedule(False, "pilot", 2027)) == 15
+    assert sum(cell["features"] * (1 if cell["arm"] in "AD" else 2)
+               for cell in study.schedule(False, "pilot", 2027)) == 240
     assert not any(cell["change_request"] for cell in study.schedule(False, "pilot", 2027))
     for alias, legacy in (("calibration", "pilot"), ("pilot-estimation", "first")):
-        actual = study.schedule(False, alias, 2027)
-        original = study.schedule(False, legacy, 2027)
+        selected_count = count if alias == "pilot-estimation" else None
+        actual = study.schedule(False, alias, 2027, selected_count)
+        original = study.schedule(False, legacy, 2027, selected_count)
         assert [dict(cell, run_id="") for cell in actual] == [dict(cell, run_id="") for cell in original]
-    assert study.schedule(False, "first", 2027) == cells
+    assert study.schedule(False, "first", 2027, count) == cells
+    assert study.schedule(False, "first", 2027) == study.schedule(False, "first", 2027, 12)
     for model in ("gpt-6.1-sol", "claude-sonnet-5.5", "gemini-4-argon"):
-        for arm in "ABC":
+        for arm in "ABCDE":
             selected = [cell for cell in cells if cell["assigned_model"] == model and cell["arm"] == arm]
-            assert {cell["replicate"] for cell in selected} == {1, 2}
-            assert all(cell["analysis_design"] == "model-stratified-v1" for cell in selected)
-    assert len({cell["run_id"] for cell in cells}) == 18
+            assert {cell["replicate"] for cell in selected} == set(range(1, count + 1))
+            assert all(cell["replicates_per_model_arm"] == count for cell in selected)
+            assert all(cell["analysis_design"] == study.MODEL_DESIGN for cell in selected)
+    assert len({cell["run_id"] for cell in cells}) == 15 * count
+    assert study.planned_resources(cells) == {
+        "trajectories": 15 * count, "planned_sessions": 255 * count,
+        "maximum_agent_hours": 116.25 * count,
+        "nominal_session_allowance_credits_not_permitted_spending": 85500 * count}
+    calibration = study.planned_resources(study.schedule(False, "calibration", 2027))
+    assert calibration["planned_sessions"] == 240
+    assert calibration["maximum_agent_hours"] == 105
+    assert calibration["nominal_session_allowance_credits_not_permitted_spending"] == 81000
+
+
+def test_replicate_selection_default_prompt_and_saved_resume(study, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    args = SimpleNamespace(smoke=False, phase="pilot-estimation", replicates=None,
+                           dry_run=False, check_vm=False)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    answers = iter(["", "21", "33", "13"])
+    monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
+    assert study.launch_replicates(args, tmp_path) == 12
+    assert study.launch_replicates(args, tmp_path) == 21
+    assert study.launch_replicates(args, tmp_path) == 33
+    with pytest.raises(study.StudyError, match="12, 21 or 33"):
+        study.launch_replicates(args, tmp_path)
+    monkeypatch.setattr("builtins.input", lambda prompt: pytest.fail("Read-only/resume must not prompt"))
+    args.dry_run = True
+    assert study.launch_replicates(args, tmp_path) == 12
+    args.dry_run = False
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+    assert study.launch_replicates(args, tmp_path) == 12
+    study.atomic_json(tmp_path / "state.json", {"identity": {"replicates_per_model_arm": 21}})
+    assert study.launch_replicates(args, tmp_path) == 21
+    args.replicates = 33
+    with pytest.raises(study.StudyError, match="Cannot change"):
+        study.launch_replicates(args, tmp_path)
+    args.phase = "calibration"
+    with pytest.raises(study.StudyError, match="only to estimation"):
+        study.launch_replicates(args, tmp_path)
+
+
+def test_replicate_count_is_immutable_in_controller_and_metadata(study, config, tmp_path):
+    current = study.Controller(tmp_path, config, smoke=False, phase="pilot-estimation",
+                               study_id="replicate-choice", replicates=21)
+    assert current.state["identity"]["replicates_per_model_arm"] == 21
+    first = current.state["cells"][0]
+    metadata = study.read_json(tmp_path / "runs" / first["run_id"] / "run.json")
+    assert metadata["replicates_per_model_arm"] == 21
+    importlib.import_module("study_report").export(current.directory, current.state, current.study_id)
+    assert study.read_json(tmp_path / "results/provenance.json")["replicates_per_model_arm"] == 21
+    resumed = study.Controller(tmp_path, config, smoke=False, phase="pilot-estimation",
+                               study_id="replicate-choice")
+    assert resumed.state["identity"]["replicates_per_model_arm"] == 21
+    with pytest.raises(study.StudyError, match="Resume"):
+        study.Controller(tmp_path, config, smoke=False, phase="pilot-estimation",
+                         study_id="replicate-choice", replicates=12)
+    metadata["replicates_per_model_arm"] = 12
+    study.atomic_json(tmp_path / "runs" / first["run_id"] / "run.json", metadata)
+    with pytest.raises(study.StudyError, match="Raw metadata"):
+        study.Controller(tmp_path, config, smoke=False, phase="pilot-estimation",
+                         study_id="replicate-choice", replicates=21)
 
 
 def test_lock_is_exclusive(study, tmp_path):
@@ -567,6 +633,130 @@ def study_run(study, current, cell=None):
     return run
 
 
+@pytest.mark.parametrize("arm,seconds,soft,reservation", [("A", 1800, 270, 300),
+                                                        ("D", 2700, 540, 600),
+                                                        ("E", 1800, 270, 300)])
+def test_five_arm_original_step_budgets_and_shared_retry(study, config, tmp_path,
+                                                        arm, seconds, soft, reservation):
+    current = study.Controller(tmp_path, config, smoke=False, phase="first", study_id="budgets")
+    cell = next(cell for cell in current.state["cells"] if cell["arm"] == arm)
+    run = study_run(study, current, cell)
+    assert run.budgets["feature"] == seconds
+    assert run.remaining_allowance(seconds) == (seconds, soft * study.NANO)
+    previous = current.new_attempt(cell, run.current_step)
+    assert current.state["ledger"]["entries"][previous["id"]]["reserved_nano"] == reservation * study.NANO
+    usage = {"credits_complete": True, "totalNanoAiu": 200 * study.NANO}
+    previous.update(seconds=40, usage=usage)
+    current.settle_attempt(previous["id"], usage)
+    assert run.remaining_allowance(seconds) == (seconds - 40, (soft - 200) * study.NANO)
+    retry = current.new_attempt(cell, run.current_step, (reservation - 200) * study.NANO)
+    assert current.state["ledger"]["entries"][retry["id"]]["reserved_nano"] == (reservation - 200) * study.NANO
+    run.current_step = "cr1-change"
+    assert run.remaining_allowance(2700) == (2700, 270 * study.NANO)
+
+
+@pytest.mark.parametrize("arm,failed", [("D", False), ("E", False), ("E", True)])
+def test_d_e_offline_execution_and_post_after_failed_feature(study, config, tmp_path, monkeypatch, arm, failed):
+    current = controller(study, config, tmp_path)
+    cell = current.state["cells"][0]
+    cell.update(arm=arm)
+    original = study.StudyRun.run_agent
+    seen = []
+
+    def agent(run, prompt, step_dir, budget):
+        seen.append((run.current_step, budget, prompt))
+        if failed and run.current_step.endswith("-feature"):
+            prompt = "synthetic no-op unsuccessful feature"
+        return original(run, prompt, step_dir, budget)
+
+    monkeypatch.setattr(study.StudyRun, "run_agent", agent)
+    current.run_cell(cell)
+    records = [json.loads(line) for line in (tmp_path / "runs" / cell["run_id"] / "steps.jsonl").read_text().splitlines()]
+    assert [record["kind"] for record in records] == (["feature"] if arm == "D" else ["feature", "repair"])
+    assert records[0]["delivered"] is not failed
+    assert seen[0][1] == (180 if arm == "D" else 120)
+    if arm == "E":
+        assert seen[1][1] == 60
+        assert "cr1" not in seen[1][2] and "f02" not in seen[1][2]
+        assert "hidden_passed" not in seen[1][2]
+        assert not any("examples modified" in violation for violation in records[1]["violations"])
+
+
+@pytest.mark.parametrize("arm", ["A", "B", "C", "D", "E"])
+def test_accepted_python_files_protected_and_e_exception_requires_bound_evidence(
+    study, config, tmp_path, arm,
+):
+    current = controller(study, config, tmp_path)
+    cell = dict(current.state["cells"][0], arm=arm)
+    run = study_run(study, current, cell)
+    run.setup()
+    path = Path(run.repo) / "tests/test_agent.py"
+    path.write_text("LIMIT = 1\n\ndef test_limit():\n    assert LIMIT == 1\n")
+    study.git(run.repo, "add", "-A")
+    study.git(run.repo, "commit", "-qm", "accepted agent test")
+    before = study.head(run.repo)
+    old_blob = study.git(run.repo, "rev-parse", "HEAD:tests/test_agent.py").stdout.strip()
+    path.write_text("LIMIT = 1\n\ndef test_limit():\n    assert LIMIT == 2\n")
+    study.git(run.repo, "add", "-A")
+    study.git(run.repo, "commit", "-qm", "changed expectation and constant")
+    assert run.test_policy_violations(before, 1, repair=arm == "E")
+    evidence = {"corrections": [{"path": "tests/test_agent.py", "before_blob": old_blob,
+                                "after_blob": study.git(run.repo, "rev-parse", "HEAD:tests/test_agent.py").stdout.strip(),
+                                "specification": "f01", "quote": run.features[0]["rules"][0],
+                                "explanation": "Synthetic specification contradiction for provenance testing"}]}
+    record = Path(run.repo) / "REPAIR.json"
+    record.write_text(json.dumps(evidence))
+    study.git(run.repo, "add", "-A")
+    study.git(run.repo, "commit", "-qm", "retained correction evidence")
+    assert bool(run.test_policy_violations(before, 1, repair=arm == "E")) is (arm != "E")
+    changed = path.read_text().replace("LIMIT = 1", "LIMIT = 2")
+    assert not importlib.import_module("runner").expectation_only_correction(
+        "LIMIT = 1\n\ndef test_limit():\n    assert LIMIT == 1\n", changed)
+    evidence["corrections"][0]["quote"] = "not in a visible specification"
+    record.write_text(json.dumps(evidence))
+    assert run.test_policy_violations(before, 1, repair=True)
+
+
+@pytest.mark.parametrize("change", ["literal", "fixture"])
+def test_e_post_step_enforces_exception_and_journals_accepted_evidence(
+    study, config, tmp_path, monkeypatch, change,
+):
+    current = controller(study, config, tmp_path)
+    cell = dict(current.state["cells"][0], arm="E")
+    run = study_run(study, current, cell)
+    run.setup()
+    path = Path(run.repo) / "tests/test_agent.py"
+    original = "LIMIT = 1\n\ndef test_limit():\n    assert LIMIT == 1\n"
+    path.write_text(original)
+    study.git(run.repo, "add", "-A")
+    study.git(run.repo, "commit", "-qm", "accepted test")
+    before = study.head(run.repo)
+    old_blob = study.git(run.repo, "rev-parse", "HEAD:tests/test_agent.py").stdout.strip()
+
+    def agent(prompt, directory, budget):
+        path.write_text(original.replace("== 1", "== True") if change == "literal" else
+                        original.replace("LIMIT = 1", "LIMIT = 2").replace("== 1", "== 2"))
+        correction = {"path": "tests/test_agent.py", "before_blob": old_blob,
+                      "after_blob": study.git(run.repo, "hash-object", str(path)).stdout.strip(),
+                      "specification": "f01", "quote": run.features[0]["rules"][0],
+                      "explanation": "Synthetic provenance fixture, not semantic adjudication"}
+        (Path(run.repo) / "REPAIR.json").write_text(json.dumps({"corrections": [correction]}))
+        study.git(run.repo, "add", "-A")
+        study.git(run.repo, "commit", "-qm", "proposed correction")
+        return {"seconds": 0}
+
+    captured = []
+    monkeypatch.setattr(run, "run_agent", agent)
+    monkeypatch.setattr(run, "is_green", lambda: True)
+    monkeypatch.setattr(run, "measure", lambda *args: {"head": study.head(run.repo)})
+    monkeypatch.setattr(run, "record", captured.append)
+    run.post_step(1)
+    assert (study.head(run.repo) != before) is (change == "literal")
+    assert bool(captured[0]["violations"]) is (change == "fixture")
+    assert captured[0]["corrections_retained"] is (change == "literal")
+    assert bool(captured[0]["test_corrections"]) is (change == "literal")
+
+
 def test_current_model_identity_survives_atomic_setup(study, config, tmp_path):
     current = study.Controller(tmp_path, dict(config, prior_credits=0), smoke=False,
                                phase="pilot-estimation", study_id="planned")
@@ -576,7 +766,7 @@ def test_current_model_identity_survives_atomic_setup(study, config, tmp_path):
         run.setup()
         meta = json.loads((Path(run.dir) / "run.json").read_text())
         assert meta["assigned_model"] == meta["config"]["agent_values"]["model"] == model
-        assert meta["analysis_design"] == "model-stratified-v1"
+        assert meta["analysis_design"] == study.MODEL_DESIGN
         assert meta["replicate"] == cell["replicate"] and meta["diagnostic"] is False
     assert study.Controller(tmp_path, dict(config, prior_credits=0), smoke=False,
                             phase="pilot-estimation", study_id="planned").state["identity"]["model_roster"]
@@ -647,9 +837,11 @@ def test_soft_cap_rejects_unknown_subminimum_or_overlarge_settings(study, config
 
 
 @pytest.mark.parametrize(("spent", "remaining"), [(240, 30), (241, None), (270, None)])
-def test_live_retry_never_tops_up_remaining_soft_cap(study, config, tmp_path, spent, remaining):
+@pytest.mark.parametrize("arm", ["A", "D"])
+def test_live_retry_never_tops_up_remaining_soft_cap(study, config, tmp_path, spent, remaining, arm):
     current = study.Controller(tmp_path, config, smoke=False, phase="first", study_id="planned")
-    run = study_run(study, current)
+    run = study_run(study, current, next(cell for cell in current.state["cells"] if cell["arm"] == arm))
+    spent += 270 if arm == "D" else 0
     previous = current.new_attempt(run.cell, run.current_step)
     previous.update(seconds=1, usage={"totalNanoAiu": spent * study.NANO, "credits_complete": True})
     if remaining is None:

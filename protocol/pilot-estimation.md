@@ -16,22 +16,34 @@ especially its experiment, prospective-decay and pre-run sections.
 [pilot-estimation.json](pilot-estimation.json) records the exact source SHA-256,
 baseline/tag provenance, settings, owner choices and outstanding evidence.
 [osf-preregistration.md](osf-preregistration.md) is the submission draft.
+The subsequent five-arm amendment follows the
+[ancillary paper protocol at a56df549](https://github.com/jmservera/ama/blob/a56df54979ad080821de79426c68c0266fa87549/docs/capstone/thought-leadership/everything-but-the-software/anc/experiment-protocol.tex).
+The owner's 1 November D/E implementation instruction does not register,
+approve collection or retroactively extend historical acceptance/freeze records.
 
 The AMA case motivates the question; it does not measure a decay rate or show
 that consolidation would have fixed missing deployment identity/staff bindings.
 This pilot asks whether scheduled consolidation improves the repository
 inherited by later feature work. It does not test the five case mechanisms.
 The owner amended the paper's single-model/four-per-arm allocation on 27 October:
-use GPT 6.1 Sol, Sonnet 5.5 and Gemini 4 Argon with two trajectories per arm/model.
+use GPT 6.1 Sol, Sonnet 5.5 and Gemini 4 Argon. The initial two-trajectory
+allocation is historical; the subsequent owner-selected policy allows12/21/33
+trajectories per model/arm, default12, fixed prospectively before collection.
 This tests robustness across selected models; it cannot establish that model
 choice is irrelevant or generalise to every model.
 
 ## Allocation, stages and resources
 
 The unit is one fresh S1 repository trajectory: A feature-only, B feature plus
-consolidation, C feature plus read-only review. For each of the three models,
-two independent trajectories per arm, ten features F1-F10 and full held-out
-CR1: **18 pilot trajectories**. Every model runs every arm.
+consolidation, C feature plus read-only review, D longer feature-only delivery,
+E feature plus visible-specification behavioural repair. For each of the three models,
+12,21or33 independent trajectories per arm, ten features F1-F10 and full held-out
+CR1: **180, 315 or 495 trajectories**. The default is 12 per arm/model.
+Every model runs every arm. The independent executor selects one prespecified
+count before collection, interactively at launch or with `--replicates`.
+It is persisted in immutable study identity and every trajectory's metadata;
+resume cannot change it. No outcome-driven sample-size selection or stopping.
+The selected allocation must be recorded prospectively before affected collection.
 Interleave arm order within model/replicate blocks using fixed seed 2027 on the same
 machine; steps, hidden tests and checkpoints are not independent replicates.
 No new run is added or substituted because an effect is favourable, a run is
@@ -41,18 +53,28 @@ repeat across other arms/models; steps are not additional replicates.
 
 | Collection | CLI phase | Runs | Sessions | Maximum agent-hours |
 |---|---|---:|---:|---:|
-| Excluded budget calibration | `calibration` (legacy `pilot`) | 1 per arm/model: 9 | 150 | 60 |
-| Estimation pilot | `pilot-estimation` (legacy `first`) | 2 per arm/model: 18 | 318 | 133.5 |
-| Combined resource envelope, never a pooled dataset | separate identities | 27 | 468 | 193.5 |
+| Excluded budget calibration | `calibration` (legacy `pilot`) | 1 per arm/model: 15 | 240 | 105 |
+| Estimation, default 12 | `pilot-estimation` (legacy `first`) | 180 | 3060 | 1395 |
+| Estimation, 21 | `pilot-estimation` | 315 | 5355 | 2441.25 |
+| Estimation, 33 | `pilot-estimation` | 495 | 8415 | 3836.25 |
+| Calibration + default 12, never pooled | separate identities | 195 | 3300 | 1500 |
 
-The estimation pilot has 180 feature, 60 consolidation, 60 review and 18 CR1
-sessions. Limits are 30 minutes per feature, 15 per post-step, 45 per CR1.
+With 12 per cell, estimation has 1800 feature, 360 consolidation, 360 review,
+360 repair and 180 CR1 sessions. Limits are 30 minutes per ordinary feature,
+45 per D feature, 15 per post-step and 45 per CR1. D has no scheduled post-step.
 These are planned sessions, not a maximum call count: an allowed infrastructure
 retry can add a call but shares the original step's aggregate time/credit allowance.
 B-A adds up to 50% feature-cycle agent time; B-C matches post-step ceilings,
 not realised resources or editing permissions. B may add behaviour-pinning
 tests and writes DESIGN.md (at most 300 words); C may only write REVIEW.md.
-Neither contrast identifies pure refactoring or an equal-total-budget effect.
+Neither contrast identifies pure refactoring. B-D is the primary practical
+comparison with equal total feature-cycle time and nominal credits, but not
+equal realised resources or fresh-session count. E-B compares visible
+behavioural repair with behaviour-preserving consolidation. These are packages,
+not isolated mechanisms. The options are prospective operational choices, not
+guarantees of 80% power: 12/21/33 depend on assumed 15/20/25-point variability.
+The code identifies this as `model-stratified-v2-five-arm`; historical ABC
+cohorts retain their own analysis rather than being relabelled.
 
 Model candidates are `gpt-6.1-sol`, `claude-sonnet-5.5` and `gemini-4-argon`.
 On 28 October the owner selected a prospective current-toolchain amendment: CLI 1.0.105,
@@ -65,14 +87,15 @@ calibration/pilot ceiling is **300,000 AI Credits**, including prior spending.
 The original registered nominal allowance is 300/session, not guaranteed billing
 control. On 29 October the owner accepted residual soft-limit overshoot risk.
 The supplied operational settings use a uniform **10% buffer: 270 credits per
-original session** (including any infrastructure retry) and **270,000 local
+original session** (540 for D feature sessions, below 600 nominal;
+including any infrastructure retry) and **270,000 local
 study admission**, leaving 30,000 below the unchanged registered envelope.
 An in-flight response can finish over the CLI limit; neither buffer guarantees
 actual billed consumption. The company hard limit of 1,000,000/collaborator is
 owner-reported, not independently verified or a study-specific stop. A separate
-provider study hard cap is no longer required. Known prior 21.79019 (historical
-smoke 14.54324 plus excluded backend checks 3.05509 and audited P1 check4.19186),
-with1200unknown historical credits held separately, calibration,
+provider study hard cap is no longer required. Known prior 49.74337,
+with 1500 unknown historical credits held separately (see the current
+[prior-data disclosure](prior-data-disclosure.md)), calibration,
 probes and all attempts count; billing-cycle resets do not reset study spending.
 Record [the prospective addendum](prospective-corrections-2026-10-28.md) before
 affected collection. Financial-risk acceptance waives no runtime/access,
@@ -93,7 +116,12 @@ permission/isolation/accounting safeguards and final source-bound freeze remain.
 
 The controller implements the model matrix, immutable assigned-model/replicate
 identity, 270,000-credit local admission stop and bounded infrastructure retries;
-analysis exports primary estimates separately per model. The default finite
+analysis exports the equal-model-weighted primary B-D estimate and secondary
+model-specific comparisons. Summed nominal allowances including calibration
+are 85500*n + 81000 credits: 1,107,000 / 1,876,500 / 2,902,500 for n=12/21/33,
+not permitted expenditure. The full selected design must fit the actual
+remaining admission budget and deadline using cost-only excluded calibration.
+The default finite
 study deadline is 14 days, not a change to the original agent-step allowances.
 `required_evidence.multi_model_harness_alignment` was explicitly owner-accepted
 for `90e393e` on 30 October, together with the other five scientific scopes.
@@ -131,11 +159,23 @@ Fresh session per feature/post/CR1 step, with repository context only. Visible
 examples are copied by the runner, checksummed and restored on tampering.
 Only green committed increments are retained. Undelivered features are reset
 and their examples removed (`drop_examples`); hidden tests stay in the cumulative
-denominator. Failing retained B heads are reset; C edits outside REVIEW.md are
+denominator. B/C/E post-steps still run after unsuccessful delivery; D has none.
+Failing retained B/E heads are reset; C edits outside REVIEW.md are
 rejected. Retain rejected/reset-attempt records separately from repository losses.
+Accepted Python files under `tests/` are immutable in full, including imports,
+fixtures and module/class constants. Add tests only in new files. E alone may
+correct an agent-authored literal expected value on the right of an equality
+assertion, with no other byte changes. Skeleton tests and visible examples
+are never eligible. `REPAIR.json` must bind every changed file's old/new Git
+blob hashes, an exact quote and identifier from the already-visible
+specifications, and a specific explanation. The private journal retains valid
+correction evidence and its retention/rejection status. Unsupported changes
+are rejected, not silently allowed. Quote/provenance checks do not prove the
+claimed semantic contradiction; external semantic adjudication remains
+necessary before interpreting a correction as justified.
 
 Record external hidden results immediately after feature F_t and post-step P_t;
-in A, P_t = F_t without an extra session. End state is final P_10 before CR1.
+in A/D, P_t = F_t without an extra session. End state is final P_10 before CR1.
 CR1 text and tests must be withheld until its dedicated session. Actual local
 hidden/reference/CR1 access and subsequent evaluator-score/message visibility
 must be independently checked; temporary environments are not OS isolation.
@@ -181,8 +221,9 @@ This preserves the fixed denominator and existing genuine-missingness rules.
 ## Endpoint hierarchy and estimands
 
 **H1, practical coverage:** final cumulative hidden pass rate, with every scheduled
-feature in its denominator. Show all run values/ranges and B-A/B-C differences
-of run-level means. Coverage combines acquisition, retention and repair; it is
+feature in its denominator. The primary B-D contrast equally weights all three
+within-model differences of run-level means. Show all run values/ranges and
+secondary model-specific B-D, B-A, B-C and E-B differences. Coverage combines acquisition, retention and repair; it is
 not itself decay. Missing final checkpoints are unavailable, not last-observed
 endpoints. A smaller incomplete implementation is not necessarily better.
 
@@ -203,12 +244,12 @@ Counts, densities and acquisition coverage must be interpreted together.
 Test-weighted counts are not independently replicated capabilities.
 
 **H6, CR1:** success requires all CR1 hidden tests and retention of every
-feature test passing before CR1. Both allocated trajectories per arm/model belong in
+feature test passing before CR1. Every allocated trajectory per arm/model belongs in
 the denominator. Explicitly adjudicated agent-caused terminal inability is a
 failure; infrastructure-caused/unclassified unobserved outcomes are missing.
 Show success and missing counts and lower/upper outcome bounds. With missing
 outcomes, no complete-case risk-difference point estimate is substituted.
-For complete outcomes, show B-A/B-C absolute risk differences. Equal-tailed
+For complete outcomes, show B-D/B-A/B-C/E-B absolute risk differences. Equal-tailed
 97.5% Clopper-Pearson component intervals per arm within model, subtracted at opposite
 endpoints, give at least 95% coverage **per comparison**, not family-wide.
 
@@ -270,14 +311,16 @@ Create `.study/` first if absent. Two repeats and internal backends here are
 production reference baseline. Metrics remain unaccepted; do not calculate
 reference gaps against lizard/jscpd/ruff runs from these internal results.
 
-Show all eighteen values/ranges and model-specific B-A/B-C estimates first.
-Each arm/model has two independent trajectories. Any overall summary is
-exploratory with equal model weights, not a silently pooled primary contrast.
-Primary eligibility is assessed within each full allocated unassisted model
-frame: an incomplete or assisted model does not disable eligible other models.
-Overall allocation/unassisted flags audit the full design; per-model frame flags
-identify eligibility, and an overall primary-availability flag means at least
-one model is eligible. Individual endpoints still require their own observations.
+Each arm/model has the same selected 12, 21 or 33 independent trajectories.
+The primary B-D point estimate equally weights the three within-model
+differences; resample whole trajectories within each model and arm.
+The complete allocated unassisted five-arm frame is required; any incomplete
+or assisted model makes the overall primary unavailable. Do not silently pool
+observed models or complete cases. Secondary model-specific estimates may be
+available for complete model frames, but cannot substitute for the primary.
+Report pooled within-cell coverage SD and its degrees of freedom when observed.
+Historical `model-stratified-v1` ABC cohorts retain the earlier per-model-only
+analysis policy; they are never combined with five-arm cohorts.
 Coverage/cost intervals use 10,000 whole-run resamples within arm within model,
 seed 2027, pointwise 95% percentile
 bounds; fewer than two observations/arm or any undefined draw makes the affected

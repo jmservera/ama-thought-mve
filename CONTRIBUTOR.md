@@ -34,8 +34,11 @@ changed during collection. All freeze, runtime, budget and registration gates
 remain enforced; this candidate is **not yet authorized for collection**.
 
 Progress shows **completed / total steps, remaining steps**, trajectory count,
-model, arm and current step. The registered pilot has 318 planned steps;
-excluded calibration has 150. A completed step can be a measured nonpass:
+model, arm and current step. The prospective five-arm default has 3060 planned
+steps (5355 or 8415 with 21 or 33 replicates per model/arm); excluded calibration
+has 240. The initial interactive launch prompts for 12/21/33, default 12;
+`--replicates N` selects explicitly. Resume cannot change the saved count.
+A completed step can be a measured nonpass:
 progress is not a success rate. Retries do not increase the planned denominator.
 Rerunning the same command resumes only where existing durable-recovery and
 accounting rules permit; it never resets credit usage or bypasses a stop.

@@ -163,6 +163,7 @@ def test_given_agent_authentication_when_agent_command_is_launched_then_its_envi
 ):
     runner_module = importlib.import_module("runner")
     run = runner_module.Run.__new__(runner_module.Run)
+    run.arm = "A"
     run.repo = run.suite_dir = str(tmp_path)
     run.cfg = {
         "agent_command": ["synthetic-agent", "--repo", "{repo}"],

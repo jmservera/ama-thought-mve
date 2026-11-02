@@ -6,14 +6,22 @@ ms.date: 2026-10-26
 
 Tooling for the experiment in *Everything but the Software*, Section 8: does a consolidation step after every feature keep agent-built software working, understandable and changeable, and at what cost?
 
-**Current scope:** an eighteen-trajectory S1 **pilot/estimation study**, not seven
+**Prospective five-arm release:** D/E and researcher-selectable 12/21/33
+replicates (default 12) supersede the historical v4 allocation. See the
+[current amendment and remaining collection gates](protocol/five-arm-amendment-2026-11-02.json).
+Releasing the verified source for OSF does not register it or authorize collection.
+
+**Current scope:** a five-arm S1 **pilot/estimation study**, not seven
 confirmatory hypothesis tests. Start with [the canonical protocol](protocol/pilot-estimation.md)
 and [OSF submission draft](protocol/osf-preregistration.md). Source paper is pinned
 to `196b97644bb9bffa43d41a9921d6a06a93b2699e`, with the owner's explicit
-three-model amendment: GPT 6.1 Sol, Sonnet 5.5 and Gemini 4 Argon, two
-trajectories per arm/model; nine excluded calibration trajectories.
+three-model amendment: GPT 6.1 Sol, Sonnet 5.5 and Gemini 4 Argon.
+The prospective five-arm amendment implements the paper's D (longer delivery)
+and E (visible behavioural repair), with 12/21/33 trajectories per arm/model,
+default 12 (180 study trajectories); 15 excluded calibration trajectories.
 The total ceiling is **300,000 AI Credits**, including prior spend/calibration,
-with fixed 300-credit/session soft caps. Owner approval for preregistration
+with 300-credit nominal session allowances, except D's 600-credit feature step.
+Operational soft thresholds are 270 and 540 respectively. Historical owner approval for preregistration
 submission is recorded on 28 October 2026: document licence CC BY-NC-ND 4.0
 and embargo through 2026-12-31. The original registration is now
 [owner-confirmed approved](https://osf.io/ywsrv/overview).
@@ -51,8 +59,10 @@ resource exhaustion/missingness remains possible under unchanged safeguards.
 bundle, offline checks, read-only user-budget audit and actual launch blockers.
 
 The controller schedules the model-aware allocation, preserves model/replicate
-identity on resume and exports separate primary estimates per model, never a
-pooled primary result. Infrastructure retries share the original step allowances;
+identity on resume. The five-arm primary B-D contrast equally weights the three
+within-model coverage differences, with whole-trajectory stratified resampling;
+per-model and other contrasts are secondary, not substitutes for a missing primary.
+Historical ABC analysis remains separate. Infrastructure retries share the original step allowances;
 measurement retries do not replay agent work. Owner scientific alignment
 and runtime/access acceptance are recorded for their named sources; the final
 replacement source freeze was authorized on 31 October; its exact inputs
@@ -78,7 +88,7 @@ or committing a different source revision.
 ```bash
 ./run-study.sh --smoke --dry-run      # read-only offline preflight and schedule
 ./scripts/bootstrap-vm.sh            # checks only; no installs, sudo or agents
-./run-study.sh --dry-run --phase pilot-estimation  # 18 model-aware trajectories; no agent calls
+./run-study.sh --dry-run --phase pilot-estimation  # default 180 trajectories; no agent calls
 ./run-study.sh --smoke --publish     # explicitly push derived stub results + PR
 ```
 
@@ -99,7 +109,33 @@ update and owner launch authorization, run:
 It uses the **Copilot user already signed in on the host**; no identity or
 credentials are copied into Docker. The local Python environment is selected
 automatically. Progress shows completed/total steps, remaining steps and the
-current model/arm. The default pilot has 318 planned steps.
+current model/arm.
+Before a new interactive estimation launch, the researcher chooses **12, 21 or
+33 independent trajectories per model/arm**; Enter selects **12**. The default
+five-arm allocation is 180 trajectories and 3060 planned sessions. Calibration
+remains one trajectory per model/arm (15 trajectories, 240 sessions).
+
+For unattended execution or a read-only preview:
+
+```bash
+./run-experiment.sh --replicates 12
+./run-experiment.sh --replicates 21 --dry-run
+./run-experiment.sh --replicates 33 --dry-run
+```
+
+The chosen count is saved in immutable study identity and all trajectory
+metadata; resume reuses it and rejects a different count. Choose and record
+the allocation prospectively, never based on observed study results.
+This selection does not establish80%power:12,21and33correspond to different
+assumed variabilities, not measured guarantees. D has one uninterrupted
+45-minute feature session (600 nominal / 540 soft credits) and no post-step.
+E has an ordinary feature session followed by 15-minute visible-specification
+repair, never hidden-test feedback. Accepted Python test files are immutable;
+E's explicit correction exception requires blob-bound visible-specification
+quotes and retained explanations in `REPAIR.json` and the private step journal.
+This provenance validation is not independent semantic adjudication.
+Changing this source requires new source/runtime qualification and prospective
+freeze/registration evidence; the historical published v4does not authorize it.
 Rerun the same command for permitted durable recovery; `--status` shows saved
 progress without model calls.
 
@@ -112,9 +148,10 @@ running models or uploading anything. See the
 
 **Credit limits are soft; the owner accepts the residual financial risk.**
 The supplied settings use a 10% buffer: **270 AI Credits per original session**
+(**540 for D feature sessions**, below the corresponding 600 nominal allowance)
 (shared across any infrastructure retry), below the registered 300, and a
 **270,000-credit local study admission stop**, below the unchanged registered
-300,000-credit envelope. Known prior **21.79019 credits**, calibration, probes and
+300,000-credit envelope. Known prior **49.74337 credits**, calibration, probes and
 every attempt count. [CLI session limits](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/set-session-limit)
 allow an in-flight response to finish **over** the limit; the buffer reduces risk
 but guarantees neither per-session nor total billed consumption. The company
@@ -130,15 +167,27 @@ None produced tool calls or complete usage evidence. On 29 October the owner
 separately approved retaining each 300-credit reservation as an exact
 source/evidence-bound unknown provision. A later excluded Sonnet P1 diagnostic
 also lacked complete billing and retains a fourth 300-credit hold. Known usage is
-now **21.79019**,
+now **49.74337**,
 including **3.05509** from three subsequent successful excluded backend checks
 at `eff4d09` and **4.19186** from the separately authorized audited Sonnet P1
 session (see [prior-data disclosure](protocol/prior-data-disclosure.md));
-**1200 credits** are held separately, not booked as spending or certified zero.
-Known usage plus held budget is **1221.79019**, leaving **268778.20981** within
+the corrected excluded three-model P1 check adds **27.95318** with complete billing.
+The first v4 three-model P1 batch then stopped on overlapping GPT tool requests,
+before verified results. Its uncertified receipt retains a fifth 300-credit hold.
+The owner directed implementation and completion of the excluded check; the
+local correction serializes already-authorized tool calls and makes cleanup
+robust to broken stdin, without widening permissions or isolation.
+**1500 credits** are held separately, not booked as spending or certified zero.
+Known usage plus held budget is **1549.74337**, leaving **268450.25663** within
 the 270000 local admission threshold. Total actual prior usage remains unknown.
 These provisions are not guaranteed billing bounds. Future
 unknown usage still stops new work; live verification and collection gates remain.
+The published v4 freeze/release does not include this local transport correction.
+Corrected paid checks use a separate source-qualified diagnostic manifest, not
+registered collection or a replacement public freeze.
+One corrected P1 cycle each for GPT6.1Sol, Sonnet5.5 and Gemini4Argon produced
+verified native measurements/journals and complete model/effort/usage receipts.
+These checks remain private excluded diagnostics, not study observations.
 
 Evaluator staging uses explicit readable input modes under private parent
 directories, including when the host uses `umask077`. Read-only mounts and

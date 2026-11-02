@@ -1,0 +1,55 @@
+{
+  "schema": "prospective-five-arm-amendment/v1",
+  "status": "owner-requested-implementation-and-conditionally-verified-release",
+  "owner_instructions": [
+    {"date": "2026-11-01", "instruction": "Modify the code to provide the independent researcher a way to choose between the number of replicates (12, 21 or 33) just before running the whole experiment,provide 12 as default"},
+    {"date": "2026-11-01", "instruction": "implement D & E then"},
+    {"date": "2026-11-02", "instruction": "the vm stopped, is there anything we need to continue or can you create a new release to register it on OSF?"}
+  ],
+  "authorized_scope": "Complete interrupted offline validation, retain earlier transport/accounting fixes, publish the verified five-arm source and a new versioned freeze/release with a source-bound prospective OSF packet. Conditional on actual validation, not an instruction to bypass a failed check.",
+  "arms": {
+    "A": "30-minute feature delivery only; 300 nominal credits / 270 soft.",
+    "B": "Ordinary feature followed by 15-minute behaviour-preserving consolidation, additional tests in new files and replacement DESIGN.md; post 300 nominal / 270 soft.",
+    "C": "Ordinary feature followed by 15-minute read-only review and replacement REVIEW.md; post 300 nominal / 270 soft.",
+    "D": "One uninterrupted 45-minute feature delivery session, 600 nominal / 540 soft; no post session. CR1 remains 45 minutes and 300 nominal / 270 soft.",
+    "E": "Ordinary feature followed by 15-minute repair of already-visible specified behaviour; post 300 nominal / 270 soft. No hidden feedback, future feature or early CR1 access."
+  },
+  "replicates_per_model_arm": {"default": 12, "options": [12, 21, 33], "selection": "Prospective, persisted, immutable on resume and never selected from observed outcomes."},
+  "independent_unit": "Fresh repository trajectory, not its features, tests or sessions.",
+  "analysis_design": "model-stratified-v2-five-arm",
+  "primary": "Final P10 coverage, equal weights over all three within-model B-D mean differences. Whole trajectories resampled within model and arm, 10000 draws with seed2027, pointwise percentile intervals. Incomplete/assisted allocated frames or missing final coverage make the primary unavailable; no observed-model pooling or complete-case substitution.",
+  "secondary_comparisons": ["B-D within model", "B-A", "B-C", "E-B"],
+  "historical_analysis": "Historical ABC/v1 cohorts remain separately analyzed under their declared design; never relabelled, mixed or pooled into the five-arm frame.",
+  "accepted_tests": "Accepted Python test files immutable in full; additions in new files. E alone may change literal expected values on the right of equality assertions in agent-authored tests, retaining every other byte and recording old/new blob hashes, exact already-visible specification id/quote and explanation. Examples and skeleton tests never qualify.",
+  "E_adjudication_limit": "Provenance and quote validation are not independent semantic adjudication. Retain correction evidence in the private step journal and externally review alleged specification contradictions before interpreting corrections as justified.",
+  "resources": {
+    "study_trajectories": "15*n",
+    "study_sessions": "255*n",
+    "study_maximum_agent_hours": "116.25*n",
+    "excluded_calibration_trajectories": 15,
+    "excluded_calibration_sessions": 240,
+    "excluded_calibration_maximum_agent_hours": 105,
+    "combined_nominal_session_allowance_credits": "85500*n+81000; summed allowances, NOT permitted spending",
+    "aggregate_envelope_credits": 300000,
+    "local_admission_credits": 270000,
+    "known_prior_credits": 49.74337,
+    "unknown_historical_holds_credits": 1500,
+    "soft_limits_are_not_billing_guarantees": true,
+    "retry_rule": "One documented infrastructure-only retry shares the original aggregate time/credit allowance; never retry poor outcomes or top up an exhausted/subminimum allowance."
+  },
+  "power_limit": "12/21/33 correspond to conditional SD assumptions15/20/25points for a ten-point effect, not interchangeable80%-power guarantees or measured variance. No guaranteed power claim.",
+  "validation_policy": "Final source-bound containment receipt and complete offline harness/SDK validation are required for publication. Evidence hashes/counts live in the immutable release packet and freeze manifest. Local tests are not hosted CI or independent human review.",
+  "historical_runtime_evidence": "Unchanged image090220 retains earlier Expat-removal/build/scan proofs with their original dates/scopes. New source qualification does not relabel old scans or paid diagnostics as fresh five-arm paid validation.",
+  "remaining_collection_gates": [
+    "Actual prospective OSF recording for the released five-arm source and selected allocation",
+    "Fresh operator access/model/effort/complete-billing and intervention evidence",
+    "Excluded cost-only calibration and full selected-design affordability/deadline acceptance; halt and amend rather than silently shrink the sample",
+    "Explicit owner permission to launch collection"
+  ],
+  "token_telemetry_limit": "Certified AI credits are the primary resource measure. The current isolated bridge does not supply complete input/output/cache token counts; token comparisons remain unavailable, never inferred as zero.",
+  "historical_tags_and_attachments_preserved": true,
+  "independent_human_review_completed": false,
+  "new_paid_calls_authorized": false,
+  "collection_authorized": false,
+  "osf_action_performed": false
+}

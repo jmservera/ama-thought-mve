@@ -80,9 +80,12 @@ async function runFake(options = {}, req = request(), limits) {
       const record = JSON.parse(buffer.slice(0, newline));
       records.push(record);
       buffer = buffer.slice(newline + 1);
-      if (record.type === 'tool' && !options.noToolResult)
-        input.write(JSON.stringify({ type: 'tool_result', id: record.id,
+      if (record.type === 'tool' && !options.noToolResult) {
+        const reply = () => input.write(JSON.stringify({ type: 'tool_result', id: record.id,
           result: { stdout: 'bounded output', stderr: '', exit_code: 0 } }) + '\n');
+        if (options.delayToolResult) setImmediate(reply);
+        else reply();
+      }
     }
   });
   const runtime = fakeRuntime(options);
@@ -475,7 +478,7 @@ test('parent disconnect and original deadline abort hanging SDK work and reap ow
   input.destroy();
 });
 
-test('invalid tool arguments are safe errors; pending-tool/correlation violations abort', async () => {
+test('invalid arguments are rejected, parallel tools serialize and correlation violations abort', async () => {
   let invalid;
   const safe = await runFake({ async action(config) {
     invalid = await config.tools[0].handler({ command: 'pwd', timeoutSeconds: 999, host: '/' },
@@ -484,14 +487,18 @@ test('invalid tool arguments are safe errors; pending-tool/correlation violation
   assert.equal(invalid.resultType, 'rejected');
   assert.equal(safe.exitCode, 0);
   assert.equal(validateArguments({ command: 'x', timeoutSeconds: 2 }, 1), false);
-  const concurrent = await runFake({ noToolResult: true, async action(config) {
+  let results;
+  const concurrent = await runFake({ delayToolResult: true, async action(config) {
     const call = id => config.tools[0].handler({ command: 'pwd', timeoutSeconds: 1 },
       { sessionId: config.sessionId, toolName: 'isolated_exec', toolCallId: id });
-    await Promise.all([call('one'), call('two')]);
+    results = await Promise.all([call('one'), call('two')]);
   } });
-  assert.equal(concurrent.receipt.protocol_error, 'pending_tool_limit');
+  assert.equal(concurrent.exitCode, 0);
+  assert.deepEqual(concurrent.records.filter(record => record.type === 'tool').map(record => record.id),
+    ['one', 'two']);
+  assert.ok(results.every(result => result.resultType === 'success'));
   assert.equal(concurrent.state.closed, 1);
-  assert.equal(concurrent.receipt.usage.totalNanoAiu, null);
+  assert.equal(concurrent.receipt.usage.totalNanoAiu, 123);
   const input = new PassThrough();
   const output = new PassThrough();
   output.resume();
@@ -506,6 +513,31 @@ test('invalid tool arguments are safe errors; pending-tool/correlation violation
   assert.equal(runtime.state.closed, 1);
   input.destroy();
   output.destroy();
+});
+
+test('queued tools obey the original deadline, abort promptly and cannot reuse identities', async () => {
+  for (const mode of ['deadline', 'abort', 'duplicate']) {
+    const controller = new AbortController();
+    let results;
+    let handlers;
+    const outcome = await runFake({ noToolResult: true, async action(config) {
+      const call = id => config.tools[0].handler({ command: 'pwd', timeoutSeconds: 0.01 },
+        { sessionId: config.sessionId, toolName: 'isolated_exec', toolCallId: id,
+          signal: id === 'two' ? controller.signal : undefined });
+      handlers = Promise.all([call('one'), call(mode === 'duplicate' ? 'one' : 'two')]);
+      if (mode === 'abort') setImmediate(() => controller.abort());
+      results = await handlers;
+    } }, request({ remainingSeconds: 0.1 }));
+    await handlers;
+    assert.equal(outcome.receipt.protocol_error, {
+      deadline: 'original_deadline_exhausted', abort: 'sdk_tool_aborted',
+      duplicate: 'invalid_tool_call_id',
+    }[mode]);
+    assert.equal(outcome.receipt.usage.credits_complete, false);
+    assert.equal(outcome.state.closed, 1);
+    assert.ok(results.every(result => result.resultType === 'failure' || result.resultType === 'denied'));
+    assert.ok(outcome.records.filter(record => record.type === 'tool').length <= 1);
+  }
 });
 
 test('runtime setup creates missing sterile parents; strict startup failures precede sessions', async () => {

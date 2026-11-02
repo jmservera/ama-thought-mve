@@ -47,6 +47,11 @@ def main():
             print(f"feature {k} committed")
         else:
             print(f"feature {k}: tests fail, not committing\n{r.stdout[-500:]}")
+    elif "Repair previously specified behaviour" in p:
+        with open(os.path.join(repo, "REPAIR.json"), "w") as f:
+            f.write('{"corrections": []}\n')
+        r = sh("./tcr 'visible repair check'", repo)
+        print(r.stdout, r.stderr)
     elif "Do not add or change features" in p:
         with open(os.path.join(repo, "DESIGN.md"), "w") as f:
             f.write("# Design\n\nAll rules live in src/workbench/__init__.py. Known debt: one module.\n")

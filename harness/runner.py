@@ -1,7 +1,7 @@
 """Run one arm of the feature-consolidation experiment on one suite.
 
 Usage:
-  python3 runner.py --config config.json --suite ../suites/s1-retrofit --arm A|B|C --run-id s1-A-01 \
+  python3 runner.py --config config.json --suite ../suites/s1-retrofit --arm A|B|C|D|E --run-id s1-A-01 \
                     [--features 8] [--phase pilot|first|main] [--no-cr] [--allow-draft]
 
 Every step is a fresh agent session; context travels only through the repository. The runner
@@ -9,6 +9,7 @@ enforces the protocol: uncommitted work is discarded, a red head is reset, examp
 restored if tampered with, and review-only steps may change nothing but REVIEW.md.
 """
 import argparse
+import ast
 import datetime as dt
 import glob
 import json
@@ -24,6 +25,7 @@ from pilot_analysis import collection_role
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
+POST_KINDS = {"A": None, "B": "consolidation", "C": "review", "D": None, "E": "repair"}
 
 
 def sh(args, cwd, check=True, env=None):
@@ -65,12 +67,43 @@ def render(template, values):
     return out
 
 
+def expectation_only_correction(old, new):
+    """Only literal expected values in equality assertions may use E's exception."""
+    def masked(text):
+        source = text.encode("utf-8")
+        lines = source.splitlines(keepends=True)
+        offsets = [0]
+        for line in lines:
+            offsets.append(offsets[-1] + len(line))
+        spans = []
+        for node in ast.walk(ast.parse(source)):
+            if (not isinstance(node, ast.Assert) or not isinstance(node.test, ast.Compare)
+                    or len(node.test.ops) != 1 or not isinstance(node.test.ops[0], ast.Eq)):
+                continue
+            expected = node.test.comparators[0]
+            try:
+                ast.literal_eval(expected)
+            except (ValueError, TypeError):
+                continue
+            spans.append((offsets[expected.lineno - 1] + expected.col_offset,
+                          offsets[expected.end_lineno - 1] + expected.end_col_offset))
+        for start, end in sorted(spans, reverse=True):
+            source = source[:start] + b"<expected-literal>" + source[end:]
+        return source
+    try:
+        return old != new and masked(old) == masked(new)
+    except (SyntaxError, ValueError):
+        return False
+
+
 class Run:
     def __init__(self, a):
         self.cfg = json.load(open(a.config, encoding="utf-8"))
         self.suite_dir = os.path.abspath(a.suite)
         self.suite = json.load(open(os.path.join(self.suite_dir, "suite.json"), encoding="utf-8"))
         self.arm = a.arm
+        if self.arm not in POST_KINDS:
+            raise ValueError("Unsupported experiment arm")
         self.run_id = a.run_id
         self.phase = a.phase
         self.assigned_model = getattr(a, "assigned_model", None)
@@ -78,6 +111,7 @@ class Run:
         self.replicate = getattr(a, "replicate", None)
         self.study_id = getattr(a, "study_id", None)
         self.diagnostic = getattr(a, "diagnostic", None)
+        self.replicates_per_model_arm = getattr(a, "replicates_per_model_arm", None)
         if self.assigned_model is not None:
             self.cfg["agent_values"] = dict(self.cfg.get("agent_values", {}), model=self.assigned_model)
         self.n = a.features or self.cfg.get("features", 10)
@@ -94,7 +128,9 @@ class Run:
         if len(feats) < self.n:
             sys.exit(f"Suite has only {len(feats)} features")
         self.features = feats
-        self.budgets = self.cfg["budgets_seconds"]
+        self.budgets = dict(self.cfg["budgets_seconds"])
+        if self.arm == "D":
+            self.budgets["feature"] += self.budgets["post"]
         os.environ.setdefault("MVE_HARNESS", HERE)
         self.env_extra = {k: os.path.expandvars(v) for k, v in self.cfg.get("env", {}).items()}
         self.steps_path = os.path.join(self.dir, "steps.jsonl")
@@ -125,11 +161,14 @@ class Run:
                 versions[name] = f"unavailable: {e}"
         meta = {"run_id": self.run_id, "arm": self.arm, "phase": self.phase, "suite": self.suite["name"],
                 "collection_role": collection_role({"phase": self.phase}),
+                "effective_budgets_seconds": self.budgets,
                 "features": self.n, "change_request": self.do_cr, "started": dt.datetime.now(dt.timezone.utc).isoformat(),
                 "config": self.cfg, "versions": versions}
         if self.analysis_design is not None:
             meta.update(assigned_model=self.assigned_model, analysis_design=self.analysis_design,
                         replicate=self.replicate)
+            if self.replicates_per_model_arm is not None:
+                meta["replicates_per_model_arm"] = self.replicates_per_model_arm
         if self.study_id is not None:
             meta.update(study_id=self.study_id, diagnostic=self.diagnostic)
         meta_path = os.path.join(self.dir, "run.json")
@@ -165,11 +204,15 @@ class Run:
             shutil.copy(p, os.path.join(self.repo, "tests", "examples"))
         return [os.path.basename(p) for p in files]
 
-    def restore_examples(self, upto_ids):
+    def restore_examples(self, upto_ids, accepted_ref=None):
         changed = []
         for fid in upto_ids:
             kind = "features" if not fid.startswith("cr") else ""
             for p in glob.glob(os.path.join(self.suite_dir, kind, fid, "examples", "*.py")):
+                if accepted_ref and git(self.repo, "cat-file", "-e",
+                                        f"{accepted_ref}:tests/examples/{os.path.basename(p)}",
+                                        check=False).returncode:
+                    continue
                 target = os.path.join(self.repo, "tests", "examples", os.path.basename(p))
                 if not os.path.exists(target) or open(target, "rb").read() != open(p, "rb").read():
                     shutil.copy(p, target)
@@ -186,6 +229,8 @@ class Run:
                   "copilot_home": os.path.join(step_dir, "copilot-home"), "suite": self.suite_dir, "harness": HERE,
                   "uid": str(os.getuid()), "gid": str(os.getgid()),
                   **{k: str(v) for k, v in self.cfg.get("agent_values", {}).items()}}
+        if self.arm == "D" and os.path.basename(step_dir).endswith("-feature"):
+            values["max_credits"] = str(2 * int(values.get("max_credits", "270")))
         cmd = [render(x, values) for x in self.cfg["agent_command"]]
         env = self.env()
         env.update({k: render(v, values) for k, v in self.cfg.get("agent_env", {}).items()})
@@ -248,6 +293,61 @@ class Run:
         print(f"[{self.run_id}] {rec['step']}: delivered={rec.get('delivered')} hidden={hm.get('hidden_passed')}/"
               f"{hm.get('hidden_total')} violations={rec.get('violations')}", flush=True)
 
+    def visible_specifications(self, k):
+        return {feat["id"]: "\n".join([feat["title"], feat["story"], *feat["rules"],
+                                       *feat.get("api", [])]) for feat in self.features[:k]}
+
+    def accepted_test_changes(self, before):
+        """Protect complete accepted Python files, not just test function bodies."""
+        old = git(self.repo, "ls-tree", "-r", "-z", before, "--", "tests").stdout.split("\0")
+        changes = []
+        for line in old:
+            if not line:
+                continue
+            entry, path = line.split("\t", 1)
+            if not path.endswith(".py") or path.startswith("tests/examples/"):
+                continue
+            current = git(self.repo, "ls-tree", "-z", "HEAD", "--", path).stdout.rstrip("\0")
+            if current != line:
+                changes.append((path, entry.split()))
+        return changes
+
+    def test_policy_violations(self, before, k, *, repair=False):
+        self.test_corrections = []
+        changes = self.accepted_test_changes(before)
+        if not changes:
+            return []
+        if not repair:
+            return ["accepted Python test files modified; step reset"]
+        try:
+            with open(os.path.join(self.repo, "REPAIR.json"), encoding="utf-8") as stream:
+                corrections = json.load(stream)["corrections"]
+            if not isinstance(corrections, list) or len(corrections) != len(changes):
+                raise ValueError("Correction frame differs")
+            by_path = {item["path"]: item for item in corrections}
+            if len(by_path) != len(changes) or set(by_path) != {path for path, _ in changes}:
+                raise ValueError("Correction paths differ")
+            specs = self.visible_specifications(k)
+            root = git(self.repo, "rev-list", "--max-parents=0", before).stdout.strip()
+            for path, old_entry in changes:
+                item = by_path[path]
+                current = git(self.repo, "ls-tree", "HEAD", "--", path).stdout.split()
+                if (len(current) < 3 or current[0] not in ("100644", "100755")
+                        or current[0] != old_entry[0]
+                        or git(self.repo, "ls-tree", root, "--", path).stdout.strip()
+                        or item["before_blob"] != old_entry[2] or item["after_blob"] != current[2]
+                        or not expectation_only_correction(
+                            git(self.repo, "show", f"{before}:{path}").stdout,
+                            git(self.repo, "show", f"HEAD:{path}").stdout)
+                        or not isinstance(item["quote"], str) or not item["quote"].strip()
+                        or item["quote"] not in specs[item["specification"]]
+                        or not isinstance(item["explanation"], str) or not item["explanation"].strip()):
+                    raise ValueError("Correction lacks specification-bound evidence")
+        except (OSError, ValueError, KeyError, TypeError):
+            return ["accepted test correction lacks valid visible-specification evidence; repair reset"]
+        self.test_corrections = corrections
+        return []
+
     # ------------------------------------------------------------------ steps
     def feature_step(self, k, feat):
         step = f"f{k:02d}-feature"
@@ -264,12 +364,13 @@ class Run:
         res = self.run_agent(prompt, sd, self.budgets["feature"])
         self.discard_uncommitted()
         violations = []
-        restored = self.restore_examples([f["id"] for f in self.features[:k]])
+        violations += self.test_policy_violations(start, k)
+        restored = self.restore_examples([f["id"] for f in self.features[:k]], start)
         if restored:
             violations.append(f"examples modified: {', '.join(restored)}")
             git(self.repo, "add", "-A")
             git(self.repo, "commit", "-q", "-m", "runner: restore example tests")
-        delivered = head(self.repo) != start and self.is_green()
+        delivered = not violations and head(self.repo) != start and self.is_green()
         if not delivered:
             if head(self.repo) != start:
                 violations.append("committed while tests failed; reset")
@@ -284,14 +385,17 @@ class Run:
                      "violations": violations, "measure": m})
 
     def post_step(self, k):
-        if self.arm == "A":
+        if POST_KINDS[self.arm] is None:
             return
-        kind = "consolidation" if self.arm == "B" else "review"
+        kind = POST_KINDS[self.arm]
         step = f"f{k:02d}-{kind}"
         sd = os.path.join(self.dir, "steps", step)
         before = head(self.repo)
-        tmpl = "consolidation-step.prompt.md" if self.arm == "B" else "review-only-step.prompt.md"
-        prompt = render(load_prompt(tmpl), {"consolidation_budget": fmt_minutes(self.budgets["post"])})
+        tmpl = {"B": "consolidation-step.prompt.md", "C": "review-only-step.prompt.md",
+                "E": "repair-step.prompt.md"}[self.arm]
+        prompt = render(load_prompt(tmpl), {
+            "consolidation_budget": fmt_minutes(self.budgets["post"]),
+            "visible_specifications": json.dumps(self.visible_specifications(k), indent=2)})
         res = self.run_agent(prompt, sd, self.budgets["post"])
         violations = []
         if self.arm == "C":
@@ -312,15 +416,21 @@ class Run:
                 git(self.repo, "commit", "-q", "-m", "runner: review notes", check=False)
         else:
             self.discard_uncommitted()
-            restored = self.restore_examples([f["id"] for f in self.features[:k]])
+            violations += self.test_policy_violations(before, k, repair=self.arm == "E")
+            restored = self.restore_examples([f["id"] for f in self.features[:k]], before)
             if restored:
-                violations.append(f"examples modified: {', '.join(restored)}; consolidation reset")
+                violations.append(f"examples modified: {', '.join(restored)}; {kind} reset")
+            if violations:
                 git(self.repo, "reset", "-q", "--hard", before)
             elif not self.is_green():
-                violations.append("consolidation left the head red; reset")
+                violations.append(f"{kind} left the head red; reset")
                 git(self.repo, "reset", "-q", "--hard", before)
         m = self.measure(k, sd, before)
         self.record({"step": step, "k": k, "kind": kind, "agent": res, "violations": violations, "measure": m,
+                     **({"test_corrections": self.test_corrections,
+                         "corrections_retained": not violations,
+                         "semantic_adjudication": "not independently adjudicated"}
+                        if self.arm == "E" else {}),
                      "commits": int(git(self.repo, "rev-list", "--count", f"{before}..HEAD").stdout.strip() or 0)})
 
     def change_request(self):
@@ -338,12 +448,13 @@ class Run:
         res = self.run_agent(prompt, sd, self.budgets["change_request"])
         self.discard_uncommitted()
         violations = []
-        restored = self.restore_examples([f["id"] for f in self.features] + [cr["id"]])
+        violations += self.test_policy_violations(start, self.n)
+        restored = self.restore_examples([f["id"] for f in self.features] + [cr["id"]], start)
         if restored:
             violations.append(f"examples modified: {', '.join(restored)}")
             git(self.repo, "add", "-A")
             git(self.repo, "commit", "-q", "-m", "runner: restore example tests")
-        delivered = head(self.repo) != start and self.is_green()
+        delivered = not violations and head(self.repo) != start and self.is_green()
         if not delivered:
             git(self.repo, "reset", "-q", "--hard", start)
         m = self.measure(self.n, sd, start, cr=True)
@@ -367,7 +478,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
     ap.add_argument("--suite", required=True)
-    ap.add_argument("--arm", required=True, choices=["A", "B", "C"])
+    ap.add_argument("--arm", required=True, choices=list(POST_KINDS))
     ap.add_argument("--run-id", required=True)
     ap.add_argument("--features", type=int)
     ap.add_argument("--phase", default="pilot-estimation",
