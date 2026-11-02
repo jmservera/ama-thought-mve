@@ -1,5 +1,13 @@
 # Submission readiness and precollection review assignment
 
+**Historical review/decision record:** the dated source acceptances and 18/9
+allocation below describe the earlier ABC design only. They are not current
+five-arm allocation or acceptance. Use [the current protocol](pilot-estimation.md),
+[the five-arm amendment](five-arm-amendment-2026-11-02.json) and
+[the current freeze](freeze.json) for A/B/C/D/E, prospective 12/21/33 selection
+(default 12), the B-D primary contrast and final qualification. The current
+registration remains unrecorded; historical OSF approval does not register it.
+
 **Original registration owner-confirmed approved on 28 October 2026;
 corrected candidate not execution-ready.**
 **Current scientific policy, 30 October:** all six scopes were individually

@@ -3,10 +3,16 @@
 Start with [pilot-estimation.md](pilot-estimation.md) and
 [osf-preregistration.md](osf-preregistration.md).
 [pilot-estimation.json](pilot-estimation.json) is the machine-readable design
-and owner-decision ledger. Choices now specify three models, two trajectories
-per arm/model (18 pilot plus nine excluded calibration), and 300,000 total
-AI Credits as the nominal registered envelope. The 29 October owner-accepted
-soft-limit policy uses 270/session and 270,000 local admission (10% buffers);
+and owner-decision ledger. The current prospective design has five arms
+(A/B/C/D/E), three models and researcher-selectable 12/21/33 trajectories per
+model/arm, default 12. The default has 180 study trajectories / 3,060 sessions
+plus 15 excluded calibration trajectories / 240 sessions. Declare the selection
+prospectively and preserve it on resume; never choose it from outcomes.
+The aggregate envelope remains 300,000 AI Credits, with 270,000 local admission.
+Ordinary sessions use 300 nominal / 270 soft credits; D's uninterrupted
+45-minute feature uses 600 / 540, resource-matched to B's feature plus
+consolidation. Summed nominal allowances are not spending permission.
+The 29 October owner-accepted soft-limit risk policy remains applicable:
 in-flight responses can exceed soft limits, so billed consumption is not
 guaranteed. The much larger company hard limit is owner-reported, not verified
 study enforcement. See [collaborator instructions](../CONTRIBUTOR.md#billing-soft-limits-and-the-accepted-risk).
@@ -26,15 +32,24 @@ executor supplies operational separation, not scientific or security auditing.
 See [the runtime decision record](runtime-acceptance-2026-10-30.json).
 This changes review sign-off policy, not actual runtime safeguards.
 
-The controller/analysis implement model-aware scheduling and separate primary
-estimates per model, with immutable assigned-model/replicate identity. Required
-`multi_model_harness_alignment` is owner-accepted on the reviewed source;
-runtime/access acceptance is separately recorded. After merging #4 the owner
-authorized the source-bound [freeze manifest](freeze.json); its prospective
-OSF completion date stays unset until the actual amendment is recorded.
+The controller/analysis implement five-arm model-aware scheduling, immutable
+assigned-model/design/replicate identity and a primary equal-model-weighted B-D
+final P10 coverage contrast with whole-trajectory resampling. Historical ABC
+cohorts remain separate; earlier model-specific primary analyses and owner
+acceptances retain their original scope, not automatic five-arm acceptance.
+The [five-arm amendment](five-arm-amendment-2026-11-02.json) records the current
+owner instructions, resources, narrow E correction policy and limitations.
+The source-bound [freeze manifest](freeze.json) records current offline
+qualification; its prospective OSF completion date stays unset until the actual
+registration/update is recorded. The original registration does not register
+this new source. Complete token comparisons and independent semantic
+adjudication of E's claimed test corrections are not supplied by the harness.
 Final OSF recording and separate launch authorization remain.
 An updated draft does not authorise the expanded study.
-These are precollection safeguards, **not ordinary OSF submission requirements**.
+Excluded cost-only calibration, full selected-design affordability/deadline
+acceptance, fresh pinned-toolchain/operator evidence and explicit launch
+permission remain mandatory. These are precollection safeguards,
+**not ordinary OSF submission requirements**.
 The owner authorised submitting an honestly unreviewed plan on 28 October 2026,
 with actual approval of 235489c content plus selected metadata now recorded.
 The selected document licence is CC BY-NC-ND 4.0, with embargo through
