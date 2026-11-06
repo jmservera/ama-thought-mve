@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "five-arm-source-frozen-pending-prospective-osf-recording",
+  "status": "five-arm-source-frozen-osf-update-recorded-allocation-pending",
   "commit": "7de2f0d42955c62b52906747de480df2b3f1e0ca",
   "tag": "protocol-frozen-v6",
   "tag_object": "d97f804e0bcf1f95084452ee3aab91631131bd4f",
@@ -33,11 +33,11 @@
     "osf_registration_asserted": false
   },
   "historical_unregistered_code_freezes": ["protocol-frozen-v2", "protocol-frozen-v3"],
-  "registration_url": "https://osf.io/ywsrv/",
-  "registration_url_semantics": "Owner-reported original registration link only; not evidence of v4/v5 registration. Record the actual prospective five-arm completion reference and selected allocation before affected collection.",
-  "registration_date": null,
-  "registration_date_semantics": "Actual prospective registration/update completion for this released five-arm source, not the original registration date. Deliberately unset; the native freeze gate blocks collection.",
-  "prospective_osf_update_recorded": false,
+  "registration_url": "https://osf.io/ywsrv/overview",
+  "registration_url_semantics": "Owner-confirmed original registration and approved five-arm update. The owner supplied the displayed update text and confirmed approval; this is not independently verified. It does not assert v4/v5 registration. Record the selected allocation prospectively before affected collection.",
+  "registration_date": "2026-11-06",
+  "registration_date_semantics": "Date displayed for the owner-confirmed approved five-arm OSF update, not the original registration date. Exact approval time is not independently verified.",
+  "prospective_osf_update_recorded": true,
   "original_registration": {
     "source_commit": "763945bce239529b6a3e802e50dc7cf61c2736cf",
     "url": "https://osf.io/ywsrv/",
@@ -72,12 +72,13 @@
     "separate_executor_is_operational_separation_only": true
   },
   "remaining_collection_gates": [
-    "Actual prospective OSF completion for this exact five-arm source and selected allocation",
+    "Prospectively select and record the 12, 21 or 33 replicates per model/arm before affected collection",
     "Fresh operator access/model/effort/complete-billing and intervention evidence with pinned CLI 1.0.105/SDK 1.0.28",
     "Excluded cost-only calibration and full selected-design affordability/deadline acceptance",
     "Explicit owner permission to launch collection"
   ],
   "collection_authorized": false,
   "new_paid_calls_authorized": false,
-  "osf_action_performed": false
+  "osf_action_performed": true,
+  "osf_action_semantics": "The owner reported performing the approved OSF update; the release preparation itself did not perform an OSF action."
 }
