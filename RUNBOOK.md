@@ -186,11 +186,13 @@ rebuilt image as a new candidate: preserve the v6 tag, manifest and receipt,
 and obtain fresh exact-source qualification, owner acceptance and prospective
 freeze/registration evidence before collection. Do not copy a candidate receipt
 over the v6 receipt merely to clear preflight.
+Run the following checks in a separate candidate checkout with no existing
+`.study/runtime-canary.json`; the actual-image tests read that exact path.
 
 ```bash
 docker build --quiet -f harness/Dockerfile.isolated -t mve-isolated:CANDIDATE harness
 image="$(docker image inspect --format '{{.Id}}' mve-isolated:CANDIDATE)"
-.venv/bin/python -B harness/isolation_canary.py --image "$image" --out .study/runtime-canary-CANDIDATE.json
+.venv/bin/python -B harness/isolation_canary.py --image "$image" --out .study/runtime-canary.json
 MVE_TEST_ISOLATED_IMAGE="$image" .venv/bin/python -B -m pytest -p no:cacheprovider \
   harness/tests/test_isolated_runtime.py -q
 ```
