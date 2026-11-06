@@ -181,28 +181,26 @@ Install and check the local SDK as described in
 named image from the **harness** build context, then verify actual offline
 containment and frozen-reference evaluation without a model session:
 
+The signer-key repair changes v6 execution inputs. Treat this source and any
+rebuilt image as a new candidate: preserve the v6 tag, manifest and receipt,
+and obtain fresh exact-source qualification, owner acceptance and prospective
+freeze/registration evidence before collection. Do not copy a candidate receipt
+over the v6 receipt merely to clear preflight.
+
 ```bash
-docker build --quiet --target security-qualification -f harness/Dockerfile.isolated \
-  -t mve-security-qualification:CANDIDATE harness
-docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
-  mve-security-qualification:CANDIDATE
 docker build --quiet -f harness/Dockerfile.isolated -t mve-isolated:CANDIDATE harness
 image="$(docker image inspect --format '{{.Id}}' mve-isolated:CANDIDATE)"
-.venv/bin/python -B harness/isolation_canary.py --image "$image" --out .study/runtime-canary.json
+.venv/bin/python -B harness/isolation_canary.py --image "$image" --out .study/runtime-canary-CANDIDATE.json
 MVE_TEST_ISOLATED_IMAGE="$image" .venv/bin/python -B -m pytest -p no:cacheprovider \
   harness/tests/test_isolated_runtime.py -q
 ```
 
-The qualification target contains build tools, not the study runtime. It runs
-the unchanged util-linux upstream suite as an ordinary user in an ordinary Docker
-container, where upstream's existing container/hardware preconditions apply.
-Retain skips and known failures in the evidence; a successful root package build
-alone is not this qualification. Do not change tests or relax Docker permissions
-to obtain a pass. The runtime build also tests the actual patched openat2 wrapper:
-a regular file opens, while an ordinary symlink must fail with `ELOOP`.
-Only the selected rebuilt Debian packages enter the final image; compiler and
-build dependencies do not. Custom package versions retain the `+mve1` suffix;
-they are local backports, not official Debian security releases.
+The image build uses distinct Git and BusyBox signer identities, keeps their
+public keys in separate staging directories and refuses missing keys or
+conflicting key names. APK signature
+verification remains enabled. Do not bypass it or publish intermediate builder
+images, which contain private build signing keys. Passing the image build and
+offline checks does not itself constitute runtime or scientific acceptance.
 
 Replace `CANDIDATE` with a fresh operator-owned tag; do not overwrite unrelated
 images. Record the immutable content ID, not merely the tag. Base and primary
