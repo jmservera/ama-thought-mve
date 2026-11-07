@@ -307,3 +307,30 @@ recorded repository chronology and uncertainty disclosure. It does not resolve
 independent scientific acceptance, actual runtime/access evidence, final owner
 approval or registration. Preserve original artifacts and any later recovered
 raw chronology; disclose corrections prospectively rather than backdating.
+
+## 7 November excluded short-calibration interruptions
+
+Two excluded short-calibration runs at
+`9bac3a1d873996542c29663389e6bcaea1c77383` stopped after the SDK emitted
+`tool.execution_start` for `create`. Both matching completions reported that
+the tool did not exist, but incomplete terminal usage left one charge unknown
+per run. The runs recorded 59.6193 and 70.18719 confirmed credits, respectively;
+their unknown reservations are 600 and 300 credits, not measured charges.
+Their preserved state SHA-256 values are
+`68133c5094f991b4435b2e76d77b2b4401a785445d7ddc3ff178db9591d56961`
+and `f1de80d76652fa1195c9a7f8c3401c368afdf0c6d283cf1c34650518d100c60c`.
+The owner separately approved retaining the 600-credit hold and, on 7 November,
+the additional 300-credit hold. Together with previously held reservations,
+3,000 credits remain held; known prior usage totals 275.97981 credits. The
+owner approved reducing the new local admission ceiling to 269,100 credits
+while retaining the separately listed 2,100-credit historical provisions. This
+preserves the original 270,000-credit local ceiling without treating either
+additional hold as a charge. It is not a provider-enforced billing limit.
+
+After observing these excluded runs, the transport was changed to check the
+live isolated-only tool catalog and accept only a correlated, exact
+nonexistent-`create` completion. The actual work tool remains `isolated_exec`,
+which runs inside the isolated container; built-in host tools remain unavailable.
+These runs and the resulting change are not preregistered. Their raw evidence,
+unknown charges and reservations remain separate from any later calibration or
+estimation data; publication must identify the exact source used for each.
