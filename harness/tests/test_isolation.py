@@ -232,5 +232,6 @@ def test_export_counts_only_commits_after_trusted_seed_with_existing_history(tmp
     seed_head = helper.git("rev-parse", "HEAD").decode().strip()
     assert helper.export_child(seed_head=seed_head)["commit_count"] == 0
     for message in ("first consolidation commit", "second consolidation commit"):
-        helper.git("commit", "--allow-empty", "-qm", message)
+        helper.git("-c", "user.name=Isolated candidate", "-c", "user.email=candidate@invalid",
+                   "commit", "--allow-empty", "-qm", message)
     assert helper.export_child(seed_head=seed_head)["commit_count"] == 2
