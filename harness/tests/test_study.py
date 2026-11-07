@@ -109,6 +109,27 @@ def test_historical_hold_cannot_be_forged_or_reused(study, tmp_path):
             study.reserve(current.state["ledger"], original["attempt_id"], 0)
 
 
+def test_interrupted_calibration_hold_preserves_prior_and_blocks_new_unknown(study, tmp_path):
+    cfg = study.read_json(ROOT / "harness/study-config.json")
+    study.validate_config(cfg, smoke=False)
+    with pytest.raises(study.StudyError, match="confirmed known prior"):
+        study.validate_config(dict(cfg, prior_credits="146.173319999"), smoke=False)
+    current = study.Controller(tmp_path, cfg, smoke=False, phase="calibration", study_id="short-hold",
+                               short_calibration=True)
+    ledger = current.state["ledger"]
+    assert ledger["prior_nano"] == study.credits("146.17332")
+    assert sum(item["reserved_nano"] for item in ledger["historical_credit_provisions"]) == 2100 * study.NANO
+    hold = ledger["historical_credit_provisions"][-1]
+    assert hold["actual_nano"] is None
+    assert hold["reserved_nano"] == 600 * study.NANO
+    with pytest.raises(study.StudyError, match="cannot be reused"):
+        study.reserve(ledger, hold["attempt_id"], 0)
+    study.reserve(ledger, "new", study.NANO)
+    study.reconcile(ledger, "new", None)
+    with pytest.raises(study.StudyError, match="Unknown usage"):
+        study.reserve(ledger, "after-unknown", 0)
+
+
 @pytest.mark.parametrize("hold_index", [0, 1, 2, 3])
 def test_historical_hold_is_bound_to_resume_state(study, tmp_path, hold_index):
     cfg = study.read_json(ROOT / "harness/study-config.json")
@@ -266,6 +287,48 @@ def test_schedule_matches_model_matrix_and_excludes_calibration_cr(study, count)
     assert calibration["planned_sessions"] == 240
     assert calibration["maximum_agent_hours"] == 105
     assert calibration["nominal_session_allowance_credits_not_permitted_spending"] == 81000
+
+
+def test_short_calibration_has_one_feature_per_model_arm_and_24_sessions(study):
+    cells = study.schedule(False, "calibration", 2027, short_calibration=True)
+    assert len(cells) == 15
+    assert len({(cell["assigned_model"], cell["arm"]) for cell in cells}) == 15
+    assert all(cell["features"] == 1 and not cell["change_request"] for cell in cells)
+    assert study.planned_resources(cells) == {
+        "trajectories": 15, "planned_sessions": 24, "maximum_agent_hours": 10.5,
+        "nominal_session_allowance_credits_not_permitted_spending": 8100}
+    for smoke, phase in [(True, "calibration"), (False, "pilot"), (False, "pilot-estimation")]:
+        with pytest.raises(study.StudyError, match="only in the calibration phase"):
+            study.schedule(smoke, phase, 2027, short_calibration=True)
+
+
+def test_short_calibration_is_immutable_and_explicit_in_metadata(study, config, tmp_path):
+    current = study.Controller(tmp_path, config, smoke=False, phase="calibration",
+                               study_id="short-calibration", short_calibration=True)
+    assert current.state["identity"]["calibration_plan"] == "one-feature-per-model-arm"
+    first = current.state["cells"][0]
+    metadata = study.read_json(tmp_path / "runs" / first["run_id"] / "run.json")
+    assert metadata["calibration_plan"] == "one-feature-per-model-arm"
+    assert metadata["features"] == 1 and not metadata["change_request"]
+    importlib.import_module("study_report").export(current.directory, current.state, current.study_id)
+    assert study.read_json(tmp_path / "results/provenance.json")["calibration_plan"] == "one-feature-per-model-arm"
+    report = (tmp_path / "results/report.md").read_text()
+    assert "EXCLUDED SHORT CALIBRATION: NOT STUDY RESULTS" in report
+    assert "later-feature and CR1 costs are not measured" in report
+    study.Controller(tmp_path, config, smoke=False, phase="calibration",
+                     study_id="short-calibration", short_calibration=True)
+    with pytest.raises(study.StudyError, match="Resume"):
+        study.Controller(tmp_path, config, smoke=False, phase="calibration", study_id="short-calibration")
+
+
+def test_short_calibration_dry_run_shows_exact_schedule(study, monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["study.py", "--phase", "calibration", "--short-calibration", "--dry-run"])
+    monkeypatch.setattr(study, "preflight", lambda cfg, smoke: [])
+    assert study.main() == 0
+    preview = json.loads(capsys.readouterr().out)
+    assert preview["calibration_plan"] == "one-feature-per-model-arm"
+    assert preview["planned_resources"]["planned_sessions"] == 24
+    assert len(preview["schedule"]) == 15
 
 
 def test_replicate_selection_default_prompt_and_saved_resume(study, tmp_path, monkeypatch):

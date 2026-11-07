@@ -114,6 +114,18 @@ Before a new interactive estimation launch, the researcher chooses **12, 21 or
 33 independent trajectories per model/arm**; Enter selects **12**. The default
 five-arm allocation is 180 trajectories and 3060 planned sessions. Calibration
 remains one trajectory per model/arm (15 trajectories, 240 sessions).
+An optional one-feature calibration contains 15 trajectories and 24 sessions
+(15 feature sessions and nine post-steps). It is a proposed change, not the
+registered 240-session calibration. It requires a prospective amendment, a new
+source/runtime freeze and separate launch authorization:
+
+```bash
+./run-study.sh --phase calibration --study-id excluded-short-calibration --short-calibration --dry-run
+```
+
+The short sample does not observe later-feature or change-request costs. Its
+cost-only extrapolation is uncertain and cannot establish affordability by itself.
+Never reuse the interrupted calibration's study ID or discard its ledger.
 
 For unattended execution or a read-only preview:
 
@@ -151,7 +163,7 @@ The supplied settings use a 10% buffer: **270 AI Credits per original session**
 (**540 for D feature sessions**, below the corresponding 600 nominal allowance)
 (shared across any infrastructure retry), below the registered 300, and a
 **270,000-credit local study admission stop**, below the unchanged registered
-300,000-credit envelope. Known prior **49.74337 credits**, calibration, probes and
+300,000-credit envelope. Known prior **146.17332 credits**, calibration, probes and
 every attempt count. [CLI session limits](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/set-session-limit)
 allow an in-flight response to finish **over** the limit; the buffer reduces risk
 but guarantees neither per-session nor total billed consumption. The company
@@ -166,8 +178,8 @@ failed, first during SDK setup and then twice on unexpected built-in MCP startup
 None produced tool calls or complete usage evidence. On 29 October the owner
 separately approved retaining each 300-credit reservation as an exact
 source/evidence-bound unknown provision. A later excluded Sonnet P1 diagnostic
-also lacked complete billing and retains a fourth 300-credit hold. Known usage is
-now **49.74337**,
+also lacked complete billing and retains a fourth 300-credit hold. Prior known usage was
+**49.74337**,
 including **3.05509** from three subsequent successful excluded backend checks
 at `eff4d09` and **4.19186** from the separately authorized audited Sonnet P1
 session (see [prior-data disclosure](protocol/prior-data-disclosure.md));
@@ -177,11 +189,17 @@ before verified results. Its uncertified receipt retains a fifth 300-credit hold
 The owner directed implementation and completion of the excluded check; the
 local correction serializes already-authorized tool calls and makes cleanup
 robust to broken stdin, without widening permissions or isolation.
-**1500 credits** are held separately, not booked as spending or certified zero.
-Known usage plus held budget is **1549.74337**, leaving **268450.25663** within
+The interrupted v7 calibration added **96.42995** settled credits. Its tenth
+attempt has unknown usage and an owner-approved **600-credit** hold, not a
+confirmed charge or guaranteed upper bound. The original ledger remains private
+and unchanged. Known usage is **146.17332** and **2100 credits** are held
+separately, not booked as spending or certified zero.
+Known usage plus held budget is **2246.17332**, leaving **267753.82668** within
 the 270000 local admission threshold. Total actual prior usage remains unknown.
 These provisions are not guaranteed billing bounds. Future
 unknown usage still stops new work; live verification and collection gates remain.
+Calibration and estimation use separate ledgers: before estimation, reconcile
+all short-calibration charges into its configuration and review affordability.
 The published v4 freeze/release does not include this local transport correction.
 Corrected paid checks use a separate source-qualified diagnostic manifest, not
 registered collection or a replacement public freeze.

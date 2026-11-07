@@ -1,7 +1,7 @@
 {
   "seed": 2027,
   "ceiling_credits": 270000,
-  "prior_credits": 49.74337,
+  "prior_credits": 146.17332,
   "historical_credit_provisions": [
     {
       "attempt_id": "gpt-6.1-sol-nonstudy-1",
@@ -42,6 +42,14 @@
       "source_commit": "03c50856838b539780d57216af2a4cf6744187d7",
       "evidence_sha256": "1919669aa97a2ef092048ee6e217a55875be806235e2c14e9a5e699863c3cf3e",
       "approval": "owner-authorized-test-continuation-2026-10-31"
+    },
+    {
+      "attempt_id": "calibration-gemini-4-argon-D-01-f10-feature-1",
+      "reserved_credits": 600,
+      "actual_credits": null,
+      "source_commit": "65b00307bbab738b966a69ca206b410e6e1c4dc8",
+      "evidence_sha256": "f67a58efbd21be1f4f7989158cfb760da9109ee2ff1fd174772db63140e96c09",
+      "approval": "owner-approved-interrupted-calibration-hold-2026-11-07"
     }
   ],
   "session_reserve_credits": 300,

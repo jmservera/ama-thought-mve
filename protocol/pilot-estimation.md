@@ -59,6 +59,15 @@ repeat across other arms/models; steps are not additional replicates.
 | Estimation, 33 | `pilot-estimation` | 495 | 8415 | 3836.25 |
 | Calibration + default 12, never pooled | separate identities | 195 | 3300 | 1500 |
 
+**Candidate 7 November amendment, contingent on prospective registration:** excluded short
+calibration uses one F1 feature per model/arm and one corresponding post-step
+in arms B, C and E: 15 trajectories, 24 planned sessions, at most 10.5
+agent-hours. It excludes CR1. This is not the 240-session calibration above,
+and does not measure later-feature or CR1 costs. Record the change prospectively,
+preserve the interrupted calibration and all its costs, and qualify/freeze the
+new source and runtime before launching it. The selected estimation allocation
+and its analysis plan do not change.
+
 With 12 per cell, estimation has 1800 feature, 360 consolidation, 360 review,
 360 repair and 180 CR1 sessions. Limits are 30 minutes per ordinary feature,
 45 per D feature, 15 per post-step and 45 per CR1. D has no scheduled post-step.
@@ -93,8 +102,8 @@ study admission**, leaving 30,000 below the unchanged registered envelope.
 An in-flight response can finish over the CLI limit; neither buffer guarantees
 actual billed consumption. The company hard limit of 1,000,000/collaborator is
 owner-reported, not independently verified or a study-specific stop. A separate
-provider study hard cap is no longer required. Known prior 49.74337,
-with 1500 unknown historical credits held separately (see the current
+provider study hard cap is no longer required. Known prior 146.17332,
+with 2100 unknown historical credits held separately (see the current
 [prior-data disclosure](prior-data-disclosure.md)), calibration,
 probes and all attempts count; billing-cycle resets do not reset study spending.
 Record [the prospective addendum](prospective-corrections-2026-10-28.md) before

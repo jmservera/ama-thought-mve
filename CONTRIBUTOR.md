@@ -59,6 +59,13 @@ uploaded automatically; `--publish` remains an explicit separate GitHub action.
 For explicitly authorized excluded calibration, use
 `./run-experiment.sh --phase calibration --study-id excluded-calibration`.
 Do not silently chain calibration into the pilot or reuse a study ID across phases.
+The proposed abbreviated option is
+`./run-study.sh --phase calibration --study-id excluded-short-calibration --short-calibration`;
+first use `--dry-run`, complete the prospective amendment and new freeze, and
+obtain paid-call authorization. It schedules 24 sessions, not the registered
+240-session calibration. Its one-feature sample cannot measure later-feature
+or CR1 costs. Before estimation, manually reconcile all charges and reservations:
+the calibration and estimation ledgers do not automatically share a ceiling.
 
 ## What this package contains
 
