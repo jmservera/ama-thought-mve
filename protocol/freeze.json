@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "five-arm-v7-source-frozen-pending-prospective-osf-recording",
+  "status": "five-arm-v7-source-frozen-registration-recorded-allocation-pending",
   "commit": "c815ae1a7267308055118198201a88f4d690ad12",
   "tag": "protocol-frozen-v7",
   "tag_object": "da3273f83cab8a50b603fb9756bbf4c9e62289c8",
@@ -44,11 +44,13 @@
     "osf_registration_asserted": false
   },
   "historical_unregistered_code_freezes": ["protocol-frozen-v2", "protocol-frozen-v3"],
-  "registration_url": "https://osf.io/ywsrv/overview",
-  "registration_url_semantics": "Owner-confirmed original registration and approved five-arm v6 update; the v7 source/image correction has not yet been prospectively recorded. This does not assert v4/v5 registration.",
-  "registration_date": null,
-  "registration_date_semantics": "Actual approved prospective OSF update for v7, not the original registration or the v6 update date. Deliberately unset until the owner confirms completion.",
+  "registration_url": "https://osf.io/xcpt4",
+  "registration_url_semantics": "Owner-reported new v7 registration, separate from the original registration and v6 update at https://osf.io/ywsrv/overview. The linked registration and its attachments were not independently verified; this does not assert v4/v5 registration.",
+  "registration_date": "2026-11-07",
+  "registration_date_semantics": "Owner-reported registered date for the new v7 registration, not the original registration or v6 update date. The owner reported a displayed time of 4:46:29 PM; the time zone and registration contents were not independently verified.",
+  "prospective_osf_registration_recorded": true,
   "prospective_osf_update_recorded": false,
+  "prospective_osf_update_recorded_semantics": "The owner reported a separate new v7 registration rather than an update to the earlier registration.",
   "original_registration": {
     "source_commit": "763945bce239529b6a3e802e50dc7cf61c2736cf",
     "url": "https://osf.io/ywsrv/",
@@ -83,7 +85,6 @@
     "separate_executor_is_operational_separation_only": true
   },
   "remaining_collection_gates": [
-    "Record and obtain approval of the prospective OSF update identifying the v7 source and image before affected collection",
     "Prospectively select and record the 12, 21 or 33 replicates per model/arm before affected collection",
     "Fresh operator access/model/effort/complete-billing and intervention evidence with pinned CLI 1.0.105/SDK 1.0.28",
     "Excluded cost-only calibration and full selected-design affordability/deadline acceptance",
@@ -91,6 +92,6 @@
   ],
   "collection_authorized": false,
   "new_paid_calls_authorized": false,
-  "osf_action_performed": false,
-  "osf_action_semantics": "The owner reported approval of the earlier v6 five-arm update; the v7 correction has not yet been recorded or approved in OSF."
+  "osf_action_performed": true,
+  "osf_action_semantics": "The owner reported a separate new v7 registration on 7 November 2026; the earlier v6 update remains part of the original registration history. Neither registration grants permission for paid work."
 }
