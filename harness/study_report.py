@@ -344,9 +344,14 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
     write_csv(out / "episodes.csv", ["run_id", "arm", "model", "replicate", "contract", "feature", "onset_cycle",
               "onset_checkpoint", "recovery_cycle", "recovery_checkpoint", "recurrence",
               "duration_cycles", "uncertain", "censored"], episodes)
-    heading = "STUB DIAGNOSTIC: NOT STUDY RESULTS" if diagnostic else "Pilot / estimation report"
+    short_calibration = provenance.get("calibration_plan") == "one-feature-per-model-arm"
+    heading = ("STUB DIAGNOSTIC: NOT STUDY RESULTS" if diagnostic else
+               "EXCLUDED SHORT CALIBRATION: NOT STUDY RESULTS" if short_calibration else
+               "Pilot / estimation report")
     lines = [f"# {heading}", "", f"Design: {description}.",
              f"Collection role: {result['collection_role']}; allocated metadata: {len(runs)}.",
+             *(["One feature per model/arm; later-feature and CR1 costs are not measured."]
+               if short_calibration else []),
              f"Cost unit: {result['cost_unit']}; no automatic unit fallback or currency conversion.",
              "All allocations retained, including assisted, incomplete and zero-step trajectories.",
              "H1/H2/H6 are endpoint labels, not hypothesis decisions. Formal H4/H7 claims deferred.",
@@ -408,6 +413,7 @@ def export(directory: Path, state: dict, study_id: str) -> None:
                              "actual_nano": entry["actual_nano"], "reserved_nano": entry["reserved_nano"]})
     provenance = {"study_id": study_id, "diagnostic_stub": state["identity"]["smoke"],
                   "phase": state["identity"]["phase"], "collection_role": result["collection_role"],
+                  "calibration_plan": state["identity"].get("calibration_plan"),
                   "source_commit": state["identity"]["commit"],
                   "inputs_sha256": state["identity"]["inputs_sha256"],
                   "replicates_per_model_arm": state["identity"].get("replicates_per_model_arm"),

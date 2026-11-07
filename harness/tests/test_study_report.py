@@ -104,14 +104,14 @@ def test_saved_progress_and_sharing_need_no_authentication_or_paid_preflight(
 def test_exports_distinguish_historical_budget_hold_from_actual_usage(modules, reports, legacy):
     study, report = modules
     state = study.read_json(reports.parent / "state.json")
-    cfg = dict(study.read_json(ROOT / "harness/study-config.json"), prior_credits=21.79019)
+    cfg = study.read_json(ROOT / "harness/study-config.json")
     state["ledger"]["prior_nano"] = study.credits(cfg["prior_credits"])
     state["ledger"]["historical_credit_provisions"] = study.historical_credit_provisions(cfg)
     exporter = report.legacy_export if legacy else report.export
     exporter(reports.parent, state, "export-test")
     provenance = study.read_json(reports / "provenance.json")
-    assert provenance["prior_nano"] == study.credits("21.79019")
-    assert provenance["historical_reserved_nano"] == study.credits(1500)
+    assert provenance["prior_nano"] == study.credits("146.17332")
+    assert provenance["historical_reserved_nano"] == study.credits(2100)
     assert provenance["historical_usage_complete"] is False
     holds = provenance["historical_credit_provisions"]
     assert [hold["attempt_id"] for hold in holds] == [

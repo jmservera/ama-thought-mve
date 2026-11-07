@@ -66,6 +66,14 @@ APPROVED_V4_DIAGNOSTIC_PROVISION = {
     "evidence_sha256": "1919669aa97a2ef092048ee6e217a55875be806235e2c14e9a5e699863c3cf3e",
     "approval": "owner-authorized-test-continuation-2026-10-31",
 }
+APPROVED_INTERRUPTED_CALIBRATION_PROVISION = {
+    "attempt_id": "calibration-gemini-4-argon-D-01-f10-feature-1",
+    "reserved_credits": 600,
+    "actual_credits": None,
+    "source_commit": "65b00307bbab738b966a69ca206b410e6e1c4dc8",
+    "evidence_sha256": "f67a58efbd21be1f4f7989158cfb760da9109ee2ff1fd174772db63140e96c09",
+    "approval": "owner-approved-interrupted-calibration-hold-2026-11-07",
+}
 MODEL_DESIGN = "model-stratified-v2-five-arm"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
@@ -102,7 +110,10 @@ def historical_credit_provisions(cfg: dict, *, smoke: bool = False) -> list[dict
                            APPROVED_RENEWED_PROVISION, APPROVED_FEATURE_DIAGNOSTIC_PROVISION],
                           [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION,
                            APPROVED_RENEWED_PROVISION, APPROVED_FEATURE_DIAGNOSTIC_PROVISION,
-                           APPROVED_V4_DIAGNOSTIC_PROVISION]):
+                           APPROVED_V4_DIAGNOSTIC_PROVISION],
+                          [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION,
+                           APPROVED_RENEWED_PROVISION, APPROVED_FEATURE_DIAGNOSTIC_PROVISION,
+                           APPROVED_V4_DIAGNOSTIC_PROVISION, APPROVED_INTERRUPTED_CALIBRATION_PROVISION]):
         raise StudyError("Historical provision must match the exact owner-approved attempt and evidence")
     if smoke:
         return []
@@ -129,7 +140,8 @@ def validate_config(cfg: dict, *, smoke: bool) -> None:
     if prior > credits(cfg["ceiling_credits"]):
         raise StudyError("Prior pilot spending exceeds aggregate ceiling")
     provisions = historical_credit_provisions(cfg, smoke=smoke)
-    minimum_prior = "21.79019" if len(provisions) >= 4 else "17.59833"
+    minimum_prior = ("146.17332" if len(provisions) >= 6
+                     else "21.79019" if len(provisions) >= 4 else "17.59833")
     if provisions and prior < credits(minimum_prior):
         raise StudyError("Historical provision requires the confirmed known prior spending")
     if prior + sum(item["reserved_nano"] for item in provisions) > credits(cfg["ceiling_credits"]):
@@ -186,8 +198,11 @@ def selected_replicates(value=None) -> int:
     return count
 
 
-def schedule(smoke: bool, phase: str, seed: int, replicates: int | None = None) -> list[dict]:
+def schedule(smoke: bool, phase: str, seed: int, replicates: int | None = None,
+             *, short_calibration: bool = False) -> list[dict]:
     """Randomise arm order in fixed replicate blocks; smoke is never study data."""
+    if short_calibration and (smoke or phase != "calibration"):
+        raise StudyError("Short calibration is available only in the calibration phase")
     rng = random.Random(seed)
     cells = []
     calibration = phase in ("pilot", "calibration")
@@ -213,7 +228,7 @@ def schedule(smoke: bool, phase: str, seed: int, replicates: int | None = None) 
             for arm in arms:
                 prefix = "smoke" if smoke else f"{phase}-{model}"
                 cell = {"run_id": f"{prefix}-{arm}-{replicate:02d}",
-                        "arm": arm, "features": 1 if smoke else 10,
+                        "arm": arm, "features": 1 if smoke or short_calibration else 10,
                         "change_request": not smoke and not calibration}
                 if not smoke:
                     cell.update(assigned_model=model, analysis_design=MODEL_DESIGN, replicate=replicate)
@@ -686,7 +701,7 @@ class Controller:
     """Own one immutable schedule and exactly one analysis unit per cell."""
 
     def __init__(self, directory: Path, cfg: dict, *, smoke: bool, phase: str, study_id: str,
-                 replicates: int | None = None):
+                 replicates: int | None = None, short_calibration: bool = False):
         self.directory = directory
         self.cfg = cfg
         self.smoke = smoke
@@ -702,12 +717,14 @@ class Controller:
         identity = {"study_id": study_id, "config": cfg, "smoke": smoke, "phase": self.phase,
                     "inputs_sha256": fingerprint(),
                     "commit": command(["git", "rev-parse", "HEAD"])}
-        proposed = schedule(smoke, phase, cfg["seed"], count)
+        proposed = schedule(smoke, phase, cfg["seed"], count, short_calibration=short_calibration)
         if not smoke:
             identity.update(analysis_design=MODEL_DESIGN,
                             model_roster=read_json(ROOT / "protocol/pilot-estimation.json")["study"]["model_roster"])
         if estimation:
             identity["replicates_per_model_arm"] = count
+        if short_calibration:
+            identity["calibration_plan"] = "one-feature-per-model-arm"
         if self.path.exists():
             self.state = read_json(self.path)
             if self.state["identity"] != identity:
@@ -758,6 +775,8 @@ class Controller:
                 expected_metadata.update({key: cell[key] for key in ("assigned_model", "analysis_design", "replicate")})
                 if estimation:
                     expected_metadata["replicates_per_model_arm"] = count
+                if short_calibration:
+                    expected_metadata["calibration_plan"] = "one-feature-per-model-arm"
             if not metadata.exists():
                 atomic_json(metadata, expected_metadata)
             else:
@@ -975,6 +994,8 @@ def main() -> int:
                         default="pilot-estimation")
     parser.add_argument("--replicates", type=int, choices=REPLICATE_OPTIONS,
                         help="replicates per model/arm; new estimation default 12, immutable on resume")
+    parser.add_argument("--short-calibration", action="store_true",
+                        help="one feature per model/arm in excluded calibration; requires prospective amendment")
     parser.add_argument("--publish", action="store_true", help="push only derived results and create/update a PR")
     saved = parser.add_mutually_exclusive_group()
     saved.add_argument("--status", action="store_true", help="show saved progress without authentication or model calls")
@@ -998,9 +1019,11 @@ def main() -> int:
     cfg = read_json(args.config)
     replicates = launch_replicates(args, directory)
     errors = preflight(cfg, smoke=args.smoke)
-    cells = schedule(args.smoke, args.phase, cfg["seed"], replicates) if type(cfg.get("seed")) is int else []
+    cells = (schedule(args.smoke, args.phase, cfg["seed"], replicates,
+                      short_calibration=args.short_calibration) if type(cfg.get("seed")) is int else [])
     preview = {"mode": "stub-smoke" if args.smoke else args.phase,
                "replicates_per_model_arm": replicates,
+               "calibration_plan": "one-feature-per-model-arm" if args.short_calibration else None,
                "inputs_sha256": fingerprint(),
                "schedule": cells,
                "planned_resources": planned_resources(cells) if not args.smoke else None,
@@ -1017,7 +1040,7 @@ def main() -> int:
         print("Authentication: signed-in host Copilot user; no credentials enter candidate containers.", flush=True)
     with study_lock(directory):
         controller = Controller(directory, cfg, smoke=args.smoke, phase=args.phase, study_id=args.study_id,
-                                replicates=replicates)
+                                replicates=replicates, short_calibration=args.short_calibration)
         success = controller.go()
         from study_report import package_results
         print(f"Shareable results: {package_results(directory / 'results', args.study_id)}")
