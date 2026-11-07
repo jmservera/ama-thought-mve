@@ -1,5 +1,22 @@
 # Existing data and repository chronology
 
+## 7 November interrupted excluded calibration
+
+The owner-authorized v7 excluded calibration was stopped to consider a shorter
+prospective procedure. Nine completed sessions have verified usage of 96.42995
+credits. The tenth session, `calibration-gemini-4-argon-D-01-f10-feature-1`,
+was interrupted without a complete usage receipt. Its actual charge remains
+unknown. Its recorded manifest-only checkout is
+`65b00307bbab738b966a69ca206b410e6e1c4dc8`, with v7 execution source
+`c815ae1a7267308055118198201a88f4d690ad12`. The original private state is preserved with SHA-256
+`f67a58efbd21be1f4f7989158cfb760da9109ee2ff1fd174772db63140e96c09`.
+The owner approved a one-off 600-credit provision for that exact attempt; this
+is a reservation, not the actual charge or a guaranteed billing bound.
+Confirmed prior usage is 146.17332 credits, and historical provisions total
+2100 credits. This decision does not waive the stop on future unknown usage.
+The proposed shorter calibration and its source/runtime require a prospective
+amendment and qualification before further paid calls.
+
 ## Subsequent v4 transport diagnostic and excluded continuation
 
 The owner requested one paid P1 pass for each configured model. The first

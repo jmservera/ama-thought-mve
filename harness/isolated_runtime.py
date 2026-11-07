@@ -171,11 +171,11 @@ def check_host_auth(root: Path = ROOT) -> None:
         raise StudyError("Copilot user sign-in required on this host; never copy credentials into Docker")
 
 
-def runtime_receipt(root: Path = ROOT) -> dict:
+def runtime_receipt(root: Path = ROOT, *, receipt_path: Path | None = None) -> dict:
     """Require source-bound offline evidence, not an arbitrary image setting."""
     from study import fingerprint
 
-    receipt_path = root / ".study/runtime-canary.json"
+    receipt_path = root / ".study/runtime-canary.json" if receipt_path is None else receipt_path
     try:
         receipt = read_json(receipt_path)
     except (OSError, ValueError, StudyError) as error:
@@ -200,14 +200,14 @@ def runtime_receipt(root: Path = ROOT) -> dict:
     return receipt
 
 
-def runtime_errors(cfg: dict, root: Path = ROOT) -> list[str]:
+def runtime_errors(cfg: dict, root: Path = ROOT, *, manifest: dict | None = None) -> list[str]:
     """Validate runtime setup without creating a session or running a model."""
     try:
         receipt = runtime_receipt(root)
         package = read_json(root / "harness/copilot-sdk/node_modules/@github/copilot-sdk/package.json")
         if package.get("version") != "1.0.28":
             raise StudyError("Repository-local Copilot SDK must be pinned to 1.0.28; run npm ci")
-        freeze = read_json(root / cfg["freeze_manifest"])
+        freeze = read_json(root / cfg["freeze_manifest"]) if manifest is None else manifest
         receipt_digest = hashlib.sha256((root / ".study/runtime-canary.json").read_bytes()).hexdigest()
         if (freeze.get("runtime_image") != receipt["image"]
                 or freeze.get("runtime_canary_sha256") != receipt_digest):
@@ -243,36 +243,33 @@ class LiveRuntime:
         try:
             return getattr(self.broker, operation)(*args, **kwargs)
         except IsolationError as error:
-            self.run.controller.state["oracle_halt"] = True
-            self.run.controller.save()
+            self.run.controller.update(self.run.controller.state, oracle_halt=True)
             raise StudyError("Isolated runtime failed; reconcile exact owned resources before resuming") from error
 
     def run_agent(self, prompt: str, step_dir: str, budget: int) -> dict:
         run = self.run
         controller = run.controller
-        errors = runtime_errors(controller.cfg)
+        errors = (runtime_errors(controller.cfg, manifest=controller.unregistered)
+                  if controller.unregistered is not None else runtime_errors(controller.cfg))
         if errors:
             raise StudyError("; ".join(errors))
         seconds_limit, credit_limit = run.remaining_allowance(budget)
         buffer = run.credit_multiplier() * (controller.cfg["session_reserve_credits"]
                   - controller.cfg["session_soft_limit_credits"]) * NANO
         attempt = controller.new_attempt(run.cell, run.current_step, credit_limit + buffer)
-        attempt.update(seconds_limit=seconds_limit, credit_limit_nano=credit_limit)
         directory = Path(run.dir) / "attempts" / attempt["id"]
         directory.mkdir(parents=True, mode=0o700)
-        attempt["directory"] = str(directory.relative_to(controller.directory))
-        controller.save()
+        controller.update(attempt, seconds_limit=seconds_limit, credit_limit_nano=credit_limit,
+                          directory=str(directory.relative_to(controller.directory)))
         started = time.monotonic()
         usage = None
         result = None
 
         def writer_started(pid):
-            controller.state.update(writer_pid=pid, writer_pending=False)
-            controller.save()
+            controller.writer_started(run.cell, pid)
 
         def writer_stopped():
-            controller.state.update(writer_pid=None, writer_pending=False)
-            controller.save()
+            controller.writer_stopped(run.cell)
 
         def tool(arguments, remaining):
             outcome = self.broker_call(
@@ -296,9 +293,9 @@ class LiveRuntime:
             if request["remainingSeconds"] <= 0:
                 raise StudyError("Original step allowance exhausted before SDK startup")
             atomic_json(directory / "request.json", request)
-            attempt["request_sha256"] = hashlib.sha256((directory / "request.json").read_bytes()).hexdigest()
-            controller.state["writer_pending"] = True
-            controller.save()
+            controller.update(attempt, request_sha256=hashlib.sha256(
+                (directory / "request.json").read_bytes()).hexdigest())
+            controller.writer_pending(run.cell)
             result = run_bridge(request, directory / "transport", tool,
                                 on_start=writer_started, on_stop=writer_stopped)
             receipt = result.get("receipt")
@@ -313,8 +310,7 @@ class LiveRuntime:
                     or result.get("exit_code") != 0
                     or receipt.get("actual_models") != [run.assigned_model]
                     or receipt.get("actual_reasoning_efforts") != ["medium"]):
-                controller.state["oracle_halt"] = True
-                controller.save()
+                controller.update(controller.state, oracle_halt=True)
                 raise StudyError("SDK actual model/effort evidence differs from the assigned treatment")
             self.last_export = self.broker_call("export", self.state, review=run.current_step.endswith("-review"))
             if not run.current_step.endswith("-review"):
@@ -327,13 +323,13 @@ class LiveRuntime:
                     "actual_models": receipt["actual_models"],
                     "actual_reasoning_efforts": receipt["actual_reasoning_efforts"]}
         except (RuntimeError, OSError):
-            controller.state["oracle_halt"] = True
-            controller.save()
+            controller.update(controller.state, oracle_halt=True)
             raise
         finally:
-            attempt.update(seconds=round(time.monotonic() - started, 4), usage=usage,
-                           status="agent_returned" if result is not None else "interrupted")
-            controller.settle_attempt(attempt["id"], usage)
+            with controller.lock:
+                attempt.update(seconds=round(time.monotonic() - started, 4), usage=usage,
+                               status="agent_returned" if result is not None else "interrupted")
+                controller.settle_attempt(attempt["id"], usage)
 
     def publish_committed(self, exported: dict) -> None:
         if not isinstance(exported, dict) or type(exported.get("head_changed")) is not bool:

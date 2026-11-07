@@ -1,6 +1,10 @@
 # Collaborator handoff
 
-**Status: owner-reviewed runtime/access evidence accepted and source freeze authorized after merging #4. Prospective OSF update and collection authorization remain pending.**
+**Status:** The owner chose an unregistered changed design because the existing
+OSF registration cannot currently be amended. Publish the exact final commit
+before collection and qualify its runtime; the old OSF records and v7 freeze
+remain historical, not preregistration of these changes. A public commit alone
+is not preregistration or independent proof of timing.
 
 [The freeze manifest](protocol/freeze.json) binds the exact source/tag, input
 fingerprint, image and canary receipt. Its prospective-registration completion
@@ -8,17 +12,19 @@ date is deliberately unset until the actual OSF amendment is recorded; do not
 substitute the original registration date or treat the freeze as launch permission.
 The original [OSF registration](https://osf.io/ywsrv/overview) is owner-confirmed
 approved. This corrected candidate is subsequent to that registration. The
-owner must record [the prospective clarification](protocol/prospective-corrections-2026-10-28.md)
-before affected collection. No calibration/pilot or paid probe is authorized
-by unpacking this bundle.
+historical registered path required [the prospective clarification](protocol/prospective-corrections-2026-10-28.md)
+before affected collection. The changed path above is unregistered. No
+calibration/pilot or paid probe is authorized merely by unpacking this bundle.
 
 ## Run and share in one command
 
-On the prepared, accepted VM, after the prospective OSF update and owner launch
-authorization:
+On the prepared VM, only after the changed source is reviewed, publicly
+disclosed, runtime-qualified and authorized:
 
 ```bash
-./run-experiment.sh
+./run-experiment.sh --replicates 21 \
+  --unregistered-manifest /private/path/unregistered.json \
+  --calibration-study-id excluded-short-calibration
 ```
 
 This runs the frozen **pilot-estimation** schedule, using the **Copilot user
@@ -36,7 +42,8 @@ remain enforced; this candidate is **not yet authorized for collection**.
 Progress shows **completed / total steps, remaining steps**, trajectory count,
 model, arm and current step. The prospective five-arm default has 3060 planned
 steps (5355 or 8415 with 21 or 33 replicates per model/arm); excluded calibration
-has 240. The initial interactive launch prompts for 12/21/33, default 12;
+has 240. The initial interactive launch prompts for 12/21/33, default 12 on
+the historical path and 21 on the unregistered path;
 `--replicates N` selects explicitly. Resume cannot change the saved count.
 A completed step can be a measured nonpass:
 progress is not a success rate. Retries do not increase the planned denominator.
@@ -59,6 +66,15 @@ uploaded automatically; `--publish` remains an explicit separate GitHub action.
 For explicitly authorized excluded calibration, use
 `./run-experiment.sh --phase calibration --study-id excluded-calibration`.
 Do not silently chain calibration into the pilot or reuse a study ID across phases.
+For the owner's changed design, use `./run-study.sh --phase calibration
+--study-id excluded-short-calibration --short-calibration --unregistered-manifest
+/private/path/unregistered.json` after reviewing and qualifying the exact
+source; first use `--dry-run`. It schedules 24 sessions, not the registered
+240-session calibration. It cannot measure later-feature or CR1 costs.
+Estimation requires the completed calibration handoff and carries its known
+charges and restart holds. It does not impose a provider-enforced billing cap;
+do not run multiple paid studies concurrently or discard earlier ledgers.
+Keep the completed calibration state unchanged once handed off to estimation.
 
 ## What this package contains
 

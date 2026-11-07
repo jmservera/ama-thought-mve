@@ -30,6 +30,8 @@ EXPORTS = (
     "runs.csv", "attempts.csv", "availability.json", "report.md", "trajectories.svg",
     "hypotheses.tex", "trajectories.tex", "provenance.json", "retention.csv", "episodes.csv",
 )
+LARGE_EXPORTS = {"summary.json", "runs.csv", "attempts.csv", "series.csv", "retention.csv",
+                 "episodes.csv", "trajectories.svg", "trajectories.tex"}
 UNAVAILABLE = {
     "H4": "Formal joint size/accuracy/time claim deferred; comprehension include/defer decision pending.",
     "H7": "Formal dependent half-gap claim deferred, not a threshold to invent.",
@@ -323,7 +325,8 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
               if ".ci." in row["field"] or "bounds" in row["field"]])
     write_csv(out / "runs.csv", list(dispositions[0]) if dispositions else ["run_id"], dispositions)
     write_csv(out / "attempts.csv", list(attempts[0]) if attempts else ["run_id", "step", "attempt_id",
-              "status", "seconds", "credits_status", "cost_included_in_step", "actual_nano", "reserved_nano"], attempts)
+              "status", "seconds", "credits_status", "parallelism", "cost_included_in_step",
+              "actual_nano", "reserved_nano"], attempts)
     series = [dict(run_id=run["run_id"], arm=run["arm"], model=run.get("assigned_model"),
                   replicate=run.get("replicate"), **row) for run in runs for row in run["series"]]
     write_csv(out / "series.csv", ["run_id", "arm", "model", "replicate", "k", "kind", "pass_rate",
@@ -344,9 +347,18 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
     write_csv(out / "episodes.csv", ["run_id", "arm", "model", "replicate", "contract", "feature", "onset_cycle",
               "onset_checkpoint", "recovery_cycle", "recovery_checkpoint", "recurrence",
               "duration_cycles", "uncertain", "censored"], episodes)
-    heading = "STUB DIAGNOSTIC: NOT STUDY RESULTS" if diagnostic else "Pilot / estimation report"
+    short_calibration = provenance.get("calibration_plan") == "one-feature-per-model-arm"
+    heading = ("STUB DIAGNOSTIC: NOT STUDY RESULTS" if diagnostic else
+               "EXCLUDED SHORT CALIBRATION: NOT STUDY RESULTS" if short_calibration else
+               "Pilot / estimation report")
     lines = [f"# {heading}", "", f"Design: {description}.",
              f"Collection role: {result['collection_role']}; allocated metadata: {len(runs)}.",
+             *([("**Unregistered changed design.** Source disclosure is owner-reported; "
+                 "a public commit alone does not establish preregistration.")]
+               if (provenance.get("source_provenance") or {}).get("registration_status") == "unregistered"
+               else []),
+             *(["One feature per model/arm; later-feature and CR1 costs are not measured."]
+               if short_calibration else []),
              f"Cost unit: {result['cost_unit']}; no automatic unit fallback or currency conversion.",
              "All allocations retained, including assisted, incomplete and zero-step trajectories.",
              "H1/H2/H6 are endpoint labels, not hypothesis decisions. Formal H4/H7 claims deferred.",
@@ -404,16 +416,21 @@ def export(directory: Path, state: dict, study_id: str) -> None:
             attempts.append({"run_id": cell["run_id"], "step": attempt["step"],
                              "attempt_id": attempt["id"], "status": attempt["status"],
                              "seconds": attempt.get("seconds"), "credits_status": entry["status"],
+                             "parallelism": attempt.get("parallelism"),
                              "cost_included_in_step": attempt.get("cost_included_in_step", False),
                              "actual_nano": entry["actual_nano"], "reserved_nano": entry["reserved_nano"]})
     provenance = {"study_id": study_id, "diagnostic_stub": state["identity"]["smoke"],
                   "phase": state["identity"]["phase"], "collection_role": result["collection_role"],
+                  "calibration_plan": state["identity"].get("calibration_plan"),
                   "source_commit": state["identity"]["commit"],
+                  "source_provenance": state["identity"].get("source_provenance"),
                   "inputs_sha256": state["identity"]["inputs_sha256"],
                   "replicates_per_model_arm": state["identity"].get("replicates_per_model_arm"),
+                  "parallelism_history": state.get("parallelism_history", []),
                   "seed": state["identity"]["config"]["seed"], "registered_or_frozen_by_runner": False,
                   "inference": "diagnostic" if state["identity"]["smoke"] else "pilot estimates only",
                   "ceiling_nano": state["ledger"]["ceiling_nano"], "prior_nano": state["ledger"]["prior_nano"],
+                  "calibration_handoff": state["ledger"].get("calibration_handoff"),
                   **historical_budget_provenance(state["ledger"]),
                   "session_soft_limit_credits": state["identity"]["config"].get("session_soft_limit_credits", 300),
                   "billing_limit_kind": "local admission plus per-session soft caps; not guaranteed billed consumption"}
@@ -438,14 +455,15 @@ def validated_artifacts(directory: Path) -> list[Path]:
     paths = [directory / name for name in EXPORTS]
     total = 0
     for path in paths:
-        if path.is_symlink() or not path.is_file() or path.stat().st_size > 512 * 1024:
-            raise StudyError("Result is linked, non-regular, or exceeds 512 KiB file cap")
+        limit = (16 * 1024 * 1024) if path.name in LARGE_EXPORTS else (512 * 1024)
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > limit:
+            raise StudyError(f"Result is linked, non-regular, or exceeds its {limit}-byte file cap")
         payload = path.read_bytes()
         total += len(payload)
         text = payload.decode("utf-8")
         check_credentials(text)
-    if total > 4 * 1024 * 1024:
-        raise StudyError("Results exceed 4 MiB aggregate publication cap")
+    if total > 64 * 1024 * 1024:
+        raise StudyError("Results exceed 64 MiB aggregate publication cap")
     provenance = read_provenance(directory)
     if provenance.get("registered_or_frozen_by_runner") is not False:
         raise StudyError("Invalid result provenance")

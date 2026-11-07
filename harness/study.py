@@ -13,8 +13,11 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
-from contextlib import contextmanager
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from contextlib import ExitStack, contextmanager
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from types import SimpleNamespace
@@ -66,6 +69,14 @@ APPROVED_V4_DIAGNOSTIC_PROVISION = {
     "evidence_sha256": "1919669aa97a2ef092048ee6e217a55875be806235e2c14e9a5e699863c3cf3e",
     "approval": "owner-authorized-test-continuation-2026-10-31",
 }
+APPROVED_INTERRUPTED_CALIBRATION_PROVISION = {
+    "attempt_id": "calibration-gemini-4-argon-D-01-f10-feature-1",
+    "reserved_credits": 600,
+    "actual_credits": None,
+    "source_commit": "65b00307bbab738b966a69ca206b410e6e1c4dc8",
+    "evidence_sha256": "f67a58efbd21be1f4f7989158cfb760da9109ee2ff1fd174772db63140e96c09",
+    "approval": "owner-approved-interrupted-calibration-hold-2026-11-07",
+}
 MODEL_DESIGN = "model-stratified-v2-five-arm"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
@@ -102,7 +113,10 @@ def historical_credit_provisions(cfg: dict, *, smoke: bool = False) -> list[dict
                            APPROVED_RENEWED_PROVISION, APPROVED_FEATURE_DIAGNOSTIC_PROVISION],
                           [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION,
                            APPROVED_RENEWED_PROVISION, APPROVED_FEATURE_DIAGNOSTIC_PROVISION,
-                           APPROVED_V4_DIAGNOSTIC_PROVISION]):
+                           APPROVED_V4_DIAGNOSTIC_PROVISION],
+                          [APPROVED_HISTORICAL_PROVISION, APPROVED_STARTUP_PROVISION,
+                           APPROVED_RENEWED_PROVISION, APPROVED_FEATURE_DIAGNOSTIC_PROVISION,
+                           APPROVED_V4_DIAGNOSTIC_PROVISION, APPROVED_INTERRUPTED_CALIBRATION_PROVISION]):
         raise StudyError("Historical provision must match the exact owner-approved attempt and evidence")
     if smoke:
         return []
@@ -129,7 +143,8 @@ def validate_config(cfg: dict, *, smoke: bool) -> None:
     if prior > credits(cfg["ceiling_credits"]):
         raise StudyError("Prior pilot spending exceeds aggregate ceiling")
     provisions = historical_credit_provisions(cfg, smoke=smoke)
-    minimum_prior = "21.79019" if len(provisions) >= 4 else "17.59833"
+    minimum_prior = ("146.17332" if len(provisions) >= 6
+                     else "21.79019" if len(provisions) >= 4 else "17.59833")
     if provisions and prior < credits(minimum_prior):
         raise StudyError("Historical provision requires the confirmed known prior spending")
     if prior + sum(item["reserved_nano"] for item in provisions) > credits(cfg["ceiling_credits"]):
@@ -186,8 +201,11 @@ def selected_replicates(value=None) -> int:
     return count
 
 
-def schedule(smoke: bool, phase: str, seed: int, replicates: int | None = None) -> list[dict]:
+def schedule(smoke: bool, phase: str, seed: int, replicates: int | None = None,
+             *, short_calibration: bool = False) -> list[dict]:
     """Randomise arm order in fixed replicate blocks; smoke is never study data."""
+    if short_calibration and (smoke or phase != "calibration"):
+        raise StudyError("Short calibration is available only in the calibration phase")
     rng = random.Random(seed)
     cells = []
     calibration = phase in ("pilot", "calibration")
@@ -213,7 +231,7 @@ def schedule(smoke: bool, phase: str, seed: int, replicates: int | None = None) 
             for arm in arms:
                 prefix = "smoke" if smoke else f"{phase}-{model}"
                 cell = {"run_id": f"{prefix}-{arm}-{replicate:02d}",
-                        "arm": arm, "features": 1 if smoke else 10,
+                        "arm": arm, "features": 1 if smoke or short_calibration else 10,
                         "change_request": not smoke and not calibration}
                 if not smoke:
                     cell.update(assigned_model=model, analysis_design=MODEL_DESIGN, replicate=replicate)
@@ -237,9 +255,11 @@ def reserve(ledger: dict, attempt: str, amount: int) -> None:
         raise StudyError("Unknown usage holds its reservation and blocks new work")
     if any(entry["status"] == "complete" and entry["actual_nano"] > entry["reserved_nano"] for entry in entries):
         raise StudyError("Actual credits exceeded a reservation; new work stays blocked")
-    used = ledger["prior_nano"] + sum(item["reserved_nano"] for item in provisions) + sum(
+    handoff = ledger.get("calibration_handoff") or {}
+    used = (ledger["prior_nano"] + handoff.get("known_nano", 0) + handoff.get("held_nano", 0)
+            + sum(item["reserved_nano"] for item in provisions) + sum(
         entry["actual_nano"] if entry["status"] == "complete" else entry["reserved_nano"]
-        for entry in ledger["entries"].values())
+        for entry in ledger["entries"].values()))
     if used + amount > ledger["ceiling_nano"]:
         raise StudyError("Aggregate credit admission ceiling exhausted; no new work launched")
     ledger["entries"][attempt] = {"reserved_nano": amount, "actual_nano": None, "status": "reserved"}
@@ -267,8 +287,37 @@ def reconcile(ledger: dict, attempt: str, usage: dict | None) -> None:
         raise StudyError("Actual credits exceeded reservation; billing bound is not enforced")
 
 
-def freeze_errors(cfg: dict, root: Path = ROOT) -> list[str]:
+def freeze_errors(cfg: dict, root: Path = ROOT, *, unregistered: dict | None = None) -> list[str]:
     """Verify owner-supplied provenance and gates; never create or move a tag."""
+    if unregistered is not None:
+        errors = []
+        commit = unregistered.get("commit")
+        if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
+            errors.append("Unregistered execution requires a full source commit SHA")
+        elif command(["git", "rev-parse", "HEAD"], cwd=root) != commit:
+            errors.append("HEAD differs from the disclosed unregistered source commit")
+        if unregistered.get("registration_status") != "unregistered":
+            errors.append("Changed design must be explicitly identified as unregistered")
+        if unregistered.get("public_disclosure_url") != (
+                f"https://github.com/jmservera/ama-thought-mve/commit/{commit}"):
+            errors.append("Public disclosure must identify the exact source commit")
+        if (unregistered.get("owner_confirms_public_disclosure") is not True
+                or not isinstance(unregistered.get("disclosed_at"), str)
+                or not unregistered["disclosed_at"].strip()):
+            errors.append("Owner must attest public disclosure and its timestamp before collection")
+        else:
+            try:
+                disclosed_at = datetime.fromisoformat(unregistered["disclosed_at"])
+                if disclosed_at.utcoffset() is None:
+                    raise ValueError("Missing timezone")
+            except ValueError:
+                errors.append("Disclosure timestamp must be ISO 8601 with a timezone")
+        if unregistered.get("inputs_sha256") != fingerprint(root):
+            errors.append("Unregistered source input hash mismatch")
+        for gate in GATES:
+            if not isinstance(unregistered.get(gate), str) or not unregistered[gate].strip():
+                errors.append(f"Owner evidence missing: {gate}")
+        return errors
     manifest_path = (root / cfg["freeze_manifest"]).resolve()
     if not manifest_path.is_relative_to(root / "protocol") or not manifest_path.is_file():
         return ["Missing owner-approved protocol/freeze.json (no protocol is declared frozen)"]
@@ -299,7 +348,7 @@ def freeze_errors(cfg: dict, root: Path = ROOT) -> list[str]:
     return errors
 
 
-def preflight(cfg: dict, *, smoke: bool, root: Path = ROOT) -> list[str]:
+def preflight(cfg: dict, *, smoke: bool, root: Path = ROOT, unregistered: dict | None = None) -> list[str]:
     """Check prerequisites without launching a model, changing git or printing tokens."""
     errors = []
     try:
@@ -331,11 +380,13 @@ def preflight(cfg: dict, *, smoke: bool, root: Path = ROOT) -> list[str]:
                     errors.append(f"{tool} must be pinned to {version}")
         if isinstance(cfg.get("freeze_manifest"), str):
             try:
-                errors.extend(freeze_errors(cfg, root))
+                errors.extend(freeze_errors(cfg, root) if unregistered is None
+                              else freeze_errors(cfg, root, unregistered=unregistered))
             except (StudyError, OSError, ValueError, subprocess.TimeoutExpired):
                 errors.append("Freeze evidence unreadable or tag verification failed")
         from isolated_runtime import runtime_errors
-        errors.extend(runtime_errors(cfg, root))
+        errors.extend(runtime_errors(cfg, root) if unregistered is None
+                      else runtime_errors(cfg, root, manifest=unregistered))
     return errors
 
 
@@ -374,6 +425,135 @@ def study_lock(directory: Path):
         yield
 
 
+@contextmanager
+def paid_study_lock():
+    """Keep distinct paid studies from admitting work concurrently on this checkout."""
+    directory = ROOT / ".study" / ".paid-study-controller"
+    if directory.is_symlink():
+        raise StudyError("Paid-study lock directory must not be symlinked")
+    with study_lock(directory):
+        yield
+
+
+def calibration_handoff(directory: Path, cfg: dict, unregistered: dict) -> dict:
+    """Validate a completed same-source calibration and retain exact all-attempt accounting."""
+    path = directory / "state.json"
+    if directory.is_symlink() or path.is_symlink() or not path.is_file():
+        raise StudyError("Completed calibration state is required for estimation")
+    payload = path.read_bytes()
+    state = json.loads(payload)
+    if not isinstance(state, dict):
+        raise StudyError("Invalid calibration state")
+    identity = state["identity"]
+    expected_provenance = source_provenance(unregistered)
+    if (identity.get("smoke") is not False or identity.get("phase") != "calibration"
+            or identity.get("study_id") != directory.name
+            or identity.get("config") != cfg or identity.get("commit") != unregistered.get("commit")
+            or identity.get("inputs_sha256") != unregistered.get("inputs_sha256")
+            or identity.get("source_provenance") != expected_provenance
+            or identity.get("calibration_plan") != "one-feature-per-model-arm"
+            or state.get("status") != "completed"):
+        raise StudyError("Calibration must be completed with the same unregistered source and configuration")
+    cells = state["cells"]
+    expected = schedule(False, "calibration", cfg["seed"], short_calibration=True)
+    if (len(cells) != len(expected)
+            or any({key: cell.get(key) for key in planned} != planned or cell["status"] != "completed"
+                   for cell, planned in zip(cells, expected))):
+        raise StudyError("Calibration sampling frame is incomplete or differs from the short plan")
+    for cell in cells:
+        expected_steps = ["f01-feature"]
+        if POST_KINDS[cell["arm"]] is not None:
+            expected_steps.append(f"f01-{POST_KINDS[cell['arm']]}")
+        journal = directory / "runs" / cell["run_id"] / "steps.jsonl"
+        if journal.is_symlink() or not journal.is_file():
+            raise StudyError("Calibration durable step journal is missing or unsafe")
+        text = journal.read_text(encoding="utf-8")
+        if not text.endswith("\n"):
+            raise StudyError("Calibration durable step journal is incomplete")
+        records = [json.loads(line) for line in text.splitlines()]
+        if [record["step"] for record in records] != expected_steps:
+            raise StudyError("Calibration durable steps differ from the short plan")
+        for record in records:
+            attempt_ids = [attempt["id"] for attempt in cell["attempts"] if attempt["step"] == record["step"]]
+            if not attempt_ids or record.get("attempts") != attempt_ids:
+                raise StudyError("Calibration durable step and attempt accounting differ")
+    ledger = state["ledger"]
+    if (ledger["prior_nano"] != credits(cfg["prior_credits"])
+            or ledger["ceiling_nano"] != credits(cfg["ceiling_credits"])
+            or ledger.get("historical_credit_provisions") != historical_credit_provisions(cfg)):
+        raise StudyError("Calibration baseline accounting differs from estimation")
+    attempts = [attempt for cell in cells for attempt in cell["attempts"]]
+    ids = [attempt["id"] for attempt in attempts]
+    entries = ledger["entries"]
+    if len(ids) != len(set(ids)) or set(ids) != set(entries):
+        raise StudyError("Calibration attempts and ledger entries do not match")
+    imported = []
+    for attempt in attempts:
+        entry = entries[attempt["id"]]
+        reserved, actual = entry["reserved_nano"], entry["actual_nano"]
+        if type(reserved) is not int or reserved < 0:
+            raise StudyError("Invalid calibration reservation")
+        if entry["status"] == "complete":
+            if (type(actual) is not int or actual < 0 or actual > reserved
+                    or accounted_nano(attempt.get("usage")) != actual):
+                raise StudyError("Calibration completed charge does not match its receipt or reservation")
+        elif entry["status"] == "restart_hold":
+            restart = next((item for item in state.get("restart_history", [])
+                            if attempt["id"] in item.get("interrupted_attempts", [])), None)
+            if (actual is not None or attempt["status"] != "restart_interrupted" or restart is None
+                    or attempt.get("interrupted_boot_id") != restart.get("previous_boot_id")
+                    or attempt.get("recovered_boot_id") != restart.get("boot_id")
+                    or restart.get("previous_boot_id") == restart.get("boot_id")):
+                raise StudyError("Invalid calibration restart hold")
+        else:
+            raise StudyError("Unresolved calibration accounting blocks estimation")
+        if not attempt.get("cost_included_in_step"):
+            raise StudyError("Calibration attempt is not included in its durable step")
+        imported.append({"attempt_id": attempt["id"], "status": entry["status"],
+                         "reserved_nano": reserved, "actual_nano": actual})
+    known = sum(entry["actual_nano"] for entry in imported if entry["status"] == "complete")
+    held = sum(entry["reserved_nano"] for entry in imported if entry["status"] == "restart_hold")
+    return {"study_id": directory.name, "state_sha256": hashlib.sha256(payload).hexdigest(),
+            "known_nano": known, "held_nano": held, "entries": imported}
+
+
+def source_provenance(unregistered: dict) -> dict:
+    return {"registration_status": "unregistered",
+            "public_disclosure_url": unregistered["public_disclosure_url"],
+            "disclosed_at_owner_reported": unregistered["disclosed_at"],
+            "manifest_sha256": hashlib.sha256(
+                json.dumps(unregistered, sort_keys=True, separators=(",", ":")).encode()).hexdigest()}
+
+
+def ensure_no_terminal_receipt(directory: Path, attempt: dict) -> None:
+    """Do not replay an agent whose durable terminal evidence survived a reboot."""
+    relative = attempt.get("directory")
+    if relative is None:
+        return
+    if (not isinstance(relative, str) or not relative or Path(relative).is_absolute()
+            or ".." in Path(relative).parts):
+        raise StudyError("Invalid interrupted attempt directory")
+    journal = directory / relative / "transport" / "events.jsonl"
+    if not journal.resolve().is_relative_to(directory.resolve()) or journal.is_symlink():
+        raise StudyError("Unsafe interrupted attempt journal")
+    if not journal.exists():
+        return
+    if not journal.is_file() or journal.stat().st_size > 64 * 1024 * 1024:
+        raise StudyError("Invalid interrupted attempt journal")
+    with journal.open(encoding="utf-8") as stream:
+        for line in stream:
+            if not line.endswith("\n"):
+                raise StudyError("Interrupted SDK journal is torn; retain it for manual recovery")
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError as error:
+                raise StudyError("Interrupted SDK journal is malformed; retain it for manual recovery") from error
+            if not isinstance(event, dict):
+                raise StudyError("Interrupted SDK journal is malformed; retain it for manual recovery")
+            if event.get("type") == "complete":
+                raise StudyError("A terminal SDK receipt survived the reboot; retain outputs for manual recovery")
+
+
 def group_alive(pid: int) -> bool:
     """Conservatively refuse recovery while a recorded writer group still exists."""
     try:
@@ -381,6 +561,14 @@ def group_alive(pid: int) -> bool:
     except ProcessLookupError:
         return False
     return True
+
+
+def boot_id() -> str:
+    """Identify a Linux boot so a restart is not confused with a controller crash."""
+    value = Path("/proc/sys/kernel/random/boot_id").read_text(encoding="ascii").strip()
+    if not re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", value):
+        raise StudyError("Cannot establish the current VM boot identity")
+    return value
 
 
 def docker_command(repo: Path, session: Path, image: str, prompt: str, cap: int,
@@ -474,6 +662,8 @@ class StudyRun(Run):
         super().setup(existing_metadata=True)
         meta = read_json(metadata)
         meta.update(diagnostic=self.controller.smoke, study_id=self.controller.study_id)
+        if self.controller.state["identity"].get("calibration_plan"):
+            meta["calibration_plan"] = self.controller.state["identity"]["calibration_plan"]
         atomic_json(metadata, meta)
 
     def bounded_process(self, args: list[str], cwd: Path, env: dict, out: Path,
@@ -483,23 +673,20 @@ class StudyRun(Run):
         remaining = self.controller.state["deadline"] - start
         if remaining <= 0:
             raise StudyError("Study deadline reached; no new process launched")
-        self.controller.state["writer_pending"] = True
-        self.controller.save()
+        cell = getattr(self, "cell", {})
+        self.controller.writer_pending(cell)
         with out.open("wb") as stdout, err.open("wb") as stderr:
             process = subprocess.Popen(args, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
                                        stdout=stdout, stderr=stderr, start_new_session=True)
-            self.controller.state["writer_pid"] = process.pid
-            self.controller.state["writer_pending"] = False
             timed_out = False
             try:
-                self.controller.save()
+                self.controller.writer_started(cell, process.pid)
                 process.wait(timeout=min(timeout, remaining))
             except subprocess.TimeoutExpired:
                 timed_out = True
             finally:
                 terminate(process)
-                self.controller.state["writer_pid"] = None
-                self.controller.save()
+                self.controller.writer_stopped(cell)
         for path in (out, err):
             if path.stat().st_size > 1024 * 1024:
                 with path.open("r+b") as stream:
@@ -516,11 +703,10 @@ class StudyRun(Run):
         reserve_buffer = self.credit_multiplier() * (credits(controller.cfg["session_reserve_credits"])
                                                      - credits(controller.cfg["session_soft_limit_credits"]))
         attempt = controller.new_attempt(self.cell, self.current_step, remaining_credits + reserve_buffer)
-        attempt.update(seconds_limit=remaining_seconds, credit_limit_nano=remaining_credits)
         directory = Path(self.dir) / "attempts" / attempt["id"]
         directory.mkdir(parents=True, mode=0o700)
-        attempt["directory"] = str(directory.relative_to(controller.directory))
-        controller.save()
+        controller.update(attempt, seconds_limit=remaining_seconds, credit_limit_nano=remaining_credits,
+                          directory=str(directory.relative_to(controller.directory)))
         env = {"PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", ""),
                "HOME": str(directory),
                "TEST_CMD": self.env_extra["TEST_CMD"], "MVE_HARNESS": str(ROOT / "harness"),
@@ -533,9 +719,10 @@ class StudyRun(Run):
         usage = {"totalNanoAiu": 0, "credits_complete": True,
                  "tokenDetails": {name: {"tokenCount": 0}
                                   for name in ("input", "output", "cache_read", "cache_write")}}
-        attempt.update(status="timeout" if timed_out else "agent_returned", exit_code=status,
-                       seconds=round(seconds, 4), usage=usage)
-        controller.settle_attempt(attempt["id"], usage)
+        with controller.lock:
+            attempt.update(status="timeout" if timed_out else "agent_returned", exit_code=status,
+                           seconds=round(seconds, 4), usage=usage)
+            controller.settle_attempt(attempt["id"], usage)
         return {"exit_code": status, "timed_out": timed_out, "seconds": seconds,
                 "usage": usage, "possible_leak": False, "diagnostic_stub": True}
 
@@ -543,7 +730,8 @@ class StudyRun(Run):
         return 2 if self.arm == "D" and self.current_step.endswith("-feature") else 1
 
     def remaining_allowance(self, budget: int) -> tuple[float, int]:
-        previous = [attempt for attempt in self.cell["attempts"] if attempt["step"] == self.current_step]
+        previous = [attempt for attempt in self.cell["attempts"]
+                    if attempt["step"] == self.current_step and attempt["status"] != "restart_interrupted"]
         seconds = 0.0
         spent = 0
         for attempt in previous:
@@ -588,43 +776,49 @@ class StudyRun(Run):
         attempt = self.cell["attempts"][-1]
         current = head(self.repo)
         status = git(self.repo, "status", "--porcelain").stdout
-        measurement = attempt.setdefault("measurement", {"head": current, "calls": 0, "status": "pending"})
+        with self.controller.lock:
+            measurement = attempt.setdefault("measurement", {"head": current, "calls": 0, "status": "pending"})
         if measurement["head"] != current or measurement["status"] == "snapshot_changed":
-            measurement["status"] = "snapshot_changed"
-            self.controller.state["oracle_halt"] = True
-            self.controller.save()
+            with self.controller.lock:
+                measurement["status"] = "snapshot_changed"
+                self.controller.state["oracle_halt"] = True
+                self.controller.save()
             raise StudyError("Measurement snapshot changed; collection halted")
         if measurement["status"] in ("complete", "exhausted"):
             raise StudyError("Measurement snapshot or durable retry limit forbids replay")
         while measurement["calls"] < 2:
-            measurement["calls"] += 1
-            measurement["status"] = "running"
-            self.controller.save()
+            with self.controller.lock:
+                measurement["calls"] += 1
+                measurement["status"] = "running"
+                self.controller.save()
             try:
                 result = self._measure_once(k, step_dir, prev_ref, cr)
             except StudyError:
-                measurement["status"] = "invalid_result"
-                self.controller.state["oracle_halt"] = True
-                self.controller.save()
-                raise
-            except (RetryableError, OSError, subprocess.TimeoutExpired) as error:
-                measurement["status"] = "exhausted" if measurement["calls"] == 2 else "infrastructure_failure"
-                measurement["error"] = type(error).__name__
-                self.controller.save()
-                if head(self.repo) != current or git(self.repo, "status", "--porcelain").stdout != status:
-                    measurement["status"] = "snapshot_changed"
+                with self.controller.lock:
+                    measurement["status"] = "invalid_result"
                     self.controller.state["oracle_halt"] = True
                     self.controller.save()
+                raise
+            except (RetryableError, OSError, subprocess.TimeoutExpired) as error:
+                with self.controller.lock:
+                    measurement["status"] = "exhausted" if measurement["calls"] == 2 else "infrastructure_failure"
+                    measurement["error"] = type(error).__name__
+                    self.controller.save()
+                if head(self.repo) != current or git(self.repo, "status", "--porcelain").stdout != status:
+                    with self.controller.lock:
+                        measurement["status"] = "snapshot_changed"
+                        self.controller.state["oracle_halt"] = True
+                        self.controller.save()
                     raise StudyError("Evaluator changed the retained snapshot; collection halted") from error
                 continue
             if (head(self.repo) != current or git(self.repo, "status", "--porcelain").stdout != status
                     or result.get("head") != current):
-                measurement["status"] = "snapshot_changed"
-                self.controller.state["oracle_halt"] = True
-                self.controller.save()
+                with self.controller.lock:
+                    measurement["status"] = "snapshot_changed"
+                    self.controller.state["oracle_halt"] = True
+                    self.controller.save()
                 raise StudyError("Evaluator changed or misidentified the retained snapshot; collection halted")
-            measurement["status"] = "complete"
-            self.controller.save()
+            self.controller.update(measurement, status="complete")
             return result
         raise StudyError("Measurement infrastructure retries exhausted; no agent replay")
 
@@ -670,9 +864,10 @@ class StudyRun(Run):
         with open(self.steps_path, "a", encoding="utf-8") as stream:
             stream.flush()
             os.fsync(stream.fileno())
-        for attempt in attempts:
-            attempt["cost_included_in_step"] = True
-        self.controller.save()
+        with self.controller.lock:
+            for attempt in attempts:
+                attempt["cost_included_in_step"] = True
+            self.controller.save()
 
     def post_step(self, k: int) -> None:
         if not self.controller.smoke and self.arm == "C":
@@ -686,12 +881,19 @@ class Controller:
     """Own one immutable schedule and exactly one analysis unit per cell."""
 
     def __init__(self, directory: Path, cfg: dict, *, smoke: bool, phase: str, study_id: str,
-                 replicates: int | None = None):
+                 replicates: int | None = None, short_calibration: bool = False, parallelism: int = 1,
+                 unregistered: dict | None = None, handoff: dict | None = None):
+        if type(parallelism) is not int or parallelism < 1:
+            raise StudyError("Parallelism must be a positive integer")
+        self.lock = threading.RLock()
         self.directory = directory
         self.cfg = cfg
         self.smoke = smoke
         self.phase = "dry" if smoke else phase
         self.study_id = study_id
+        self.parallelism = parallelism
+        self.unregistered = unregistered
+        self.boot_id = boot_id()
         self.path = directory / "state.json"
         estimation = not smoke and phase not in ("pilot", "calibration")
         if not estimation and replicates is not None:
@@ -702,12 +904,18 @@ class Controller:
         identity = {"study_id": study_id, "config": cfg, "smoke": smoke, "phase": self.phase,
                     "inputs_sha256": fingerprint(),
                     "commit": command(["git", "rev-parse", "HEAD"])}
-        proposed = schedule(smoke, phase, cfg["seed"], count)
+        if unregistered is not None:
+            identity["source_provenance"] = source_provenance(unregistered)
+        if handoff is not None:
+            identity["calibration_handoff"] = handoff
+        proposed = schedule(smoke, phase, cfg["seed"], count, short_calibration=short_calibration)
         if not smoke:
             identity.update(analysis_design=MODEL_DESIGN,
                             model_roster=read_json(ROOT / "protocol/pilot-estimation.json")["study"]["model_roster"])
         if estimation:
             identity["replicates_per_model_arm"] = count
+        if short_calibration:
+            identity["calibration_plan"] = "one-feature-per-model-arm"
         if self.path.exists():
             self.state = read_json(self.path)
             if self.state["identity"] != identity:
@@ -718,9 +926,12 @@ class Controller:
                           "deadline": started + cfg["study_timeout_seconds"],
                           "writer_pid": None, "status": "prepared", "errors": [],
                           "writer_pending": False,
+                          "boot_id": self.boot_id, "writers": {}, "restart_history": [],
+                          "parallelism_history": [],
                           "ledger": {"ceiling_nano": credits(cfg["ceiling_credits"]),
                                      "prior_nano": 0 if smoke else credits(cfg["prior_credits"]),
                                      "historical_credit_provisions": historical_credit_provisions(cfg, smoke=smoke),
+                                     "calibration_handoff": handoff,
                                      "entries": {}},
                           "cells": [dict(cell, status="pending", attempts=[], checkpoint=None)
                                     for cell in proposed]}
@@ -733,6 +944,7 @@ class Controller:
                 or self.state["ledger"]["prior_nano"] != (0 if smoke else credits(cfg["prior_credits"]))
                 or self.state["ledger"].get("historical_credit_provisions", [])
                 != historical_credit_provisions(cfg, smoke=smoke)
+                or self.state["ledger"].get("calibration_handoff") != handoff
                 or self.state["deadline"] > self.state["started"] + cfg["study_timeout_seconds"]):
             raise StudyError("Stored budget, prior spending or deadline differs from immutable limits")
         pid = self.state.get("writer_pid")
@@ -741,6 +953,10 @@ class Controller:
         if pid and group_alive(pid):
             raise StudyError("Recorded writer group may still be alive; stop it before resuming")
         self.state["writer_pid"] = None
+        self.recover_writers()
+        self.state.setdefault("parallelism_history", []).append(
+            {"parallelism": parallelism, "boot_id": self.boot_id, "started": time.time()})
+        self.save()
         self.runtime_config = directory / "runtime.json"
         runtime = read_json(ROOT / ("harness/config.dry-run.json" if smoke else "harness/config.json"))
         runtime["runs_dir"] = str(directory / "runs")
@@ -758,6 +974,8 @@ class Controller:
                 expected_metadata.update({key: cell[key] for key in ("assigned_model", "analysis_design", "replicate")})
                 if estimation:
                     expected_metadata["replicates_per_model_arm"] = count
+                if short_calibration:
+                    expected_metadata["calibration_plan"] = "one-feature-per-model-arm"
             if not metadata.exists():
                 atomic_json(metadata, expected_metadata)
             else:
@@ -767,31 +985,125 @@ class Controller:
 
     def save(self) -> None:
         """Persist all lifecycle and accounting transitions."""
-        atomic_json(self.path, self.state)
+        with self.lock:
+            atomic_json(self.path, self.state)
+
+    def update(self, target: dict, **values) -> None:
+        """Mutate and persist shared state as one controller transaction."""
+        with self.lock:
+            target.update(values)
+            self.save()
+
+    def writer_pending(self, cell: dict) -> None:
+        with self.lock:
+            writers = self.state.setdefault("writers", {})
+            key = cell.get("run_id", "legacy")
+            if key in writers:
+                raise StudyError("A writer is already recorded for this trajectory")
+            writers[key] = {"pending": True, "pid": None, "boot_id": self.boot_id}
+            self.save()
+
+    def writer_started(self, cell: dict, pid: int) -> None:
+        with self.lock:
+            writer = self.state["writers"][cell.get("run_id", "legacy")]
+            writer.update(pending=False, pid=pid)
+            self.save()
+
+    def writer_stopped(self, cell: dict) -> None:
+        with self.lock:
+            self.state["writers"].pop(cell.get("run_id", "legacy"))
+            self.save()
+
+    def recover_writers(self) -> None:
+        """Hold interrupted requests only after an independently identifiable VM reboot."""
+        previous_boot = self.state.get("boot_id", self.boot_id)
+        writers = self.state.setdefault("writers", {})
+        if not isinstance(writers, dict):
+            raise StudyError("Invalid recorded writer registry")
+        for writer in writers.values():
+            if (not isinstance(writer, dict) or type(writer.get("pending")) is not bool
+                    or writer.get("boot_id") != previous_boot
+                    or (writer.get("pid") is not None
+                        and (type(writer["pid"]) is not int or writer["pid"] <= 0))):
+                raise StudyError("Invalid recorded writer identity")
+        if previous_boot == self.boot_id:
+            for writer in writers.values():
+                if writer.get("pending"):
+                    raise StudyError("Ambiguous writer startup; inspect private state before any recovery")
+                if writer.get("pid") and group_alive(writer["pid"]):
+                    raise StudyError("Recorded writer group may still be alive; stop it before resuming")
+            if writers:
+                raise StudyError("Writer termination on the same VM boot requires manual recovery")
+            if any(attempt["status"] == "running"
+                   for cell in self.state["cells"] for attempt in cell["attempts"]):
+                raise StudyError("Same-boot interrupted attempt requires manual recovery")
+            return
+        interrupted = []
+        for cell in self.state["cells"]:
+            checkpoint = cell.get("checkpoint") or {}
+            for attempt in cell["attempts"]:
+                if attempt["status"] != "running":
+                    continue
+                entry = self.state["ledger"]["entries"].get(attempt["id"])
+                if (attempt["step"] != checkpoint.get("step") or not entry
+                        or entry.get("status") != "reserved"):
+                    raise StudyError("Interrupted attempt and reservation do not match the retained checkpoint")
+                if not self.smoke:
+                    ensure_no_terminal_receipt(self.directory, attempt)
+                if self.smoke:
+                    reconcile(self.state["ledger"], attempt["id"],
+                              {"totalNanoAiu": 0, "credits_complete": True})
+                    attempt["usage"] = {"totalNanoAiu": 0, "credits_complete": True}
+                else:
+                    entry["status"] = "restart_hold"
+                    attempt["usage"] = None
+                attempt.update(status="restart_interrupted", seconds=None,
+                               interrupted_boot_id=previous_boot, recovered_boot_id=self.boot_id)
+                interrupted.append(attempt["id"])
+        self.state.setdefault("restart_history", []).append(
+            {"previous_boot_id": previous_boot, "boot_id": self.boot_id,
+             "observed": time.time(), "interrupted_attempts": interrupted})
+        self.state["writers"] = {}
+        self.state["boot_id"] = self.boot_id
+        self.save()
 
     def new_attempt(self, cell: dict, step: str, allowance_nano: int | None = None) -> dict:
         """Reserve before launch, counting every infrastructure retry."""
-        previous = [attempt for attempt in cell["attempts"] if attempt["step"] == step]
-        if len(previous) >= self.cfg["max_attempts"]:
-            raise StudyError("Bounded attempt limit reached; partial cell retained")
-        attempt_id = f"{cell['run_id']}-{step}-{len(previous) + 1}"
-        multiplier = 2 if cell["arm"] == "D" and step.endswith("-feature") else 1
-        amount = 0 if self.smoke else multiplier * credits(self.cfg["session_reserve_credits"])
-        if allowance_nano is not None:
-            amount = min(amount, allowance_nano)
-        reserve(self.state["ledger"], attempt_id, amount)
-        attempt = {"id": attempt_id, "step": step, "status": "running",
-                   "started": time.time(), "seconds": None, "usage": None}
-        cell["attempts"].append(attempt)
-        self.save()
-        return attempt
+        with self.lock:
+            if any(entry["status"] == "unknown" for entry in self.state["ledger"]["entries"].values()):
+                raise StudyError("Unknown usage holds its reservation and blocks new work")
+            if self.state.get("oracle_halt") or self.state.get("stop_requested"):
+                raise StudyError("Controller halted; no new session admitted")
+            previous = [attempt for attempt in cell["attempts"] if attempt["step"] == step]
+            ordinary = [attempt for attempt in previous if attempt["status"] != "restart_interrupted"]
+            if len(ordinary) >= self.cfg["max_attempts"]:
+                raise StudyError("Bounded attempt limit reached; partial cell retained")
+            attempt_id = f"{cell['run_id']}-{step}-{len(previous) + 1}"
+            multiplier = 2 if cell["arm"] == "D" and step.endswith("-feature") else 1
+            amount = 0 if self.smoke else multiplier * credits(self.cfg["session_reserve_credits"])
+            if allowance_nano is not None:
+                amount = min(amount, allowance_nano)
+            try:
+                reserve(self.state["ledger"], attempt_id, amount)
+            except StudyError:
+                self.state["stop_requested"] = True
+                self.state["stop_reason"] = "Credit admission failed; no new session admitted"
+                self.save()
+                raise
+            attempt = {"id": attempt_id, "step": step, "status": "running",
+                       "started": time.time(), "seconds": None, "usage": None,
+                       "parallelism": self.parallelism}
+            cell["attempts"].append(attempt)
+            self.save()
+            return attempt
 
     def settle_attempt(self, attempt: str, usage: dict | None) -> None:
         """Persist unknown accounting and overruns even when reconciliation stops."""
-        try:
-            reconcile(self.state["ledger"], attempt, usage)
-        finally:
-            self.save()
+        with self.lock:
+            try:
+                reconcile(self.state["ledger"], attempt, usage)
+            finally:
+                self.save()
 
     def run_cell(self, cell: dict) -> None:
         """Resume only unmeasured work, never retry a recorded task failure."""
@@ -817,14 +1129,28 @@ class Controller:
         done = [record["step"] for record in records]
         if len(done) != len(set(done)):
             raise StudyError("Duplicate durable steps; refuse ambiguous recovery")
+        with self.lock:
+            attempts = {attempt["id"]: attempt for attempt in cell["attempts"]}
+            for record in records:
+                for attempt_id in record.get("attempts", []):
+                    if attempt_id not in attempts or attempts[attempt_id]["step"] != record["step"]:
+                        raise StudyError("Durable step references an unknown or mismatched attempt")
+                    attempts[attempt_id]["cost_included_in_step"] = True
+            self.save()
         checkpoint = cell.get("checkpoint")
         if checkpoint and checkpoint["step"] not in done:
-            for attempt in cell["attempts"]:
-                if attempt["step"] == checkpoint["step"] and attempt["status"] == "running":
-                    attempt.update(status="interrupted", usage={"totalNanoAiu": 0, "credits_complete": True}
-                                   if self.smoke else None)
-                    self.settle_attempt(attempt["id"], attempt["usage"])
-            self.save()
+            with self.lock:
+                if any(attempt["step"] == checkpoint["step"]
+                       and (attempt["status"] == "agent_returned" or attempt.get("measurement"))
+                       for attempt in cell["attempts"]):
+                    raise StudyError("Completed agent or started measurement requires manual recovery; "
+                                     "retained outputs will not be discarded")
+                for attempt in cell["attempts"]:
+                    if attempt["step"] == checkpoint["step"] and attempt["status"] == "running":
+                        attempt.update(status="interrupted", usage={"totalNanoAiu": 0, "credits_complete": True}
+                                       if self.smoke else None)
+                        self.settle_attempt(attempt["id"], attempt["usage"])
+                self.save()
             git(run.repo, "reset", "-q", "--hard", checkpoint["head"])
             git(run.repo, "clean", "-qfd")
         if records and head(run.repo) != records[-1]["measure"]["head"]:
@@ -841,65 +1167,103 @@ class Controller:
             steps.append((f"{run.suite['change_request']['id']}-change", run.change_request, ()))
         if done != [step[0] for step in steps[:len(done)]]:
             raise StudyError("Durable step order differs from frozen schedule")
-        cell["completed_steps"] = len(done)
-        cell["status"] = "running"
-        self.save()
+        self.update(cell, completed_steps=len(done), status="running")
         for step, function, params in steps:
             if step in done:
                 continue
-            if time.time() >= self.state["deadline"]:
-                raise StudyError("Study deadline reached; no new cell/step launched")
-            cell["checkpoint"] = {"step": step, "head": head(run.repo)}
-            self.save()
+            with self.lock:
+                if self.state.get("oracle_halt") or self.state.get("stop_requested"):
+                    raise StudyError("Controller halted; no new step launched")
+                if time.time() >= self.state["deadline"]:
+                    raise StudyError("Study deadline reached; no new cell/step launched")
+                cell["checkpoint"] = {"step": step, "head": head(run.repo)}
+                self.save()
             run.current_step = step
-            show_progress(self.state, f"{cell.get('assigned_model', 'offline stub')} / {cell['arm']} / {step}")
+            with self.lock:
+                show_progress(self.state, f"{cell.get('assigned_model', 'offline stub')} / {cell['arm']} / {step}")
             function(*params)
-            cell["completed_steps"] += 1
-            cell["checkpoint"] = None
-            self.save()
-        cell["status"] = "completed"
+            with self.lock:
+                cell["completed_steps"] += 1
+                cell["checkpoint"] = None
+                self.save()
         meta = read_json(Path(run.dir) / "run.json")
         meta["finished"] = time.time()
         atomic_json(Path(run.dir) / "run.json", meta)
-        self.save()
+        with self.lock:
+            cell.pop("error", None)
+            cell.pop("stop_reason", None)
+            cell["status"] = "completed"
+            self.save()
+
+    def run_scheduled_cell(self, cell: dict) -> None:
+        """Retain a failed cell and preserve the original bounded retry policy."""
+        for _ in range(self.cfg["max_attempts"]):
+            try:
+                self.run_cell(cell)
+                return
+            except (StudyError, RuntimeError, OSError, subprocess.TimeoutExpired) as error:
+                with self.lock:
+                    cell.update(status="partial", error=type(error).__name__,
+                                stop_reason=(str(error) if isinstance(error, (StudyError, RetryableError))
+                                             else "Infrastructure failure; inspect private attempt logs"))
+                    self.save()
+                    step = (cell.get("checkpoint") or {}).get("step")
+                    attempts = [attempt for attempt in cell["attempts"] if attempt["step"] == step]
+                if (not self.smoke or not attempts or len(attempts) >= self.cfg["max_attempts"]
+                        or not isinstance(error, RetryableError)):
+                    return
+
+    def admission_stopped(self) -> bool:
+        with self.lock:
+            if self.state.get("oracle_halt") or self.state.get("stop_requested"):
+                return True
+            entries = self.state["ledger"]["entries"].values()
+            if any(entry["status"] == "unknown" for entry in entries):
+                self.state["stop_reason"] = "Unknown usage blocks new paid work"
+                self.save()
+                return True
+            if any(entry["status"] == "complete" and entry["actual_nano"] > entry["reserved_nano"]
+                   for entry in entries):
+                self.state["stop_reason"] = "A reservation overrun blocks new paid work"
+                self.save()
+                return True
+            if time.time() >= self.state["deadline"]:
+                self.state["stop_reason"] = "Absolute study deadline reached"
+                self.save()
+                return True
+            return False
 
     def go(self) -> bool:
         """Keep failures and unattempted cells, then always produce a complete report."""
-        self.state["status"] = "running"
-        self.save()
+        self.update(self.state, status="running", stop_requested=False)
+        executor = ThreadPoolExecutor(max_workers=min(self.parallelism, max(1, len(self.state["cells"]))))
+        active = {}
+        pending = iter(cell for cell in self.state["cells"] if cell["status"] != "completed")
+
+        def fill() -> None:
+            while len(active) < self.parallelism and not self.admission_stopped():
+                cell = next(pending, None)
+                if cell is None:
+                    break
+                active[executor.submit(self.run_scheduled_cell, cell)] = cell
+
+        finished = False
         try:
-            for cell in self.state["cells"]:
-                if self.state.get("oracle_halt"):
-                    self.state["stop_reason"] = "Runtime or oracle integrity failed; manual investigation required"
-                    break
-                if cell["status"] == "completed":
-                    continue
-                if time.time() >= self.state["deadline"]:
-                    self.state["status"] = "deadline"
-                    self.state["stop_reason"] = "Absolute study deadline reached"
-                    break
-                for _ in range(self.cfg["max_attempts"]):
-                    try:
-                        self.run_cell(cell)
-                        break
-                    except (StudyError, RuntimeError, OSError, subprocess.TimeoutExpired) as error:
-                        cell["status"] = "partial"
-                        cell["error"] = type(error).__name__
-                        cell["stop_reason"] = (str(error) if isinstance(error, (StudyError, RetryableError))
-                                               else "Infrastructure failure; inspect private attempt logs")
-                        self.save()
-                        step = (cell.get("checkpoint") or {}).get("step")
-                        attempts = [attempt for attempt in cell["attempts"] if attempt["step"] == step]
-                        if (not self.smoke or not attempts or len(attempts) >= self.cfg["max_attempts"]
-                                or not isinstance(error, RetryableError)):
-                            break
-        except KeyboardInterrupt:
-            self.state["status"] = "interrupted"
-            self.save()
-            raise
+            fill()
+            while active:
+                completed, _ = wait(active, return_when=FIRST_COMPLETED)
+                for future in completed:
+                    active.pop(future)
+                    future.result()
+                fill()
+            finished = True
+        finally:
+            if not finished:
+                self.update(self.state, status="interrupted", stop_requested=True)
+            executor.shutdown(wait=True, cancel_futures=True)
         success = all(cell["status"] == "completed" for cell in self.state["cells"])
-        self.state["status"] = "oracle_halt" if self.state.get("oracle_halt") else "completed" if success else "partial"
-        self.save()
+        status = "oracle_halt" if self.state.get("oracle_halt") else "completed" if success else "partial"
+        self.update(self.state, status=status)
         from study_report import export
         export(self.directory, self.state, self.study_id)
         show_progress(self.state, self.state["status"])
@@ -951,7 +1315,7 @@ def launch_replicates(args, directory: Path) -> int | None:
         return selected_replicates(count)
     if args.replicates is not None:
         return selected_replicates(args.replicates)
-    default = selected_replicates()
+    default = selected_replicates(21 if getattr(args, "unregistered_manifest", None) else None)
     if not (args.dry_run or args.check_vm) and sys.stdin.isatty():
         print("Choose replicates per model/arm before collection: 12, 21 or 33. "
               "Record this allocation prospectively; it cannot change on resume.", flush=True)
@@ -974,12 +1338,22 @@ def main() -> int:
     parser.add_argument("--phase", choices=["pilot", "first", "calibration", "pilot-estimation"],
                         default="pilot-estimation")
     parser.add_argument("--replicates", type=int, choices=REPLICATE_OPTIONS,
-                        help="replicates per model/arm; new estimation default 12, immutable on resume")
+                        help="replicates per model/arm; default 12 registered or 21 unregistered, immutable on resume")
+    parser.add_argument("--short-calibration", action="store_true",
+                        help="one feature per model/arm in excluded calibration")
+    parser.add_argument("--parallel", type=int, default=4,
+                        help="maximum concurrent independent trajectories (default: 4; adjustable on resume)")
+    parser.add_argument("--unregistered-manifest", type=Path,
+                        help="explicit owner evidence for the publicly disclosed, unregistered changed design")
+    parser.add_argument("--calibration-study-id",
+                        help="completed short-calibration study whose accounting is carried into estimation")
     parser.add_argument("--publish", action="store_true", help="push only derived results and create/update a PR")
     saved = parser.add_mutually_exclusive_group()
     saved.add_argument("--status", action="store_true", help="show saved progress without authentication or model calls")
     saved.add_argument("--share", action="store_true", help="package existing derived results locally; never run models")
     args = parser.parse_args()
+    if args.parallel < 1:
+        raise StudyError("Parallelism must be a positive integer")
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", args.study_id):
         raise StudyError("study-id must be lowercase letters/digits/hyphens, at most 64 characters")
     directory = ROOT / ".study" / args.study_id
@@ -996,11 +1370,46 @@ def main() -> int:
                 print(f"Shareable results: {package_results(directory / 'results', args.study_id)}")
         return 0
     cfg = read_json(args.config)
+    if args.smoke and args.unregistered_manifest:
+        raise StudyError("Unregistered launch evidence does not apply to offline smoke runs")
+    if args.unregistered_manifest and args.unregistered_manifest.is_symlink():
+        raise StudyError("Unregistered launch evidence must not be a symlink")
+    unregistered = read_json(args.unregistered_manifest) if args.unregistered_manifest else None
+    estimation = not args.smoke and args.phase not in ("pilot", "calibration")
+    if args.calibration_study_id and not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", args.calibration_study_id):
+        raise StudyError("Invalid calibration study ID")
+    if args.calibration_study_id == args.study_id:
+        raise StudyError("Calibration and estimation must use different study IDs")
+    if args.calibration_study_id and (not estimation or unregistered is None):
+        raise StudyError("Calibration handoff is only available for unregistered estimation")
     replicates = launch_replicates(args, directory)
-    errors = preflight(cfg, smoke=args.smoke)
-    cells = schedule(args.smoke, args.phase, cfg["seed"], replicates) if type(cfg.get("seed")) is int else []
+    errors = (preflight(cfg, smoke=args.smoke) if unregistered is None
+              else preflight(cfg, smoke=args.smoke, unregistered=unregistered))
+    if unregistered is not None and (args.phase == "pilot"
+                                      or (args.phase == "calibration" and not args.short_calibration)):
+        errors.append("Unregistered calibration requires the explicitly authorized short calibration plan")
+    handoff = None
+    calibration_directory = ROOT / ".study" / args.calibration_study_id if args.calibration_study_id else None
+    if unregistered is not None and estimation:
+        if calibration_directory is None:
+            errors.append("Completed short-calibration accounting handoff is required for estimation")
+        else:
+            try:
+                handoff = calibration_handoff(calibration_directory, cfg, unregistered)
+            except (StudyError, OSError, ValueError, KeyError, TypeError) as error:
+                errors.append(str(error) if isinstance(error, StudyError)
+                              else "Calibration accounting evidence is unreadable or malformed")
+    cells = (schedule(args.smoke, args.phase, cfg["seed"], replicates,
+                      short_calibration=args.short_calibration) if type(cfg.get("seed")) is int else [])
     preview = {"mode": "stub-smoke" if args.smoke else args.phase,
                "replicates_per_model_arm": replicates,
+               "calibration_plan": "one-feature-per-model-arm" if args.short_calibration else None,
+               "parallelism": args.parallel,
+               "maximum_active_trajectories": min(args.parallel, len(cells)),
+               "registration_status": ("diagnostic" if args.smoke
+                                       else "unregistered" if unregistered is not None else "registration-required"),
+               "public_disclosure_url": unregistered.get("public_disclosure_url") if unregistered else None,
+               "calibration_handoff": handoff,
                "inputs_sha256": fingerprint(),
                "schedule": cells,
                "planned_resources": planned_resources(cells) if not args.smoke else None,
@@ -1015,9 +1424,16 @@ def main() -> int:
         from isolated_runtime import check_host_auth
         check_host_auth(ROOT)
         print("Authentication: signed-in host Copilot user; no credentials enter candidate containers.", flush=True)
-    with study_lock(directory):
+    with ExitStack() as locks:
+        if not args.smoke:
+            locks.enter_context(paid_study_lock())
+        locks.enter_context(study_lock(directory))
+        if calibration_directory is not None:
+            with study_lock(calibration_directory):
+                handoff = calibration_handoff(calibration_directory, cfg, unregistered)
         controller = Controller(directory, cfg, smoke=args.smoke, phase=args.phase, study_id=args.study_id,
-                                replicates=replicates)
+                                replicates=replicates, short_calibration=args.short_calibration,
+                                parallelism=args.parallel, unregistered=unregistered, handoff=handoff)
         success = controller.go()
         from study_report import package_results
         print(f"Shareable results: {package_results(directory / 'results', args.study_id)}")

@@ -104,14 +104,14 @@ def test_saved_progress_and_sharing_need_no_authentication_or_paid_preflight(
 def test_exports_distinguish_historical_budget_hold_from_actual_usage(modules, reports, legacy):
     study, report = modules
     state = study.read_json(reports.parent / "state.json")
-    cfg = dict(study.read_json(ROOT / "harness/study-config.json"), prior_credits=21.79019)
+    cfg = study.read_json(ROOT / "harness/study-config.json")
     state["ledger"]["prior_nano"] = study.credits(cfg["prior_credits"])
     state["ledger"]["historical_credit_provisions"] = study.historical_credit_provisions(cfg)
     exporter = report.legacy_export if legacy else report.export
     exporter(reports.parent, state, "export-test")
     provenance = study.read_json(reports / "provenance.json")
-    assert provenance["prior_nano"] == study.credits("21.79019")
-    assert provenance["historical_reserved_nano"] == study.credits(1500)
+    assert provenance["prior_nano"] == study.credits("146.17332")
+    assert provenance["historical_reserved_nano"] == study.credits(2100)
     assert provenance["historical_usage_complete"] is False
     holds = provenance["historical_credit_provisions"]
     assert [hold["attempt_id"] for hold in holds] == [
@@ -197,6 +197,25 @@ def test_publication_refuses_non_results_and_secret_payloads(modules, reports, m
         report.validated_artifacts(reports)
     with pytest.raises(study.StudyError):
         report.package_results(reports, "export-test")
+
+
+def test_21_replicate_attempt_exports_fit_bounded_publication(modules, reports):
+    _, report = modules
+    attempt = {"run_id": "pilot-estimation-claude-sonnet-5.5-A-21", "step": "f10-consolidation",
+               "attempt_id": "pilot-estimation-claude-sonnet-5.5-A-21-f10-consolidation-1",
+               "status": "agent_returned", "seconds": 900, "credits_status": "complete",
+               "parallelism": 4, "cost_included_in_step": True,
+               "actual_nano": 20_000_000_000, "reserved_nano": 300_000_000_000}
+    attempts = [attempt] * 5355
+    (reports / "summary.json").write_text(json.dumps({"attempts": attempts}, indent=2), encoding="utf-8")
+    report.write_csv(reports / "attempts.csv", list(attempt), attempts)
+    assert (reports / "summary.json").stat().st_size > 512 * 1024
+    assert (reports / "attempts.csv").stat().st_size > 512 * 1024
+    assert len(report.validated_artifacts(reports)) == len(report.EXPORTS)
+    assert report.package_results(reports, "export-test").is_file()
+    (reports / "summary.json").write_text("x" * (16 * 1024 * 1024 + 1), encoding="utf-8")
+    with pytest.raises(report.StudyError, match="file cap"):
+        report.validated_artifacts(reports)
 
 
 def test_tex_escapes_all_special_characters(modules):
