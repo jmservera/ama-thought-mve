@@ -6,6 +6,16 @@ ms.date: 2026-10-26
 
 Tooling for the experiment in *Everything but the Software*, Section 8: does a consolidation step after every feature keep agent-built software working, understandable and changeable, and at what cost?
 
+**Changed-design disclosure:** The short calibration, parallel execution and
+VM-restart policy described below differ from the earlier registration. The
+owner intends to run them **unregistered**, with the exact source commit
+publicly disclosed before collection. A public commit is not preregistration
+and does not independently establish the time of a research plan. Earlier OSF
+registrations and the v7 freeze remain historical evidence, not registration
+of these changes. The owner reported the later
+[OSF registration](https://osf.io/xcpt4); its embargo review prevents an
+update at present, and its status was not independently verified here.
+
 **Prospective five-arm release:** D/E and researcher-selectable 12/21/33
 replicates (default 12) supersede the historical v4 allocation. See the
 [current amendment and remaining collection gates](protocol/five-arm-amendment-2026-11-02.json).
@@ -67,8 +77,9 @@ measurement retries do not replay agent work. Owner scientific alignment
 and runtime/access acceptance are recorded for their named sources; the final
 replacement source freeze was authorized on 31 October; its exact inputs
 are recorded in [the freeze manifest](protocol/freeze.json).
-The prospective OSF amendment date remains unset, so the launcher still blocks
-collection. OSF recording is last; no new model calls are authorized.
+The historical registered-freeze path remains gated. The explicitly unregistered
+path also requires owner-reviewed evidence, a public exact source commit and a
+fresh source-bound runtime canary; it must not be used before those gates pass.
 
 ## One-command quick start
 
@@ -95,15 +106,19 @@ or committing a different source revision.
 Publication needs authenticated `gh`, git author identity and origin push access.
 It uses a separate `results/<study-id>` branch, never pushes raw logs or changes
 your source branch, and creates/updates a PR against that source branch.
-Files are allowlisted, credential-checked and capped at 512 KiB each / 4 MiB total.
+Files are allowlisted and credential-checked. Large tabular, JSON and trajectory
+outputs are capped at 16 MiB each; other outputs at 512 KiB each, with a 64 MiB
+aggregate cap.
 
 ### Run the accepted experiment
 
-After one-time VM preparation, source/runtime acceptance, the prospective OSF
-update and owner launch authorization, run:
+After one-time VM preparation, public source disclosure, runtime qualification,
+completed short calibration and owner launch authorization, run:
 
 ```bash
-./run-experiment.sh
+./run-experiment.sh --replicates 21 \
+  --unregistered-manifest /private/path/unregistered.json \
+  --calibration-study-id excluded-short-calibration
 ```
 
 It uses the **Copilot user already signed in on the host**; no identity or
@@ -111,28 +126,61 @@ credentials are copied into Docker. The local Python environment is selected
 automatically. Progress shows completed/total steps, remaining steps and the
 current model/arm.
 Before a new interactive estimation launch, the researcher chooses **12, 21 or
-33 independent trajectories per model/arm**; Enter selects **12**. The default
+33 independent trajectories per model/arm**; the unregistered path defaults
+to the researcher's selected **21**, while the historical path defaults to
+**12**. The historical default
 five-arm allocation is 180 trajectories and 3060 planned sessions. Calibration
 remains one trajectory per model/arm (15 trajectories, 240 sessions).
 An optional one-feature calibration contains 15 trajectories and 24 sessions
-(15 feature sessions and nine post-steps). It is a proposed change, not the
-registered 240-session calibration. It requires a prospective amendment, a new
-source/runtime freeze and separate launch authorization:
+(15 feature sessions and nine post-steps). It is not the registered
+240-session calibration. The owner has chosen the explicitly unregistered
+path rather than an OSF amendment. After review, publication of the exact
+source and runtime qualification, preview it with owner evidence:
 
 ```bash
-./run-study.sh --phase calibration --study-id excluded-short-calibration --short-calibration --dry-run
+./run-study.sh --phase calibration --study-id excluded-short-calibration \
+  --short-calibration --unregistered-manifest /private/path/unregistered.json --dry-run
 ```
 
 The short sample does not observe later-feature or change-request costs. Its
 cost-only extrapolation is uncertain and cannot establish affordability by itself.
 Never reuse the interrupted calibration's study ID or discard its ledger.
+Keep the evidence manifest outside the checkout. It must include the exact
+`commit`, `inputs_sha256`, `registration_status` set to `unregistered`,
+`public_disclosure_url` pointing to that commit, `disclosed_at` and
+`owner_confirms_public_disclosure: true`, plus `runtime_image`,
+`runtime_canary_sha256` and current owner evidence for each gate listed in
+`GATES` in the controller. These are owner attestations, not independent
+verification. Do not copy historical evidence without checking that it applies
+to the changed source.
 
-For unattended execution or a read-only preview:
+The default is four concurrent independent trajectories; steps within each
+trajectory remain sequential. `--parallel N` changes the maximum, including on
+resume, and each setting is recorded. VM resource limits, throttling and
+interruptions mean completion within 24 hours is not guaranteed. For 5,355
+sessions, four continuously occupied workers would require a mean session
+duration below about 64.5 seconds even before scheduling and evaluation
+overhead. After a
+verified VM reboot, an unfinished session's reservation is retained as an
+unknown-charge hold and its replacement receives a fresh session allowance.
+An actual charge may exceed its hold. Same-boot ambiguity, completed agent
+output awaiting measurement, and other uncertain recovery states stop for
+manual investigation rather than discarding evidence.
+
+Estimation using the changed design requires the same `--unregistered-manifest`
+and `--calibration-study-id excluded-short-calibration`. The completed short calibration's known charges
+and restart holds are validated and carried into the estimation ledger. This
+does not convert holds into actual charges or create a provider-enforced cap.
+The checkout permits only one paid controller at a time. Do not start paid
+studies in another checkout: separate study IDs and checkouts are not a shared
+billing account.
+
+For a read-only preview after calibration:
 
 ```bash
-./run-experiment.sh --replicates 12
-./run-experiment.sh --replicates 21 --dry-run
-./run-experiment.sh --replicates 33 --dry-run
+./run-experiment.sh --replicates 21 --dry-run \
+  --unregistered-manifest /private/path/unregistered.json \
+  --calibration-study-id excluded-short-calibration
 ```
 
 The chosen count is saved in immutable study identity and all trajectory
@@ -146,8 +194,8 @@ repair, never hidden-test feedback. Accepted Python test files are immutable;
 E's explicit correction exception requires blob-bound visible-specification
 quotes and retained explanations in `REPAIR.json` and the private step journal.
 This provenance validation is not independent semantic adjudication.
-Changing this source requires new source/runtime qualification and prospective
-freeze/registration evidence; the historical published v4does not authorize it.
+Changing this source requires new public source disclosure and runtime
+qualification; the historical published v4 does not authorize it.
 Rerun the same command for permitted durable recovery; `--status` shows saved
 progress without model calls.
 

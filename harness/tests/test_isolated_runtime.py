@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import traceback
 from pathlib import Path
@@ -396,7 +397,7 @@ def test_consolidation_records_step_local_candidate_commits_only_when_retained(
     runner = importlib.import_module("runner")
     run = object.__new__(study.StudyRun)
     run.repo = trusted_repo(runtime, tmp_path)
-    run.controller = SimpleNamespace(smoke=False, save=lambda: None)
+    run.controller = SimpleNamespace(smoke=False, save=lambda: None, lock=threading.RLock())
     run.cell = {"attempts": []}
     run.steps_path = str(tmp_path / "steps.jsonl")
     live = SimpleNamespace(
@@ -448,7 +449,11 @@ def test_ambiguous_broker_failure_stops_admission_even_after_usage_is_known(runt
 
     live = object.__new__(runtime.LiveRuntime)
     persisted = []
-    controller = SimpleNamespace(state={}, save=lambda: persisted.append(True))
+    controller = SimpleNamespace(state={})
+    def update(target, **values):
+        target.update(values)
+        persisted.append(True)
+    controller.update = update
     live.run = SimpleNamespace(controller=controller)
     live.broker = SimpleNamespace(export=failed_export)
     with pytest.raises(runtime.StudyError, match="reconcile exact owned resources"):
@@ -580,7 +585,8 @@ def test_real_parser_free_runtime_preserves_required_functionality(runtime, tmp_
     from isolation import SandboxBroker
 
     image = os.environ["MVE_TEST_ISOLATED_IMAGE"]
-    assert runtime.runtime_receipt()["image"] == image
+    receipt = os.environ.get("MVE_TEST_CANARY_RECEIPT")
+    assert runtime.runtime_receipt(receipt_path=Path(receipt) if receipt else None)["image"] == image
     repo = tmp_path / "repo"
     repo.mkdir()
     programs = {

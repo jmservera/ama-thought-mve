@@ -199,6 +199,25 @@ def test_publication_refuses_non_results_and_secret_payloads(modules, reports, m
         report.package_results(reports, "export-test")
 
 
+def test_21_replicate_attempt_exports_fit_bounded_publication(modules, reports):
+    _, report = modules
+    attempt = {"run_id": "pilot-estimation-claude-sonnet-5.5-A-21", "step": "f10-consolidation",
+               "attempt_id": "pilot-estimation-claude-sonnet-5.5-A-21-f10-consolidation-1",
+               "status": "agent_returned", "seconds": 900, "credits_status": "complete",
+               "parallelism": 4, "cost_included_in_step": True,
+               "actual_nano": 20_000_000_000, "reserved_nano": 300_000_000_000}
+    attempts = [attempt] * 5355
+    (reports / "summary.json").write_text(json.dumps({"attempts": attempts}, indent=2), encoding="utf-8")
+    report.write_csv(reports / "attempts.csv", list(attempt), attempts)
+    assert (reports / "summary.json").stat().st_size > 512 * 1024
+    assert (reports / "attempts.csv").stat().st_size > 512 * 1024
+    assert len(report.validated_artifacts(reports)) == len(report.EXPORTS)
+    assert report.package_results(reports, "export-test").is_file()
+    (reports / "summary.json").write_text("x" * (16 * 1024 * 1024 + 1), encoding="utf-8")
+    with pytest.raises(report.StudyError, match="file cap"):
+        report.validated_artifacts(reports)
+
+
 def test_tex_escapes_all_special_characters(modules):
     _, report = modules
     result = report.tex(r"A_B&C%$#{x}~^\end")

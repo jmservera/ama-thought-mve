@@ -3,6 +3,13 @@ description: "Runbook for the feature-consolidation MVE with D1-D12 settled on 2
 ---
 # Runbook: running the feature-consolidation MVE
 
+The owner-selected short calibration, parallel scheduler and restart policy
+are an **unregistered changed design**, not an amendment to the historical OSF
+registration. Follow the current changed-design disclosure and launch gates in
+[CONTRIBUTOR.md](CONTRIBUTOR.md) and
+[the protocol](protocol/pilot-estimation.md); the historical preregistration
+instructions below do not register these changes.
+
 The active scientific authority is [protocol/pilot-estimation.md](protocol/pilot-estimation.md).
 Prepare [the OSF draft](protocol/osf-preregistration.md), resolve the decision
 ledger and approve the exact submission candidate. On 30 October the owner
@@ -320,7 +327,9 @@ permission and git author identity are required. The source branch is never
 checked out or changed by publication. An isolated temporary results worktree
 stages only the fixed generated allowlist under `results/<study-id>/`.
 No `.env`, raw transcript, repository, arbitrary archive or prompt is eligible.
-Files must be regular, not linked, <=512 KiB each and <=4 MiB combined; token
+Files must be regular and not linked. Large table, JSON and trajectory exports
+are capped at 16 MiB each, other exports at 512 KiB each, and the total at
+64 MiB; token
 patterns and known environment secret values block publishing. Oversized
 results cause an explicit stop, never silent truncation of measurements.
 Private attempt stdout/stderr are capped at 1 MiB each after execution.

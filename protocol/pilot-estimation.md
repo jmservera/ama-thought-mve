@@ -1,5 +1,25 @@
 # Prospective S1 pilot / estimation protocol
 
+> **Changed-design disclosure:** The owner intends the short calibration,
+> parallel scheduling and VM-restart policy to be conducted without
+> preregistration because the existing registration cannot currently be amended.
+> The final source commit must be disclosed publicly before collection, together
+> with the owner-reported disclosure time. A public commit alone is not
+> preregistration or independent proof of when the research plan was fixed.
+> Earlier registrations and source freezes remain historical records.
+
+The changed execution runs at most four independent trajectories concurrently
+by default, adjustable on resume and recorded per launch and attempt. Steps
+inside a trajectory remain sequential. After an identified VM reboot,
+unfinished session output is discarded only after retaining an unknown-charge
+reservation; a replacement receives a fresh session allowance. Actual
+consumption can exceed a reservation. Ambiguous same-boot failures and
+completed agent work awaiting measurement require manual recovery. The
+completed short calibration's actual charges and restart holds must be carried
+into the estimation ledger before any estimation calls. Concurrent timing and
+resource contention may affect observations; this design does not guarantee
+completion in 24 hours.
+
 **Status: original registration owner-confirmed approved on 28 October 2026;
 subsequent corrected candidate awaits prospective OSF recording and exact
 source-bound approval. Study not authorised to run.** See
@@ -59,12 +79,12 @@ repeat across other arms/models; steps are not additional replicates.
 | Estimation, 33 | `pilot-estimation` | 495 | 8415 | 3836.25 |
 | Calibration + default 12, never pooled | separate identities | 195 | 3300 | 1500 |
 
-**Candidate 7 November amendment, contingent on prospective registration:** excluded short
+**Unregistered changed design:** excluded short
 calibration uses one F1 feature per model/arm and one corresponding post-step
 in arms B, C and E: 15 trajectories, 24 planned sessions, at most 10.5
 agent-hours. It excludes CR1. This is not the 240-session calibration above,
-and does not measure later-feature or CR1 costs. Record the change prospectively,
-preserve the interrupted calibration and all its costs, and qualify/freeze the
+and does not measure later-feature or CR1 costs. Disclose the exact changed
+source before collection, preserve the interrupted calibration and all its costs, and qualify the
 new source and runtime before launching it. The selected estimation allocation
 and its analysis plan do not change.
 
@@ -73,6 +93,8 @@ With 12 per cell, estimation has 1800 feature, 360 consolidation, 360 review,
 45 per D feature, 15 per post-step and 45 per CR1. D has no scheduled post-step.
 These are planned sessions, not a maximum call count: an allowed infrastructure
 retry can add a call but shares the original step's aggregate time/credit allowance.
+An exception after a verified VM reboot gives the interrupted session a fresh
+allowance while retaining its prior reservation.
 B-A adds up to 50% feature-cycle agent time; B-C matches post-step ceilings,
 not realised resources or editing permissions. B may add behaviour-pinning
 tests and writes DESIGN.md (at most 300 words); C may only write REVIEW.md.

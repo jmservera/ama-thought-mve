@@ -183,7 +183,7 @@ def test_complete_nominal_freeze_cannot_bypass_missing_runtime_evidence(study, c
     config["prior_credits"] = 0
     monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "synthetic-token-never-output")
     monkeypatch.setattr(study.shutil, "which", lambda tool: f"/tools/{tool}")
-    monkeypatch.setattr(study, "freeze_errors", lambda *args: [])
+    monkeypatch.setattr(study, "freeze_errors", lambda *args, **kwargs: [])
     versions = {"copilot": "GitHub Copilot CLI 1.0.105.\nRun 'copilot update' to check for updates.",
                 "ruff": "0.17.3", "lizard": "1.24.3", "jscpd": "5.4.1"}
     def version_output(args, **kwargs):
@@ -962,7 +962,9 @@ def test_measurement_exhaustion_is_durable_and_never_replays_agent(study, config
     run = study_run(study, current)
     run.setup()
     attempt = current.new_attempt(run.cell, run.current_step)
-    attempt.update(seconds=1, usage={"totalNanoAiu": 0, "credits_complete": True})
+    attempt.update(status="agent_returned", seconds=1,
+                   usage={"totalNanoAiu": 0, "credits_complete": True})
+    current.settle_attempt(attempt["id"], attempt["usage"])
     seen = []
 
     def failed(*args):
@@ -989,7 +991,10 @@ def test_evaluator_snapshot_mismatch_halts_future_collection(study, config, tmp_
     current = controller(study, config, tmp_path)
     run = study_run(study, current)
     run.setup()
-    current.new_attempt(run.cell, run.current_step)
+    attempt = current.new_attempt(run.cell, run.current_step)
+    attempt.update(status="agent_returned", seconds=1,
+                   usage={"totalNanoAiu": 0, "credits_complete": True})
+    current.settle_attempt(attempt["id"], attempt["usage"])
     def invalid_result(*args):
         if failure == "invalid_schema":
             raise study.StudyError("Synthetic invalid snapshot result schema")
