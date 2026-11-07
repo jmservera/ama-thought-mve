@@ -280,8 +280,10 @@ required in the controller environment. The SDK exposes only `isolated_exec`;
 built-in tools, discovery, MCP servers and unrelated permission requests are
 excluded or denied. Never add blanket approval, permission-skipping, extra host
 tools or trusted directories to repair a failed check. The owned CLI explicitly
-receives `--disable-builtin-mcps`, but CLI 1.0.105 does not apply that interactive
-setting in headless mode. The authoritative restriction is the SDK session's
+receives `--no-auto-update` so it uses the pinned bundled CLI even when a newer
+download is present. It also receives `--disable-builtin-mcps`, but CLI 1.0.105
+does not apply that interactive setting in headless mode. The authoritative
+restriction is the SDK session's
 `disabledMcpServers: ["github-mcp-server"]`. Empty mode/tool exclusion alone
 does not stop server startup. The SDK may report that exact disabled builtin as
 inert catalog metadata; pending/connected activity, foreign catalog entries and

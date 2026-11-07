@@ -334,3 +334,7 @@ which runs inside the isolated container; built-in host tools remain unavailable
 These runs and the resulting change are not preregistered. Their raw evidence,
 unknown charges and reservations remain separate from any later calibration or
 estimation data; publication must identify the exact source used for each.
+On the VM, a later auto-downloaded CLI 1.0.106 was selected by default despite
+the installed 1.0.105 package and a 1.0.105 preflight check using
+`--no-auto-update`. The guarded runtime now passes that same flag to the actual
+CLI process; this discrepancy was detected without another model call.

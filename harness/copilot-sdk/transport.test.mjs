@@ -348,7 +348,7 @@ test('RPC frames are bounded before SDK parsing and owned proxy reaps its child'
   assert.equal(noise, 'runtime_guard_failure\n');
 });
 
-test('guarded SDK startup forwards built-in MCP disabling to its actual CLI child', async () => {
+test('guarded SDK startup forwards MCP disabling and the version pin to its actual CLI child', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mve-sdk-argv-'));
   let runtime;
   try {
@@ -360,6 +360,7 @@ test('guarded SDK startup forwards built-in MCP disabling to its actual CLI chil
     await assert.rejects(runtime.client.start());
     const argv = (await readFile(argvPath, 'utf8')).trim().split('\n');
     assert.ok(argv.includes('--disable-builtin-mcps'), 'CLI must explicitly disable built-in MCP');
+    assert.ok(argv.includes('--no-auto-update'), 'CLI must run the bundled pinned version');
   } finally {
     try { if (runtime) await runtime.close(); }
     catch (error) { assert.equal(error.message, 'runtime_guard_failure'); }

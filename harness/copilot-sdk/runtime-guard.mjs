@@ -105,7 +105,7 @@ export async function makeRuntime(request, deadline) {
     connection: RuntimeConnection.forStdio({
       path: process.execPath,
       args: [fileURLToPath(import.meta.url), '--guard', request.cliPath, String(deadline),
-        '--disable-builtin-mcps'],
+        '--disable-builtin-mcps', '--no-auto-update'],
     }),
     mode: 'empty',
     baseDirectory: data,
