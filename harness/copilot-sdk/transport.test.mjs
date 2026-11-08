@@ -60,6 +60,7 @@ function fakeRuntime(options = {}) {
             tools: {
               async initializeAndValidate() {},
               async getCurrentMetadata() {
+                if (state.sent && options.finalMetadata) return options.finalMetadata;
                 return options.metadata ?? { tools: [{ name: 'isolated_exec' }] };
               },
             },
@@ -207,7 +208,7 @@ test('only the exact disabled builtin MCP catalog is inert; active or ambiguous 
     { toolName: 'isolated_exec', mcpServerName: 'github-mcp-server' })), /unexpected_tool/);
 });
 
-test('only an exact isolated-only catalog and a correlated nonexistent create are accepted', () => {
+test('only an exact isolated-only catalog and correlated nonexistent tools are accepted', () => {
   const catalog = { tools: [{ name: 'isolated_exec' }] };
   for (const invalid of [null, {}, { tools: null }, { tools: [] },
     { tools: [{ name: 'create' }] }, { tools: [{ name: 'isolated_exec' }, { name: 'create' }] },
@@ -222,6 +223,11 @@ test('only an exact isolated-only catalog and a correlated nonexistent create ar
   assert.throws(() => new Evidence(request(), 's').observe(createStart), /unexpected_tool/);
   const evidence = new Evidence(request(), 's');
   evidence.verifyToolCatalog(catalog);
+  for (const name of ['create', 'edit', 'view', 'bash']) {
+    evidence.observe(event('tool.execution_start', { toolName: name, toolCallId: name }));
+    evidence.observe(event('tool.execution_complete', { toolCallId: name, success: false,
+      error: { code: 'failure', message: `Tool '${name}' does not exist.` } }));
+  }
   evidence.observe(createStart);
   evidence.observe(event('tool.execution_start', { toolName: 'isolated_exec', toolCallId: 'i' }));
   evidence.observe(event('tool.execution_complete', { toolCallId: 'i', success: true }));
@@ -243,19 +249,22 @@ test('only an exact isolated-only catalog and a correlated nonexistent create ar
   missing.observe(createStart);
   assert.throws(() => missing.observe(event('session.idle', {})), /incomplete_tool_execution/);
   assert.equal(missing.receipt().usage.credits_complete, false);
-  for (const data of [{ toolName: 'create' }, { toolName: 'bash', toolCallId: 'b' },
-    { toolName: 'create', toolCallId: 'c', mcpServerName: 'server' }]) {
+  for (const data of [{ toolName: 'create' }, { toolName: 'server:bash', toolCallId: 'b' },
+    { toolName: "bad'name", toolCallId: 'c' }, { toolName: 'x'.repeat(129), toolCallId: 'c' },
+    { toolName: 'create', toolCallId: 'c', mcpServerName: 'server' },
+    { toolName: 'create', toolCallId: 'c', mcpToolName: 'create' },
+    { toolName: 'create', toolCallId: 'c', namespacedName: 'server:create' }]) {
     const invalid = new Evidence(request(), 's');
     invalid.verifyToolCatalog(catalog);
     assert.throws(() => invalid.observe(event('tool.execution_start', data)), /unexpected_tool/);
   }
 });
 
-test('a verified missing create can be followed by isolated work with complete usage', async () => {
+test('a verified missing edit can be followed by isolated work with complete usage', async () => {
   const result = await runFake({ async action(config) {
-    config.onEvent(event('tool.execution_start', { toolName: 'create', toolCallId: 'c' }));
+    config.onEvent(event('tool.execution_start', { toolName: 'edit', toolCallId: 'c' }));
     config.onEvent(event('tool.execution_complete', { toolCallId: 'c', success: false,
-      error: { code: 'failure', message: "Tool 'create' does not exist." } }));
+      error: { code: 'failure', message: "Tool 'edit' does not exist." } }));
     config.onEvent(event('tool.execution_start', { toolName: 'isolated_exec', toolCallId: 'i' }));
     const reply = await config.tools[0].handler({ command: 'touch feature.py', timeoutSeconds: 1 },
       { sessionId: config.sessionId, toolName: 'isolated_exec', toolCallId: 'i' });
@@ -275,6 +284,10 @@ test('a changed or unavailable tool catalog stops before the first prompt', asyn
     assert.equal(result.receipt.protocol_error, 'unexpected_tool_catalog');
     assert.equal(result.receipt.usage.credits_complete, false);
   }
+  const changed = await runFake({ finalMetadata: { tools: [{ name: 'isolated_exec' }, { name: 'edit' }] } });
+  assert.equal(changed.state.sent, 1);
+  assert.equal(changed.receipt.protocol_error, 'unexpected_tool_catalog');
+  assert.equal(changed.receipt.usage.credits_complete, false);
 });
 
 test('bounded input framing rejects oversized, aggregate floods, malformed UTF-8 and unterminated records', () => {
@@ -412,7 +425,7 @@ test('NDJSON happy path preserves raw events, exact shared budget and correlated
   }
 });
 
-test('real SDK rejects native create without touching host files and still dispatches isolated_exec',
+test('real SDK rejects native tools without touching host files and still dispatches isolated_exec',
   { skip: !process.env.MVE_COPILOT_CLI, timeout: 95000 }, async () => {
     assert.ok(process.env.TMUX, 'actual SDK checks require a new owned tmux session');
     const directory = await mkdtemp(join(tmpdir(), 'mve-sdk-tool-test-'));
@@ -440,11 +453,14 @@ test('real SDK rejects native create without touching host files and still dispa
       const metadata = await session.rpc.tools.getCurrentMetadata();
       const evidence = new Evidence(req, session.sessionId);
       evidence.verifyToolCatalog(metadata);
-      for (const path of [original, missing]) {
-        const result = await session.rpc.tools.execute({ name: 'create',
-          arguments: { path, file_text: 'should not be written' }, toolCallId: crypto.randomUUID() });
-        assert.equal(result.resultType, 'failure');
-        assert.equal(result.error, "Tool 'create' does not exist.");
+      for (const name of ['create', 'edit', 'view', 'bash']) {
+        for (const path of [original, missing]) {
+          const result = await session.rpc.tools.execute({ name,
+            arguments: { path, file_text: 'should not be written', old_str: 'unchanged',
+              new_str: 'modified', command: `touch ${missing}` }, toolCallId: crypto.randomUUID() });
+          assert.equal(result.resultType, 'failure');
+          assert.equal(result.error, `Tool '${name}' does not exist.`);
+        }
       }
       assert.equal(await readFile(original, 'utf8'), 'unchanged');
       await assert.rejects(stat(missing), { code: 'ENOENT' });

@@ -338,3 +338,26 @@ On the VM, a later auto-downloaded CLI 1.0.106 was selected by default despite
 the installed 1.0.105 package and a 1.0.105 preflight check using
 `--no-auto-update`. The guarded runtime now passes that same flag to the actual
 CLI process; this discrepancy was detected without another model call.
+
+## Estimation interruption after 651 completed steps
+
+The excluded short calibration at
+`99a1ed170d7c71acb428b52e0e24be8856cc3ea3` completed 24 sessions with
+219.92594 confirmed credits and no new unknown charge. The unregistered
+estimation run subsequently stopped after 651 of 5,355 steps. It recorded
+7,794.8031 confirmed credits and one additional unknown charge with a
+300-credit reservation. The reservation is not measured spending; final
+charges may exceed reservations. The stopped state SHA-256 was
+`6eb8f45bcb54f8cad20cbd89aba72da7721ebf06ab6188fbf3c0cc460306723f`.
+The original state, attempt journal and receipts must remain intact.
+
+The immediate halt followed an `edit` request whose correlated completion
+reported that the tool did not exist. A subsequent attempt to package partial
+results failed because the generated summary exceeded its then-16 MiB file cap;
+this packaging error was not the cause of the earlier halt. The following
+transport and export changes were made after these observations and are not
+preregistered. They do not authorize a retry or alter the status of the unknown
+charge. Any continuation must disclose its exact new source, the change in
+source during collection, the recovery decision and the treatment of the
+interrupted attempt; it must not relabel old observations as having used the
+new source.

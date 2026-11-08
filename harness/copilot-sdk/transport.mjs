@@ -272,16 +272,17 @@ export class Evidence {
       const id = data.toolCallId;
       if (!this.toolCatalogVerified || !text(id) || id.length > 200 ||
         this.seenTools.has(id) || data.mcpServerName !== undefined ||
-        !['isolated_exec', 'create'].includes(data.toolName))
+        data.mcpToolName !== undefined || data.namespacedName !== undefined ||
+        typeof data.toolName !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]{0,127}$/.test(data.toolName))
         throw fault('unexpected_tool');
       this.seenTools.add(id);
       this.activeTools.set(id, data.toolName);
     } else if (event.type === 'tool.execution_complete') {
       const name = this.activeTools.get(data.toolCallId);
       if (!name) throw fault('unexpected_tool');
-      if (name === 'create' &&
+      if (name !== 'isolated_exec' &&
         (data.success !== false || data.result !== undefined || data.error?.code !== 'failure' ||
-          data.error?.message !== "Tool 'create' does not exist."))
+          data.error?.message !== `Tool '${name}' does not exist.`))
         throw fault('unexpected_tool');
       this.activeTools.delete(data.toolCallId);
     }
@@ -530,6 +531,8 @@ export async function runTransport({ input = process.stdin, output = process.std
     await Promise.race([session.sendAndWait({ prompt: request.prompt },
       Math.max(1, deadline - Date.now())), failed]);
     if (!evidence.idle || pending) throw fault('session_not_idle');
+    stage = 'session_tool_catalog';
+    evidence.verifyToolCatalog(await Promise.race([session.rpc.tools.getCurrentMetadata(), failed]));
     stage = 'session_shutdown';
     await Promise.race([session.rpc.shutdown({ type: 'routine' }), failed]);
   } catch (error) {

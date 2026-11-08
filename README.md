@@ -107,7 +107,8 @@ Publication needs authenticated `gh`, git author identity and origin push access
 It uses a separate `results/<study-id>` branch, never pushes raw logs or changes
 your source branch, and creates/updates a PR against that source branch.
 Files are allowlisted and credential-checked. Large tabular, JSON and trajectory
-outputs are capped at 16 MiB each; other outputs at 512 KiB each, with a 64 MiB
+outputs are capped at 16 MiB each except `summary.json` at 128 MiB; other outputs
+at 512 KiB each, with a 192 MiB
 aggregate cap.
 
 ### Run the accepted experiment

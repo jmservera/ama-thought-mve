@@ -199,7 +199,7 @@ def test_publication_refuses_non_results_and_secret_payloads(modules, reports, m
         report.package_results(reports, "export-test")
 
 
-def test_21_replicate_attempt_exports_fit_bounded_publication(modules, reports):
+def test_21_replicate_attempt_exports_fit_bounded_publication(modules, reports, monkeypatch):
     _, report = modules
     attempt = {"run_id": "pilot-estimation-claude-sonnet-5.5-A-21", "step": "f10-consolidation",
                "attempt_id": "pilot-estimation-claude-sonnet-5.5-A-21-f10-consolidation-1",
@@ -213,8 +213,59 @@ def test_21_replicate_attempt_exports_fit_bounded_publication(modules, reports):
     assert (reports / "attempts.csv").stat().st_size > 512 * 1024
     assert len(report.validated_artifacts(reports)) == len(report.EXPORTS)
     assert report.package_results(reports, "export-test").is_file()
-    (reports / "summary.json").write_text("x" * (16 * 1024 * 1024 + 1), encoding="utf-8")
+    with (reports / "summary.json").open("wb") as stream:
+        stream.truncate(report.SUMMARY_LIMIT + 1)
     with pytest.raises(report.StudyError, match="file cap"):
+        report.validated_artifacts(reports)
+    monkeypatch.setattr(report, "SUMMARY_LIMIT", 16 * 1024 * 1024)
+    with (reports / "summary.json").open("wb") as stream:
+        stream.truncate(report.SUMMARY_LIMIT + 1)
+    with pytest.raises(report.StudyError, match="file cap"):
+        report.validated_artifacts(reports)
+
+
+@pytest.mark.parametrize("replicates", [21, 33])
+def test_full_frame_with_real_panel_and_completed_attempts_fits_publication(modules, tmp_path, replicates):
+    _, report = modules
+    panel = json.loads((ROOT / "protocol/contract-panel.json").read_text())
+    hidden = {contract["id"]: "passed" for contract in panel["contracts"]
+              if contract["role"] == "feature"}
+    records = [{"kind": kind, "k": k, "measure": {
+        "hidden": hidden, "hidden_total": len(hidden), "hidden_passed": len(hidden),
+        "metrics": {"mean_ccn": 2}}}
+        for k in range(1, 11) for kind in ("feature", "consolidation")]
+    records.append({"kind": "change_request", "k": 10, "measure": {
+        "hidden": {contract["id"]: "passed" for contract in panel["contracts"]},
+        "hidden_total": len(panel["contracts"]), "hidden_passed": len(panel["contracts"])}})
+    raw = {"dir": "", "meta": {"arm": "B", "features": 10, "run_id": "synthetic",
+                               "suite": panel["suite"], "phase": "pilot-estimation",
+                               "change_request": True}, "recs": records}
+    result = report.analyze_pilot([raw], panel=panel, n=20)
+    prototype = result["runs"][0]
+    assert len(prototype["delivery_attempts"]) == 20
+    assert len(prototype["retention"]["rows"]) == 20
+    result["runs"] = [dict(prototype, run_id=f"synthetic-{index}", arm="ABCDE"[index % 5])
+                      for index in range(15 * replicates)]
+    attempt = {"run_id": "pilot-estimation-claude-sonnet-5.5-E-33", "step": "f10-consolidation",
+               "attempt_id": "pilot-estimation-claude-sonnet-5.5-E-33-f10-consolidation-1",
+               "status": "agent_returned", "seconds": 900, "credits_status": "complete",
+               "parallelism": 10, "cost_included_in_step": True,
+               "actual_nano": 20_000_000_000, "reserved_nano": 300_000_000_000}
+    attempts = [attempt] * (15 * replicates * 17)
+    out = tmp_path / "results"
+    report.write_pilot(out, result, provenance={"study_id": "synthetic",
+                       "registered_or_frozen_by_runner": False}, attempts=attempts)
+    assert (out / "summary.json").stat().st_size > 20 * 1024 * 1024
+    assert len(report.validated_artifacts(out)) == len(report.EXPORTS)
+    with zipfile.ZipFile(report.package_results(out, "synthetic")) as archive:
+        assert archive.testzip() is None
+
+
+def test_aggregate_publication_limit_remains_enforced(modules, reports, monkeypatch):
+    _, report = modules
+    size = sum(path.stat().st_size for path in reports.iterdir())
+    monkeypatch.setattr(report, "AGGREGATE_LIMIT", size - 1)
+    with pytest.raises(report.StudyError, match="aggregate"):
         report.validated_artifacts(reports)
 
 
