@@ -32,6 +32,8 @@ EXPORTS = (
 )
 LARGE_EXPORTS = {"summary.json", "runs.csv", "attempts.csv", "series.csv", "retention.csv",
                  "episodes.csv", "trajectories.svg", "trajectories.tex"}
+SUMMARY_LIMIT = 128 * 1024 * 1024
+AGGREGATE_LIMIT = 192 * 1024 * 1024
 UNAVAILABLE = {
     "H4": "Formal joint size/accuracy/time claim deferred; comprehension include/defer decision pending.",
     "H7": "Formal dependent half-gap claim deferred, not a threshold to invent.",
@@ -309,7 +311,7 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
     attempts = attempts or []
     summary = dict(result, design_description=description,
                    provenance=provenance, dispositions=dispositions, attempts=attempts)
-    atomic_json(out / "summary.json", summary)
+    atomic_json(out / "summary.json", summary, compact=True)
     atomic_json(out / "provenance.json", provenance)
     atomic_json(out / "availability.json", {"unavailable": UNAVAILABLE,
                 "panel_accepted": result["panel_accepted"], "diagnostic_stub": diagnostic,
@@ -455,15 +457,16 @@ def validated_artifacts(directory: Path) -> list[Path]:
     paths = [directory / name for name in EXPORTS]
     total = 0
     for path in paths:
-        limit = (16 * 1024 * 1024) if path.name in LARGE_EXPORTS else (512 * 1024)
+        limit = SUMMARY_LIMIT if path.name == "summary.json" else (
+            16 * 1024 * 1024 if path.name in LARGE_EXPORTS else 512 * 1024)
         if path.is_symlink() or not path.is_file() or path.stat().st_size > limit:
             raise StudyError(f"Result is linked, non-regular, or exceeds its {limit}-byte file cap")
         payload = path.read_bytes()
         total += len(payload)
         text = payload.decode("utf-8")
         check_credentials(text)
-    if total > 64 * 1024 * 1024:
-        raise StudyError("Results exceed 64 MiB aggregate publication cap")
+    if total > AGGREGATE_LIMIT:
+        raise StudyError(f"Results exceed {AGGREGATE_LIMIT}-byte aggregate publication cap")
     provenance = read_provenance(directory)
     if provenance.get("registered_or_frozen_by_runner") is not False:
         raise StudyError("Invalid result provenance")

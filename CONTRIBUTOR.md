@@ -290,13 +290,14 @@ inert catalog metadata; pending/connected activity, foreign catalog entries and
 all MCP tools still fail closed.
 
 Before sending a prompt, the transport initializes and verifies that the live
-tool catalog contains only `isolated_exec`. That tool can create and edit files,
-run tests and commit inside the isolated workspace. A model may nevertheless
-request the unavailable `create` tool: the transport accepts that request only
-when its matching completion reports the exact pinned-runtime nonexistent-tool
-failure. Success, another failure, missing or uncorrelated completion, unexpected
-tools, or a changed catalog still stop the session. This is not permission to
-execute built-in host tools.
+tool catalog contains only `isolated_exec`, and verifies it again after the
+session. That tool can create and edit files, run tests and commit inside the
+isolated workspace. A model may nevertheless request an unavailable tool such
+as `create` or `edit`: a non-MCP, plain-name request is accepted only when its
+matching completion reports the exact pinned-runtime nonexistent-tool failure
+for that name. Success, another failure, missing or uncorrelated completion,
+MCP requests, or a catalog mismatch at either check still stop the session.
+This is not permission to execute built-in host tools.
 
 The opt-in transport regression exercises actual deferred startup inside an
 owned tmux session with `MVE_COPILOT_CLI` set to the pinned executable. A registered

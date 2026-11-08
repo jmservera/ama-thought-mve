@@ -26,13 +26,14 @@ def read_json(path: Path) -> dict:
     return value
 
 
-def atomic_json(path: Path, value: dict) -> None:
+def atomic_json(path: Path, value: dict, *, compact: bool = False) -> None:
     """Replace and fsync private state before allowing dependent work."""
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     temp = path.with_suffix(path.suffix + ".tmp")
     with temp.open("w", encoding="utf-8") as stream:
         os.chmod(temp, 0o600)
-        json.dump(value, stream, indent=2, allow_nan=False)
+        json.dump(value, stream, indent=None if compact else 2,
+                  separators=(",", ":") if compact else None, allow_nan=False)
         stream.write("\n")
         stream.flush()
         os.fsync(stream.fileno())

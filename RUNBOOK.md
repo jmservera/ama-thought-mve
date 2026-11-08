@@ -328,8 +328,8 @@ checked out or changed by publication. An isolated temporary results worktree
 stages only the fixed generated allowlist under `results/<study-id>/`.
 No `.env`, raw transcript, repository, arbitrary archive or prompt is eligible.
 Files must be regular and not linked. Large table, JSON and trajectory exports
-are capped at 16 MiB each, other exports at 512 KiB each, and the total at
-64 MiB; token
+are capped at 16 MiB each except `summary.json`, which is capped at 128 MiB;
+other exports are capped at 512 KiB each, and the total at 192 MiB; token
 patterns and known environment secret values block publishing. Oversized
 results cause an explicit stop, never silent truncation of measurements.
 Private attempt stdout/stderr are capped at 1 MiB each after execution.
