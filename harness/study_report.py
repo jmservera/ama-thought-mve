@@ -359,8 +359,8 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
                  "a public commit alone does not establish preregistration.")]
                if (provenance.get("source_provenance") or {}).get("registration_status") == "unregistered"
                else []),
-             *(["**Mid-study source change:** observations span the original and recovery commits; "
-                "see provenance and per-attempt source commits. The interrupted charge remains unknown."]
+             *([("**Mid-study source change:** observations span the original and recovery commits; "
+              "see provenance, recovery history and per-attempt source commits. Interrupted charges remain unknown.")]
                if provenance.get("source_transition") else []),
              *(["One feature per model/arm; later-feature and CR1 costs are not measured."]
                if short_calibration else []),
@@ -444,6 +444,8 @@ def export(directory: Path, state: dict, study_id: str) -> None:
                   "billing_limit_kind": "local admission plus per-session soft caps; not guaranteed billed consumption"}
     if state.get("recovery"):
         provenance["source_transition"] = state["recovery"]
+        if state.get("recovery_history"):
+            provenance["source_transition_history"] = state["recovery_history"]
     write_pilot(directory / "results", result, provenance=provenance, dispositions=dispositions, attempts=attempts)
 
 

@@ -576,11 +576,18 @@ def run_bridge(request: dict, directory: Path, tool, *, on_start=None, on_stop=N
                         else:
                             raise StudyError("Unexpected SDK control record")
             process.wait(timeout=max(0.01, deadline - time.monotonic()))
-            if buffers["stdout"] or process.returncode or receipt is None or seen_session is None:
+            if buffers["stdout"] or receipt is None or seen_session is None:
                 raise StudyError("SDK session lacks complete correlated terminal evidence")
             terminal = receipt.get("receipt")
             if not isinstance(terminal, dict) or terminal.get("session_id") != seen_session:
                 raise StudyError("SDK terminal receipt belongs to a different session")
+            if process.returncode:
+                code = terminal.get("protocol_error")
+                if code in ("provider_retry_usage_incomplete", "incomplete_provider_retry",
+                            "provider_retry_limit", "transient_provider_failure"):
+                    raise StudyError(f"SDK backend retry stopped ({code}); "
+                                     "final usage is unknown and the reservation is retained")
+                raise StudyError("SDK session lacks complete correlated terminal evidence")
         return receipt
     except UnicodeError as error:
         raise StudyError("SDK control text is not valid UTF-8") from error

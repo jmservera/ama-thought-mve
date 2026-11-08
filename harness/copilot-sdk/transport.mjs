@@ -10,6 +10,7 @@ export const SDK_VERSION = '1.0.28';
 export const CLI_VERSION = '1.0.105';
 export const PROTOCOL_VERSION = 3;
 const DISABLED_BUILTIN_MCP = 'github-mcp-server';
+const MAX_TRANSIENT_FAILURES = 3;
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const keysOnly = (value, names) => object(value) && Object.keys(value).every(key => names.includes(key));
 const text = value => typeof value === 'string' && value.length > 0;
@@ -185,6 +186,9 @@ export class Evidence {
     this.toolCatalogVerified = false;
     this.activeTools = new Map();
     this.seenTools = new Set();
+    this.modelCall = null;
+    this.providerFailures = new Map();
+    this.retryNeedsSuccess = false;
   }
   verifyToolCatalog(metadata) {
     const tools = metadata?.tools;
@@ -219,6 +223,47 @@ export class Evidence {
       this.routing.push(data);
       this.identity(data.newModel, data.reasoningEffort);
       if (data.source === 'automatic' || data.cause) throw fault('unexpected_model_routing');
+    } else if (event.type === 'model.call_start') {
+      if (!this.started || !this.toolCatalogVerified || this.modelCall ||
+        !text(data.turnId) || data.turnId.length > 128 || data.model !== this.request.model)
+        throw fault('provider_call_correlation_unavailable');
+      this.modelCall = { turnId: data.turnId, failures: [] };
+    } else if (event.type === 'model.call_failure') {
+      this.identity(data.model, data.reasoningEffort);
+      if (!this.started || !this.toolCatalogVerified || !this.modelCall ||
+        ![500, 502, 503, 504].includes(data.statusCode) || data.failureKind !== 'api' ||
+        data.transport !== 'websocket' || data.errorCode !== 'internal_error' ||
+        data.errorType !== 'websocket_error' || data.isAuto !== false || data.isByok !== false ||
+        data.fusion || !text(data.apiCallId) || data.apiCallId.length > 200 ||
+        !text(data.serviceRequestId) || data.serviceRequestId.length > 200 ||
+        data.retryAttempt !== this.modelCall.failures.length)
+        throw fault('unexpected_runtime_activity');
+      if (this.providerFailures.has(data.serviceRequestId))
+        throw fault('provider_failure_correlation_unavailable');
+      if (this.providerFailures.size >= MAX_TRANSIENT_FAILURES)
+        throw fault('provider_retry_limit');
+      this.providerFailures.set(data.serviceRequestId, { ...data, mirrored: false });
+      this.modelCall.failures.push(data.serviceRequestId);
+    } else if (event.type === 'model.model_call_failure') {
+      const call = data.modelCall;
+      const failure = this.providerFailures.get(call?.service_request_id);
+      if (!failure || failure.mirrored || this.modelCall?.turnId !== String(data.turn) ||
+        call.model !== failure.model || data.reasoningEffort !== failure.reasoningEffort ||
+        call.status !== failure.statusCode || call.api_id !== failure.apiCallId ||
+        call.transport !== failure.transport || call.errorCode !== failure.errorCode ||
+        call.errorType !== failure.errorType || call.retry_attempt !== failure.retryAttempt)
+        throw fault('provider_failure_correlation_unavailable');
+      failure.mirrored = true;
+    } else if (event.type === 'model.call_finished') {
+      if (!this.modelCall || data.turnId !== this.modelCall.turnId ||
+        !['success', 'error'].includes(data.outcome))
+        throw fault('provider_call_correlation_unavailable');
+      if (this.modelCall.failures.some(id => !this.providerFailures.get(id).mirrored))
+        throw fault('provider_failure_correlation_unavailable');
+      if (data.outcome === 'error' && !this.modelCall.failures.length)
+        throw fault('unexpected_runtime_activity');
+      this.retryNeedsSuccess = data.outcome === 'error';
+      this.modelCall = null;
     } else if (event.type === 'assistant.usage') {
       this.identity(data.model, data.reasoningEffort);
       if (data.copilotUsage?.model !== undefined && data.copilotUsage.model !== data.model) {
@@ -249,6 +294,7 @@ export class Evidence {
     } else if (event.type === 'session.idle') {
       if (data.aborted) throw fault('session_aborted');
       if (this.activeTools.size) throw fault('incomplete_tool_execution');
+      if (this.modelCall || this.retryNeedsSuccess) throw fault('incomplete_provider_retry');
       this.idle = true;
     } else if (event.type === 'assistant.turn_start') {
       this.idle = false;
@@ -257,7 +303,9 @@ export class Evidence {
       if (this.shutdown && JSON.stringify(this.shutdown) !== JSON.stringify(data))
         throw fault('conflicting_shutdown_duplicate');
       this.shutdown = data;
-    } else if (['session.error', 'abort', 'model.call_failure', 'session.model_deselected',
+    } else if (event.type === 'session.error' && this.providerFailures.size) {
+      throw fault('transient_provider_failure');
+    } else if (['session.error', 'abort', 'session.model_deselected',
       'session.truncation', 'session.handoff', 'session.instruction_update',
       'instruction.update',
       'skill.invoked', 'subagent.started', 'hook.start', 'tool.search_activated',
@@ -265,8 +313,7 @@ export class Evidence {
       event.type.startsWith('assistant.fusion') || event.type.startsWith('mcp.') ||
       event.type.startsWith('subagent.') || event.type.startsWith('hook.') ||
       (event.type.startsWith('session.mcp_') && event.type !== 'session.mcp_servers_loaded') ||
-      (event.type === 'system.notification' && data.kind?.type === 'instruction_discovered') ||
-      (event.type === 'model.call_finished' && data.outcome !== 'success')) {
+      (event.type === 'system.notification' && data.kind?.type === 'instruction_discovered')) {
       throw fault('unexpected_runtime_activity');
     } else if (event.type === 'tool.execution_start') {
       const id = data.toolCallId;
@@ -305,10 +352,16 @@ export class Evidence {
     const shutdown = this.shutdown;
     const sequences = [...this.calls.keys()].sort((a, b) => a - b);
     const calls = [...this.calls.values()];
+    const providerFailures = [...this.providerFailures.values()];
+    const accountedFailure = failure => failure.mirrored && calls.filter(call =>
+      call.apiCallId === failure.apiCallId && call.serviceRequestId === failure.serviceRequestId &&
+      call.aiCreditsStatus === 'complete' && nano(call.copilotUsage?.totalNanoAiu)).length === 1;
+    const failuresComplete = providerFailures.every(accountedFailure);
     const sum = calls.reduce((total, call) => total + (call.copilotUsage?.totalNanoAiu ?? 0), 0);
     const watermarks = shutdown?.usageAccountingWatermarks;
     const metric = shutdown?.modelMetrics?.[this.request.model];
     const complete = !errorCode && this.started && this.idle && shutdown && !this.activeTools.size &&
+      !this.modelCall && !this.retryNeedsSuccess && failuresComplete &&
       this.status === 'complete' && sequences.length > 0 &&
       sequences.every((sequence, index) => sequence === index + 1) &&
       new Set(calls.map(call => call.accounting.usageId)).size === calls.length &&
@@ -338,8 +391,14 @@ export class Evidence {
         aiCreditsStatus: call.aiCreditsStatus ?? 'unavailable',
         totalNanoAiu: nano(call.copilotUsage?.totalNanoAiu) ? call.copilotUsage.totalNanoAiu : null,
       })),
+      provider_failures: providerFailures.map(failure => ({
+        status_code: failure.statusCode, error_code: failure.errorCode,
+        transport: failure.transport, retry_attempt: failure.retryAttempt,
+        accounting_complete: accountedFailure(failure),
+      })),
       routing_changes: this.routing,
-      protocol_error: errorCode || (certified ? null : 'complete_usage_evidence_unavailable'),
+      protocol_error: errorCode || (certified ? null : !failuresComplete ?
+        'provider_retry_usage_incomplete' : 'complete_usage_evidence_unavailable'),
     };
   }
 }

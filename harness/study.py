@@ -82,6 +82,10 @@ RECOVERY_STATE_SHA256 = "6eb8f45bcb54f8cad20cbd89aba72da7721ebf06ab6188fbf3c0cc4
 RECOVERY_SOURCE = "99a1ed170d7c71acb428b52e0e24be8856cc3ea3"
 RECOVERY_ATTEMPT = "pilot-estimation-claude-sonnet-5.5-E-03-f03-repair-1"
 RECOVERY_JOURNAL_SHA256 = "ac402234bdca8758bde0eeccdda0594a9509b47b190555000a1f2d0c2588eb47"
+BACKEND_RECOVERY_STATE_SHA256 = "b8f9abfb13f45b1261b7bbf82f82f17f934523f662073bc443103b9d84787d9a"
+BACKEND_RECOVERY_SOURCE = "3c2ce89b00fe583c1f0715e8ccd3510419d5e734"
+BACKEND_RECOVERY_ATTEMPT = "pilot-estimation-gpt-6.1-sol-E-04-f08-feature-1"
+BACKEND_RECOVERY_JOURNAL_SHA256 = "eac78300d5e12796fe6174b11a1fb052bdec1220b755cf56f724571ca8235abd"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
@@ -529,39 +533,77 @@ def source_provenance(unregistered: dict) -> dict:
                 json.dumps(unregistered, sort_keys=True, separators=(",", ":")).encode()).hexdigest()}
 
 
+def recovery_incident(state_sha256: str) -> dict:
+    """Accept only the two disclosed estimation interruptions, not arbitrary holds."""
+    if state_sha256 == RECOVERY_STATE_SHA256:
+        return {"source": RECOVERY_SOURCE, "attempt": RECOVERY_ATTEMPT,
+                "journal_sha256": RECOVERY_JOURNAL_SHA256, "steps": 651, "attempts": 652,
+                "known_nano": credits("7794.8031"), "kind": "missing_edit"}
+    if state_sha256 == BACKEND_RECOVERY_STATE_SHA256:
+        return {"source": BACKEND_RECOVERY_SOURCE, "attempt": BACKEND_RECOVERY_ATTEMPT,
+                "journal_sha256": BACKEND_RECOVERY_JOURNAL_SHA256, "steps": 878, "attempts": 880,
+                "known_nano": credits("10470.87094"), "kind": "backend_500"}
+    raise StudyError("Recovery state is not one of the disclosed estimation interruptions")
+
+
+def recovery_records(state: dict) -> list[dict]:
+    recovery, history = state.get("recovery"), state.get("recovery_history", [])
+    if not isinstance(history, list) or len(history) > 1 or (history and recovery is None):
+        raise StudyError("Invalid recovery history")
+    records = [*history, recovery] if recovery is not None else []
+    hashes = [record.get("original_state_sha256") if isinstance(record, dict) else None
+              for record in records]
+    if hashes not in ([], [RECOVERY_STATE_SHA256],
+                      [RECOVERY_STATE_SHA256, BACKEND_RECOVERY_STATE_SHA256]):
+        raise StudyError("Recovery history differs from the disclosed incident sequence")
+    return records
+
+
 def validate_recovery_state(state: dict) -> None:
-    """Keep the one approved interrupted hold bound to its source transition."""
+    """Keep every approved interrupted hold bound to its original source transition."""
     entries = state["ledger"]["entries"]
     holds = [key for key, entry in entries.items() if entry.get("status") == "recovery_hold"]
     interrupted = [attempt for cell in state["cells"] for attempt in cell["attempts"]
                    if attempt.get("status") == "recovery_interrupted"]
-    recovery = state.get("recovery")
-    if recovery is None:
+    records = recovery_records(state)
+    if not records:
         if holds or interrupted:
             raise StudyError("Recovery hold lacks source-bound authorization")
         return
-    before = recovery.get("prior_attempt_ids")
     attempts = [attempt for cell in state["cells"] for attempt in cell["attempts"]]
     ids = [attempt["id"] for attempt in attempts]
-    if (recovery.get("schema") != "estimation-incident-recovery/v1"
-            or recovery.get("original_state_sha256") != RECOVERY_STATE_SHA256
-            or recovery.get("original_commit") != RECOVERY_SOURCE
-            or recovery.get("target_commit") != state["identity"]["commit"]
-            or not re.fullmatch(r"[0-9a-f]{64}", recovery.get("approval_sha256", ""))
-            or recovery.get("journal_sha256") != RECOVERY_JOURNAL_SHA256
-            or not re.fullmatch(r"[0-9a-f]{64}", recovery.get("prior_manifest_sha256", ""))
-            or not isinstance(before, list) or len(before) != 652
-            or len(set(before)) != len(before) or not set(before).issubset(ids)
-            or len(set(ids)) != len(ids) or set(ids) != set(entries)
-            or holds != [RECOVERY_ATTEMPT] or len(interrupted) != 1
-            or interrupted[0]["id"] != RECOVERY_ATTEMPT
-            or interrupted[0].get("usage") is not None
-            or entries[RECOVERY_ATTEMPT].get("actual_nano") is not None
-            or entries[RECOVERY_ATTEMPT].get("reserved_nano") != 300 * NANO
-            or any(item.get("source_commit") != (
-                RECOVERY_SOURCE if item["id"] in before else state["identity"]["commit"])
-                for item in attempts)):
+    expected_holds = [recovery_incident(record["original_state_sha256"])["attempt"] for record in records]
+    if (len(set(ids)) != len(ids) or set(ids) != set(entries) or set(holds) != set(expected_holds)
+            or len(interrupted) != len(records)
+            or {attempt["id"] for attempt in interrupted} != set(expected_holds)
+            or any(attempt.get("usage") is not None for attempt in interrupted)
+            or any(entries[key].get("actual_nano") is not None
+                   or entries[key].get("reserved_nano") != 300 * NANO for key in expected_holds)):
         raise StudyError("Invalid source transition or recovered unknown-charge hold")
+    previous_ids = set()
+    for index, recovery in enumerate(records):
+        incident = recovery_incident(recovery["original_state_sha256"])
+        before = recovery.get("prior_attempt_ids")
+        if (recovery.get("schema") != "estimation-incident-recovery/v1"
+                or recovery.get("original_commit") != incident["source"]
+                or not re.fullmatch(r"[0-9a-f]{40}", recovery.get("target_commit", ""))
+                or recovery["target_commit"] == incident["source"]
+                or (index and records[index - 1]["target_commit"] != incident["source"])
+                or not re.fullmatch(r"[0-9a-f]{64}", recovery.get("approval_sha256", ""))
+                or recovery.get("journal_sha256") != incident["journal_sha256"]
+                or not re.fullmatch(r"[0-9a-f]{64}", recovery.get("prior_manifest_sha256", ""))
+                or not isinstance(before, list) or len(before) != incident["attempts"]
+                or len(set(before)) != len(before) or not set(before).issubset(ids)
+                or not previous_ids.issubset(before)):
+            raise StudyError("Invalid source transition or recovered unknown-charge hold")
+        previous_ids = set(before)
+    if records[-1]["target_commit"] != state["identity"]["commit"]:
+        raise StudyError("Recovery source differs from the current study identity")
+    for attempt in attempts:
+        source = next((record["original_commit"] for record in records
+                       if attempt["id"] in record["prior_attempt_ids"]), state["identity"]["commit"])
+        if attempt.get("source_commit") != source:
+            raise StudyError("Attempt source differs from its preserved recovery history")
 
 
 def recovery_calibration_manifest(directory: Path, path: Path, unregistered: dict) -> dict:
@@ -571,15 +613,15 @@ def recovery_calibration_manifest(directory: Path, path: Path, unregistered: dic
     state = read_json(directory / "state.json")
     validate_recovery_state(state)
     validate_recovery_evidence(directory, state, unregistered)
-    recovery = state.get("recovery")
+    records = recovery_records(state)
     manifest = read_json(path)
-    if (recovery is None or manifest.get("commit") != RECOVERY_SOURCE
-            or source_provenance(manifest)["manifest_sha256"] != recovery["prior_manifest_sha256"]):
+    if (not records or manifest.get("commit") != records[0]["original_commit"]
+            or source_provenance(manifest)["manifest_sha256"] != records[0]["prior_manifest_sha256"]):
         raise StudyError("Recovery calibration manifest differs from the original source")
     return manifest
 
 
-def recovery_source_paths(root: Path) -> tuple[Path, Path]:
+def recovery_source_paths(root: Path, *, expected_state_sha256: str | None = None) -> tuple[Path, Path]:
     """Keep the original checkout and its paid-study lock available during recovery."""
     original = root / ".study/pilot-estimation"
     paid = root / ".study/.paid-study-controller"
@@ -588,77 +630,111 @@ def recovery_source_paths(root: Path) -> tuple[Path, Path]:
             or (root / ".study").is_symlink() or original.is_symlink() or paid.is_symlink()
             or not original.is_dir() or not paid.is_dir() or state.is_symlink() or not state.is_file()
             or any((path / "controller.lock").is_symlink() or not (path / "controller.lock").is_file()
-                   for path in (paid, original))
-            or command(["git", "rev-parse", "HEAD"], cwd=root) != RECOVERY_SOURCE
-            or hashlib.sha256(state.read_bytes()).hexdigest() != RECOVERY_STATE_SHA256):
+                   for path in (paid, original))):
+        raise StudyError("Original recovery source or stopped state is unavailable or changed")
+    state_sha256 = hashlib.sha256(state.read_bytes()).hexdigest()
+    if state_sha256 not in (RECOVERY_STATE_SHA256, BACKEND_RECOVERY_STATE_SHA256):
+        raise StudyError("Original recovery source or stopped state is unavailable or changed")
+    incident = recovery_incident(state_sha256)
+    if (expected_state_sha256 is not None and state_sha256 != expected_state_sha256
+            or command(["git", "rev-parse", "HEAD"], cwd=root) != incident["source"]):
         raise StudyError("Original recovery source or stopped state is unavailable or changed")
     return paid, original
 
 
+def recovery_source_locks(state: dict, roots: list[Path]) -> list[Path]:
+    records = recovery_records(state)
+    if len(roots) != len(records):
+        raise StudyError("Recovered studies require every original checkout in recovery order")
+    return [path for record, root in zip(records, roots)
+            for path in recovery_source_paths(root, expected_state_sha256=record["original_state_sha256"])]
+
+
 def validate_recovery_evidence(directory: Path, state: dict, unregistered: dict | None) -> None:
-    if not state.get("recovery"):
+    records = recovery_records(state)
+    if not records:
         return
-    snapshot, approval_path = directory / "state.before-recovery.json", directory / "recovery-approval.json"
-    if (unregistered is None or any(path.is_symlink() or not path.is_file()
-                                    for path in (snapshot, approval_path))):
+    if unregistered is None:
         raise StudyError("Recovery requires the preserved state and owner approval")
-    if hashlib.sha256(snapshot.read_bytes()).hexdigest() != RECOVERY_STATE_SHA256:
-        raise StudyError("Preserved pre-recovery state differs from the original")
-    from prepare_estimation_recovery import digest, verify_approval, verify_approval_after_attempt, verify_journal
-    approval = read_json(approval_path)
-    verify_approval(approval, unregistered)
-    if (digest(approval) != state["recovery"]["approval_sha256"]
-            or approval["approved_at"] != state["recovery"].get("approved_at")
-            or approval["disclosure_url"] != state["recovery"].get("disclosure_url")
-            or unregistered.get("commit") != state["identity"]["commit"]
-            or unregistered.get("inputs_sha256") != state["identity"]["inputs_sha256"]
-            or source_provenance(unregistered) != state["identity"].get("source_provenance")):
-        raise StudyError("Recovery approval differs from the recorded authorization")
-    original = json.loads(snapshot.read_bytes())
-    if (original["identity"].get("source_provenance", {}).get("manifest_sha256")
-            != state["recovery"]["prior_manifest_sha256"]):
-        raise StudyError("Recovery calibration provenance differs from the original")
-    old_identity, new_identity = dict(original["identity"]), dict(state["identity"])
-    for key in ("commit", "inputs_sha256", "source_provenance"):
-        old_identity.pop(key, None)
-        new_identity.pop(key, None)
-    if (old_identity != new_identity or original["started"] != state["started"]
-            or original["deadline"] != state["deadline"]
-            or any(original["ledger"].get(key) != state["ledger"].get(key)
-                   for key in ("ceiling_nano", "prior_nano", "historical_credit_provisions",
-                               "calibration_handoff"))
-            or len(original["cells"]) != len(state["cells"])):
-        raise StudyError("Recovery changed the original allocation, budget or deadline")
-    prior_ids = []
-    for old_cell, new_cell in zip(original["cells"], state["cells"]):
-        if (old_cell["run_id"] != new_cell["run_id"]
-                or new_cell.get("completed_steps", 0) < old_cell.get("completed_steps", 0)
-                or (old_cell["status"] == "completed" and new_cell["status"] != "completed")
-                or len(new_cell["attempts"]) < len(old_cell["attempts"])):
-            raise StudyError("Recovery lost a completed step or original attempt")
-        for old_attempt, current in zip(old_cell["attempts"], new_cell["attempts"]):
-            prior_ids.append(old_attempt["id"])
-            before, after = dict(old_attempt), dict(current)
-            after.pop("source_commit", None)
-            old_included = before.pop("cost_included_in_step", False)
-            new_included = after.pop("cost_included_in_step", False)
-            if old_included and not new_included:
-                raise StudyError("Recovery removed a previously included attempt cost")
-            if old_attempt["id"] == RECOVERY_ATTEMPT:
-                after["status"] = "interrupted"
-            old_entry = dict(original["ledger"]["entries"][old_attempt["id"]])
-            new_entry = dict(state["ledger"]["entries"][old_attempt["id"]])
-            if old_attempt["id"] == RECOVERY_ATTEMPT:
-                new_entry["status"] = "unknown"
-            if before != after or old_entry != new_entry:
-                raise StudyError("Recovery changed an original attempt or ledger entry")
-    if prior_ids != state["recovery"]["prior_attempt_ids"]:
-        raise StudyError("Recovery changed the original attempt inventory")
-    attempt = next((item for cell in original["cells"] for item in cell["attempts"]
-                    if item["id"] == RECOVERY_ATTEMPT), None)
-    if attempt is None or verify_journal(directory, attempt) != RECOVERY_JOURNAL_SHA256:
-        raise StudyError("Preserved interrupted attempt differs from the original journal")
-    verify_approval_after_attempt(approval, attempt)
+    from prepare_estimation_recovery import (
+        digest,
+        verify_approval,
+        verify_approval_after_attempt,
+        verify_journal,
+    )
+    preserved = []
+    for index, recovery in enumerate(records):
+        suffix = "" if index == len(records) - 1 else f"-{index + 1:02d}"
+        snapshot = directory / f"state.before-recovery{suffix}.json"
+        approval_path = directory / f"recovery-approval{suffix}.json"
+        manifest_path = directory / f"recovery-manifest{suffix}.json"
+        paths = (snapshot, approval_path) if not suffix else (snapshot, approval_path, manifest_path)
+        if any(path.is_symlink() or not path.is_file() for path in paths):
+            raise StudyError("Recovery requires every preserved state, manifest and owner approval")
+        payload = snapshot.read_bytes()
+        if hashlib.sha256(payload).hexdigest() != recovery["original_state_sha256"]:
+            raise StudyError("Preserved pre-recovery state differs from the original")
+        preserved.append((json.loads(payload), read_json(approval_path),
+                          read_json(manifest_path) if suffix else unregistered))
+    for index, (original, approval, manifest) in enumerate(preserved):
+        recovery = records[index]
+        incident = recovery_incident(recovery["original_state_sha256"])
+        current_state = preserved[index + 1][0] if index + 1 < len(records) else state
+        verify_approval(approval, manifest)
+        if (recovery_records(original) != records[:index]
+                or recovery_records(current_state) != records[:index + 1]
+                or digest(approval) != recovery["approval_sha256"]
+                or approval["approved_at"] != recovery.get("approved_at")
+                or approval["disclosure_url"] != recovery.get("disclosure_url")
+                or manifest.get("commit") != current_state["identity"]["commit"]
+                or manifest.get("inputs_sha256") != current_state["identity"]["inputs_sha256"]
+                or source_provenance(manifest) != current_state["identity"].get("source_provenance")):
+            raise StudyError("Recovery approval differs from the recorded authorization")
+        if (original["identity"].get("source_provenance", {}).get("manifest_sha256")
+                != recovery["prior_manifest_sha256"]):
+            raise StudyError("Recovery calibration provenance differs from the original")
+        old_identity, new_identity = dict(original["identity"]), dict(current_state["identity"])
+        for key in ("commit", "inputs_sha256", "source_provenance"):
+            old_identity.pop(key, None)
+            new_identity.pop(key, None)
+        if (old_identity != new_identity or original["started"] != current_state["started"]
+                or original["deadline"] != current_state["deadline"]
+                or any(original["ledger"].get(key) != current_state["ledger"].get(key)
+                       for key in ("ceiling_nano", "prior_nano", "historical_credit_provisions",
+                                   "calibration_handoff"))
+                or len(original["cells"]) != len(current_state["cells"])):
+            raise StudyError("Recovery changed the original allocation, budget or deadline")
+        prior_ids = []
+        for old_cell, new_cell in zip(original["cells"], current_state["cells"]):
+            if (old_cell["run_id"] != new_cell["run_id"]
+                    or new_cell.get("completed_steps", 0) < old_cell.get("completed_steps", 0)
+                    or (old_cell["status"] == "completed" and new_cell["status"] != "completed")
+                    or len(new_cell["attempts"]) < len(old_cell["attempts"])):
+                raise StudyError("Recovery lost a completed step or original attempt")
+            for old_attempt, current in zip(old_cell["attempts"], new_cell["attempts"]):
+                prior_ids.append(old_attempt["id"])
+                before, after = dict(old_attempt), dict(current)
+                before.pop("source_commit", None)
+                after.pop("source_commit", None)
+                old_included = before.pop("cost_included_in_step", False)
+                new_included = after.pop("cost_included_in_step", False)
+                if old_included and not new_included:
+                    raise StudyError("Recovery removed a previously included attempt cost")
+                if old_attempt["id"] == incident["attempt"]:
+                    after["status"] = "interrupted"
+                old_entry = dict(original["ledger"]["entries"][old_attempt["id"]])
+                new_entry = dict(current_state["ledger"]["entries"][old_attempt["id"]])
+                if old_attempt["id"] == incident["attempt"]:
+                    new_entry["status"] = "unknown"
+                if before != after or old_entry != new_entry:
+                    raise StudyError("Recovery changed an original attempt or ledger entry")
+        if prior_ids != recovery["prior_attempt_ids"]:
+            raise StudyError("Recovery changed the original attempt inventory")
+        attempt = next((item for cell in original["cells"] for item in cell["attempts"]
+                        if item["id"] == incident["attempt"]), None)
+        if attempt is None or verify_journal(directory, attempt) != incident["journal_sha256"]:
+            raise StudyError("Preserved interrupted attempt differs from the original journal")
+        verify_approval_after_attempt(approval, attempt)
 
 
 def ensure_no_terminal_receipt(directory: Path, attempt: dict) -> None:
@@ -1491,8 +1567,8 @@ def main() -> int:
                         help="completed short-calibration study whose accounting is carried into estimation")
     parser.add_argument("--recovery-calibration-manifest", type=Path,
                         help="original manifest for a separately authorized incident-recovery calibration")
-    parser.add_argument("--recovery-source-root", type=Path,
-                        help="original checkout whose stopped state and paid-study lock must remain available")
+    parser.add_argument("--recovery-source-root", type=Path, action="append",
+                        help="original checkout; repeat in recovery order to preserve every source lock")
     parser.add_argument("--publish", action="store_true", help="push only derived results and create/update a PR")
     saved = parser.add_mutually_exclusive_group()
     saved.add_argument("--status", action="store_true", help="show saved progress without authentication or model calls")
@@ -1523,7 +1599,7 @@ def main() -> int:
         raise StudyError("Recovered studies require their original checkout; other studies must not supply one")
     if recovered != bool(args.recovery_calibration_manifest):
         raise StudyError("Recovered studies require their original calibration manifest")
-    source_locks = recovery_source_paths(args.recovery_source_root) if recovered else None
+    source_locks = recovery_source_locks(saved_state, args.recovery_source_root) if recovered else None
     cfg = read_json(args.config)
     if args.smoke and args.unregistered_manifest:
         raise StudyError("Unregistered launch evidence does not apply to offline smoke runs")
@@ -1591,7 +1667,7 @@ def main() -> int:
         if source_locks:
             for path in source_locks:
                 locks.enter_context(study_lock(path))
-            recovery_source_paths(args.recovery_source_root)
+            recovery_source_locks(saved_state, args.recovery_source_root)
         locks.enter_context(study_lock(directory))
         if calibration_directory is not None:
             with study_lock(calibration_directory):

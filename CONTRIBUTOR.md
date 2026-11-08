@@ -50,6 +50,11 @@ progress is not a success rate. Retries do not increase the planned denominator.
 Rerunning the same command resumes only where existing durable-recovery and
 accounting rules permit; it never resets credit usage or bypasses a stop.
 
+For a backend error followed by `oracle_halt`, do not clear the state or start
+a replacement experiment. The [incident-recovery runbook](RUNBOOK.md#specific-878-step-backend-interruption)
+documents the separately approved copy, retained unknown charges and exact-source
+launch checks required before continuing the stopped study.
+
 ```bash
 ./run-experiment.sh --dry-run          # read-only readiness and schedule
 ./run-experiment.sh --status           # saved progress; no sign-in/model call

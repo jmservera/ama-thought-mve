@@ -53,7 +53,8 @@ function fakeRuntime(options = {}) {
             state.sent++;
             if (options.action) await options.action(config, state);
             if (options.hang) return new Promise(() => {});
-            config.onEvent(usage(config.sessionId, options.usage));
+            config.onEvent(usage(config.sessionId,
+              typeof options.usage === 'function' ? options.usage(config.sessionId) : options.usage));
             config.onEvent(event('session.idle', {}));
           },
           rpc: {
@@ -64,7 +65,9 @@ function fakeRuntime(options = {}) {
                 return options.metadata ?? { tools: [{ name: 'isolated_exec' }] };
               },
             },
-            async shutdown() { config.onEvent(shutdown(config.sessionId)); },
+            async shutdown() {
+              config.onEvent(options.shutdown?.(config.sessionId) ?? shutdown(config.sessionId));
+            },
           },
         };
       },
@@ -288,6 +291,148 @@ test('a changed or unavailable tool catalog stops before the first prompt', asyn
   assert.equal(changed.state.sent, 1);
   assert.equal(changed.receipt.protocol_error, 'unexpected_tool_catalog');
   assert.equal(changed.receipt.usage.credits_complete, false);
+});
+
+const providerFailure = (extra = {}) => ({
+  model: 'test-model', reasoningEffort: 'medium', statusCode: 500, failureKind: 'api',
+  transport: 'websocket', errorCode: 'internal_error', errorType: 'websocket_error',
+  isAuto: false, isByok: false, retryAttempt: 0,
+  apiCallId: 'failed-api', serviceRequestId: 'failed-service', ...extra,
+});
+const providerMirror = (failure, turn = 0) => ({
+  kind: 'model_call_failure', turn, reasoningEffort: failure.reasoningEffort,
+  modelCall: { model: failure.model, status: failure.statusCode, api_id: failure.apiCallId,
+    service_request_id: failure.serviceRequestId, transport: failure.transport,
+    errorCode: failure.errorCode, errorType: failure.errorType, retry_attempt: failure.retryAttempt },
+});
+function failProvider(config, failure = providerFailure(), turn = 0) {
+  config.onEvent(event('model.call_start', { model: 'test-model', turnId: String(turn) }));
+  config.onEvent(event('model.call_failure', failure));
+  config.onEvent(event('model.model_call_failure', providerMirror(failure, turn)));
+  config.onEvent(event('model.call_finished', { turnId: String(turn), outcome: 'error' }));
+}
+function successfulRetry(config, turn = 1) {
+  config.onEvent(event('model.call_start', { model: 'test-model', turnId: String(turn) }));
+  config.onEvent(event('model.call_finished', { turnId: String(turn), outcome: 'success' }));
+}
+
+test('correlated transient retry preserves original limits and requires every failed request charge', async () => {
+  const result = await runFake({
+    async action(config) {
+      failProvider(config);
+      config.onEvent(usage(config.sessionId, { apiCallId: 'failed-api',
+        serviceRequestId: 'failed-service', copilotUsage: { totalNanoAiu: 17 } }));
+      successfulRetry(config);
+    },
+    usage: sid => ({ accounting: { sourceSessionId: sid, sequence: 2, usageId: 'call-two' } }),
+    shutdown: sid => event('session.shutdown', {
+      shutdownType: 'routine', currentModel: 'test-model', totalNanoAiu: 140,
+      usageAccountingWatermarks: { [sid]: 2 },
+      modelMetrics: { 'test-model': { totalNanoAiu: 140, requests: { count: 2 } } },
+    }),
+  });
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.receipt.protocol_error, null);
+  assert.equal(result.receipt.usage.totalNanoAiu, 140);
+  assert.equal(result.receipt.usage.credits_complete, true);
+  assert.equal(result.receipt.provider_failures[0].accounting_complete, true);
+  assert.equal(result.state.sent, 1);
+  assert.equal(result.state.config.sessionLimits.maxAiCredits, 173.5);
+  assert.equal(result.state.closed, 1);
+});
+
+test('a retried provider error without explicit failed-request usage never becomes zero-cost', async () => {
+  const result = await runFake({ async action(config) {
+    failProvider(config);
+    successfulRetry(config);
+  } });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.receipt.protocol_error, 'provider_retry_usage_incomplete');
+  assert.equal(result.receipt.usage.credits_complete, false);
+  assert.equal(result.receipt.usage.totalNanoAiu, null);
+  assert.deepEqual(result.receipt.provider_failures, [{
+    status_code: 500, error_code: 'internal_error', transport: 'websocket',
+    retry_attempt: 0, accounting_complete: false,
+  }]);
+  for (const change of [{ apiCallId: 'another-api' }, { serviceRequestId: 'another-service' },
+    { aiCreditsStatus: 'partial' }, { copilotUsage: undefined }]) {
+    const mismatched = await runFake({ async action(config) {
+      failProvider(config);
+      config.onEvent(usage(config.sessionId, {
+        apiCallId: 'failed-api', serviceRequestId: 'failed-service', ...change,
+      }));
+      successfulRetry(config);
+    } });
+    assert.equal(mismatched.exitCode, 1);
+    assert.equal(mismatched.receipt.usage.totalNanoAiu, null);
+  }
+});
+
+test('provider retries remain bounded and terminal failure never produces a successful idle', async () => {
+  const limit = await runFake({ async action(config) {
+    for (let turn = 0; turn < 4; turn++) {
+      failProvider(config, providerFailure({
+        apiCallId: `failed-${turn}`, serviceRequestId: `service-${turn}`,
+      }), turn);
+    }
+  } });
+  assert.equal(limit.receipt.protocol_error, 'provider_retry_limit');
+  assert.equal(limit.receipt.provider_failures.length, 3);
+  assert.equal(limit.receipt.usage.credits_complete, false);
+  const unfinished = await runFake({ async action(config) { failProvider(config); } });
+  assert.equal(unfinished.receipt.protocol_error, 'incomplete_provider_retry');
+  const terminal = await runFake({ async action(config) {
+    failProvider(config);
+    config.onEvent(event('session.error', { message: 'private provider details' }));
+  } });
+  assert.equal(terminal.receipt.protocol_error, 'transient_provider_failure');
+});
+
+test('uncorrelated, auth, client, model, effort and routing failures remain denied', async () => {
+  for (const change of [{ statusCode: 401 }, { statusCode: 403 }, { statusCode: 429 },
+    { statusCode: 400 }, { statusCode: 501 }, { statusCode: '500' },
+    { failureKind: 'permission' }, { transport: 'unknown' }, { errorCode: 'quota_exceeded' },
+    { errorType: 'authentication_error' }, { isAuto: true }, { isByok: true },
+    { fusion: true }, { model: 'other' }, { reasoningEffort: 'high' },
+    { serviceRequestId: undefined }, { apiCallId: undefined }, { retryAttempt: 1 }]) {
+    const result = await runFake({ async action(config) {
+      failProvider(config, providerFailure(change));
+    } });
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.receipt.usage.credits_complete, false);
+    assert.ok(['unexpected_runtime_activity', 'actual_identity_unavailable_or_mismatched']
+      .includes(result.receipt.protocol_error));
+  }
+  const uncorrelated = await runFake({ async action(config) {
+    config.onEvent(event('model.call_failure', providerFailure()));
+  } });
+  assert.equal(uncorrelated.receipt.protocol_error, 'unexpected_runtime_activity');
+  for (const mirror of [{ turn: 1 }, { modelCall: {} }, { reasoningEffort: 'high' }]) {
+    const result = await runFake({ async action(config) {
+      config.onEvent(event('model.call_start', { model: 'test-model', turnId: '0' }));
+      config.onEvent(event('model.call_failure', providerFailure()));
+      config.onEvent(event('model.model_call_failure', { ...providerMirror(providerFailure()), ...mirror }));
+    } });
+    assert.equal(result.receipt.protocol_error, 'provider_failure_correlation_unavailable');
+  }
+});
+
+test('transient backend evidence never enables discovery, model changes or host tools', async () => {
+  for (const violation of [
+    event('mcp.started', {}),
+    event('session.model_change', { newModel: 'other', reasoningEffort: 'medium' }),
+    event('tool.execution_start', { toolName: 'create', toolCallId: 'host' }),
+  ]) {
+    const result = await runFake({ async action(config) {
+      failProvider(config);
+      successfulRetry(config);
+      config.onEvent(violation);
+      if (violation.type === 'tool.execution_start')
+        config.onEvent(event('tool.execution_complete', { toolCallId: 'host', success: true }));
+    } });
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.receipt.usage.credits_complete, false);
+  }
 });
 
 test('bounded input framing rejects oversized, aggregate floods, malformed UTF-8 and unterminated records', () => {

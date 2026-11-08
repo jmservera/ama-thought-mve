@@ -26,12 +26,12 @@ def verify_approval(approval: dict, new_manifest: dict) -> None:
                 "unknown_reservation_nano", "accept_unknown_hold", "accept_fresh_retry_reservation",
                 "accept_fresh_retry_time_allowance", "accept_mid_study_source_change", "owner_approved",
                 "approved_at", "disclosure_url"}
+    incident = study.recovery_incident(approval.get("original_state_sha256"))
     if (set(approval) != expected or approval["schema"] != "estimation-incident-approval/v1"
-            or approval["original_state_sha256"] != study.RECOVERY_STATE_SHA256
-            or approval["original_commit"] != study.RECOVERY_SOURCE
+            or approval["original_commit"] != incident["source"]
             or approval["target_commit"] != new_manifest.get("commit")
-            or approval["target_commit"] == study.RECOVERY_SOURCE
-            or approval["attempt_id"] != study.RECOVERY_ATTEMPT
+            or approval["target_commit"] == incident["source"]
+            or approval["attempt_id"] != incident["attempt"]
             or type(approval["unknown_reservation_nano"]) is not int
             or approval["unknown_reservation_nano"] != 300 * study.NANO
             or any(approval[key] is not True for key in ("accept_unknown_hold",
@@ -69,6 +69,11 @@ def require_regular_tree(root: Path) -> None:
 
 
 def verify_journal(directory: Path, attempt: dict) -> str:
+    incidents = [study.recovery_incident(value) for value in (
+        study.RECOVERY_STATE_SHA256, study.BACKEND_RECOVERY_STATE_SHA256)]
+    incident = next((item for item in incidents if item["attempt"] == attempt.get("id")), None)
+    if incident is None:
+        raise StudyError("Failed attempt is not one of the disclosed estimation interruptions")
     relative = attempt.get("directory")
     if (not isinstance(relative, str) or not relative or Path(relative).is_absolute()
             or ".." in Path(relative).parts):
@@ -81,38 +86,87 @@ def verify_journal(directory: Path, attempt: dict) -> str:
     if not payload.endswith(b"\n"):
         raise StudyError("Failed attempt journal is incomplete")
     records = [json.loads(line) for line in payload.splitlines()]
-    starts = [record["event"]["data"] for record in records
-              if record.get("event", {}).get("type") == "tool.execution_start"
-              and record["event"].get("data", {}).get("toolName") == "edit"]
+    if any(not isinstance(record, dict) or (
+        "event" in record and (not isinstance(record["event"], dict)
+                              or not isinstance(record["event"].get("data"), dict))) for record in records):
+        raise StudyError("Failed attempt journal contains invalid records")
     complete = [record for record in records if record.get("type") == "complete"]
-    if len(starts) != 1 or len(complete) != 1:
-        raise StudyError("Failed attempt lacks a unique edit call and terminal receipt")
-    start = starts[0]
-    matches = [record["event"]["data"] for record in records
-               if record.get("event", {}).get("type") == "tool.execution_complete"
-               and record["event"].get("data", {}).get("toolCallId") == start.get("toolCallId")]
+    if len(complete) != 1:
+        raise StudyError("Failed attempt lacks a unique terminal receipt")
     receipt = complete[0].get("receipt", {})
-    if (not start.get("toolCallId")
-            or any(key in start for key in ("mcpServerName", "mcpToolName", "namespacedName"))
-            or len(matches) != 1 or matches[0].get("success") is not False
-            or "result" in matches[0]
-            or matches[0].get("error") != {"code": "failure", "message": "Tool 'edit' does not exist."}
+    if (not isinstance(receipt, dict) or not isinstance(receipt.get("usage"), dict)
             or complete[0].get("exit_code") != 1
-            or receipt.get("protocol_error") != "unexpected_tool"
             or receipt.get("failure_stage") != "session_send"
             or receipt.get("usage", {}).get("credits_complete") is not False
             or receipt.get("usage", {}).get("totalNanoAiu") is not None):
-        raise StudyError("Failed attempt does not match the retained edit failure and unknown usage")
+        raise StudyError("Failed attempt does not retain its terminal failure and unknown usage")
+    events = [record["event"] for record in records if "event" in record]
+    if incident["kind"] == "missing_edit":
+        starts = [event["data"] for event in events if event["type"] == "tool.execution_start"
+                  and event["data"].get("toolName") == "edit"]
+        if len(starts) != 1:
+            raise StudyError("Failed attempt lacks a unique edit call")
+        start = starts[0]
+        matches = [event["data"] for event in events if event["type"] == "tool.execution_complete"
+                   and event["data"].get("toolCallId") == start.get("toolCallId")]
+        if (not start.get("toolCallId")
+                or any(key in start for key in ("mcpServerName", "mcpToolName", "namespacedName"))
+                or len(matches) != 1 or matches[0].get("success") is not False
+                or "result" in matches[0]
+                or matches[0].get("error") != {"code": "failure", "message": "Tool 'edit' does not exist."}
+                or receipt.get("protocol_error") != "unexpected_tool"):
+            raise StudyError("Failed attempt does not match the retained edit failure and unknown usage")
+    else:
+        failures = [event["data"] for event in events if event["type"] == "model.call_failure"]
+        mirrors = [event["data"] for event in events if event["type"] == "model.model_call_failure"]
+        if len(failures) != 1 or len(mirrors) != 1:
+            raise StudyError("Failed attempt lacks a unique correlated backend failure")
+        failure, mirror = failures[0], mirrors[0]
+        call = mirror.get("modelCall", {})
+        turn = str(mirror.get("turn"))
+        starts = [event["data"] for event in events if event["type"] == "model.call_start"
+                  and event["data"].get("turnId") == turn]
+        finished = [event["data"] for event in events if event["type"] == "model.call_finished"
+                    and event["data"].get("turnId") == turn]
+        if (failure.get("model") != "gpt-6.1-sol" or failure.get("reasoningEffort") != "medium"
+                or failure.get("statusCode") != 500 or failure.get("failureKind") != "api"
+                or failure.get("transport") != "websocket" or failure.get("errorCode") != "internal_error"
+                or failure.get("errorType") != "websocket_error" or failure.get("retryAttempt") != 0
+                or failure.get("isAuto") is not False or failure.get("isByok") is not False
+                or any(not isinstance(failure.get(key), str) or not failure[key]
+                       for key in ("apiCallId", "serviceRequestId"))
+                or not isinstance(call, dict) or call.get("model") != failure["model"]
+                or mirror.get("reasoningEffort") != "medium" or call.get("status") != 500
+                or call.get("api_id") != failure["apiCallId"]
+                or call.get("service_request_id") != failure["serviceRequestId"]
+                or call.get("errorCode") != failure["errorCode"] or call.get("errorType") != failure["errorType"]
+                or call.get("transport") != failure["transport"] or call.get("retry_attempt") != 0
+                or len(starts) != 1 or starts[0].get("model") != failure["model"]
+                or len(finished) != 1 or finished[0].get("outcome") != "error"
+                or receipt.get("protocol_error") != "unexpected_runtime_activity"):
+            raise StudyError("Failed attempt differs from the retained backend 500 and unknown usage")
     value = hashlib.sha256(payload).hexdigest()
-    if value != study.RECOVERY_JOURNAL_SHA256:
+    if value != incident["journal_sha256"]:
         raise StudyError("Failed attempt journal differs from the disclosed incident")
     return value
 
 
-def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval: dict) -> Path:
+def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval: dict, *,
+            prior_source_root: Path | None = None, calibration_manifest: dict | None = None) -> Path:
     """Copy the stopped study; never alter its original state or release its hold."""
     verify_approval(approval, new_manifest)
-    original_paid_lock, source = study.recovery_source_paths(source_root)
+    incident = study.recovery_incident(approval["original_state_sha256"])
+    original_paid_lock, source = study.recovery_source_paths(
+        source_root, expected_state_sha256=approval["original_state_sha256"])
+    prior_locks = []
+    if incident["kind"] == "backend_500":
+        if prior_source_root is None or calibration_manifest is None:
+            raise StudyError("Backend recovery requires the first original checkout and calibration manifest")
+        prior_locks = study.recovery_source_paths(prior_source_root,
+                                                 expected_state_sha256=study.RECOVERY_STATE_SHA256)
+    elif prior_source_root is not None or calibration_manifest is not None:
+        raise StudyError("The first incident must not supply an unrelated recovery source")
+    calibration_manifest = old_manifest if calibration_manifest is None else calibration_manifest
     calibration = source_root / ".study/excluded-short-calibration-toolfix"
     if any(path.is_symlink() or not path.is_dir()
            for path in (source_root / ".study", source, calibration)):
@@ -132,47 +186,63 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
         locks.enter_context(study.paid_study_lock())
         locks.enter_context(study.study_lock(original_paid_lock))
         locks.enter_context(study.study_lock(source))
+        for path in prior_locks:
+            locks.enter_context(study.study_lock(path))
         locks.enter_context(study.study_lock(calibration))
-        study.recovery_source_paths(source_root)
+        study.recovery_source_paths(source_root, expected_state_sha256=approval["original_state_sha256"])
+        if prior_locks:
+            study.recovery_source_paths(prior_source_root, expected_state_sha256=study.RECOVERY_STATE_SHA256)
         state_path = source / "state.json"
         if state_path.is_symlink() or not state_path.is_file():
             raise StudyError("Original state is missing or unsafe")
         original = state_path.read_bytes()
-        if hashlib.sha256(original).hexdigest() != study.RECOVERY_STATE_SHA256:
+        if hashlib.sha256(original).hexdigest() != approval["original_state_sha256"]:
             raise StudyError("Original state differs from the disclosed stopped state")
         state = json.loads(original)
         identity = state["identity"]
-        if (identity["commit"] != study.RECOVERY_SOURCE or identity["study_id"] != source.name
+        if (identity["commit"] != incident["source"] or identity["study_id"] != source.name
                 or identity["phase"] != "pilot-estimation" or identity["smoke"] is not False
                 or identity.get("replicates_per_model_arm") != 21
                 or identity.get("source_provenance") != study.source_provenance(old_manifest)
-                or old_manifest.get("commit") != study.RECOVERY_SOURCE
+                or old_manifest.get("commit") != incident["source"]
                 or old_manifest.get("inputs_sha256") != identity["inputs_sha256"]
                 or state.get("status") != "oracle_halt" or state.get("oracle_halt") is not True
                 or state.get("stop_requested") or state.get("writer_pending") or state.get("writers")
                 or state.get("writer_pid") or state["deadline"] <= time.time()):
             raise StudyError("Original study is not the expected stopped, inactive estimation")
         cfg = identity["config"]
+        study.validate_recovery_state(state)
+        previous = study.recovery_records(state)
+        if incident["kind"] == "backend_500":
+            if len(previous) != 1:
+                raise StudyError("Backend recovery must preserve the first approved recovery")
+            study.validate_recovery_evidence(source, state, old_manifest)
+            if study.source_provenance(calibration_manifest)["manifest_sha256"] != previous[0]["prior_manifest_sha256"]:
+                raise StudyError("Calibration manifest differs from the first original source")
+        elif previous:
+            raise StudyError("The first interrupted state must not already be recovered")
         errors = study.preflight(cfg, smoke=False, unregistered=new_manifest)
         if errors:
             raise StudyError("; ".join(errors))
-        handoff = study.calibration_handoff(calibration, cfg, old_manifest)
+        handoff = study.calibration_handoff(calibration, cfg, calibration_manifest)
         if handoff != state["ledger"].get("calibration_handoff"):
             raise StudyError("Original calibration handoff differs from the saved accounting")
         cells = state["cells"]
         attempts = [item for cell in cells for item in cell["attempts"]]
         entries = state["ledger"]["entries"]
-        if (len(cells) != 315 or sum(cell.get("completed_steps", 0) for cell in cells) != 651
-                or len(attempts) != 652 or len({item["id"] for item in attempts}) != 652
+        if (len(cells) != 315 or sum(cell.get("completed_steps", 0) for cell in cells) != incident["steps"]
+                or len(attempts) != incident["attempts"]
+                or len({item["id"] for item in attempts}) != incident["attempts"]
                 or set(entries) != {item["id"] for item in attempts}
-                or sum(item["status"] == "complete" for item in entries.values()) != 651
+                or sum(item["status"] == "complete" for item in entries.values()) != incident["steps"]
                 or sum(item["status"] == "unknown" for item in entries.values()) != 1
+                or sum(item["status"] == "recovery_hold" for item in entries.values()) != len(previous)
                 or sum(item["actual_nano"] for item in entries.values()
-                       if item["status"] == "complete") != study.credits("7794.8031")):
+                       if item["status"] == "complete") != incident["known_nano"]):
             raise StudyError("Original attempt inventory differs from the disclosed interruption")
-        attempt = next(item for item in attempts if item["id"] == study.RECOVERY_ATTEMPT)
+        attempt = next(item for item in attempts if item["id"] == incident["attempt"])
         cell = next(cell for cell in cells if attempt in cell["attempts"])
-        entry = entries[study.RECOVERY_ATTEMPT]
+        entry = entries[incident["attempt"]]
         if (attempt.get("status") != "interrupted" or attempt.get("usage") is not None
                 or attempt.get("measurement") or entry != {
                     "status": "unknown", "actual_nano": None, "reserved_nano": 300 * study.NANO}
@@ -187,10 +257,20 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
         shutil.copytree(calibration, target_calibration, symlinks=True)
         require_regular_tree(target)
         require_regular_tree(target_calibration)
-        if hashlib.sha256(state_path.read_bytes()).hexdigest() != study.RECOVERY_STATE_SHA256:
+        if hashlib.sha256(state_path.read_bytes()).hexdigest() != approval["original_state_sha256"]:
             raise StudyError("Original state changed during copying; retain the partial recovery copy")
         if (target / "state.json").read_bytes() != original:
             raise StudyError("Copied state differs from the original; retain the partial recovery copy")
+        if previous:
+            suffix = f"-{len(previous):02d}"
+            archives = [target / f"state.before-recovery{suffix}.json",
+                        target / f"recovery-approval{suffix}.json",
+                        target / f"recovery-manifest{suffix}.json"]
+            if any(path.exists() or path.is_symlink() for path in archives):
+                raise StudyError("Recovery must not overwrite prior approval or state evidence")
+            (target / "state.before-recovery.json").rename(archives[0])
+            (target / "recovery-approval.json").rename(archives[1])
+            atomic_json(archives[2], old_manifest)
         snapshot = target / "state.before-recovery.json"
         with snapshot.open("xb") as stream:
             os.fchmod(stream.fileno(), 0o600)
@@ -200,21 +280,24 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
         atomic_json(target / "recovery-approval.json", approval)
         prior_ids = [item["id"] for item in attempts]
         for item in attempts:
-            item["source_commit"] = study.RECOVERY_SOURCE
+            item.setdefault("source_commit", incident["source"])
         attempt["status"] = "recovery_interrupted"
         entry["status"] = "recovery_hold"
         identity["commit"] = new_manifest["commit"]
         identity["inputs_sha256"] = new_manifest["inputs_sha256"]
         identity["source_provenance"] = study.source_provenance(new_manifest)
+        if previous:
+            state["recovery_history"] = previous
         state["recovery"] = {"schema": "estimation-incident-recovery/v1",
-                             "original_state_sha256": study.RECOVERY_STATE_SHA256,
-                             "original_commit": study.RECOVERY_SOURCE, "target_commit": new_manifest["commit"],
+                             "original_state_sha256": approval["original_state_sha256"],
+                             "original_commit": incident["source"], "target_commit": new_manifest["commit"],
                              "approval_sha256": digest(approval), "prior_manifest_sha256": digest(old_manifest),
                              "journal_sha256": journal_sha, "approved_at": approval["approved_at"],
                              "disclosure_url": approval["disclosure_url"], "prior_attempt_ids": prior_ids}
         state["oracle_halt"] = False
         state["status"] = "partial"
         study.validate_recovery_state(state)
+        study.validate_recovery_evidence(target, state, new_manifest)
         atomic_json(target / "state.json", state)
     return target
 
@@ -225,12 +308,20 @@ def main() -> None:
     parser.add_argument("--old-manifest", required=True, type=Path)
     parser.add_argument("--new-manifest", required=True, type=Path)
     parser.add_argument("--approval", required=True, type=Path)
+    parser.add_argument("--prior-source-root", type=Path,
+                        help="first original checkout required for the later backend interruption")
+    parser.add_argument("--calibration-manifest", type=Path,
+                        help="first original owner manifest required for the preserved calibration")
     args = parser.parse_args()
     for path in (args.old_manifest, args.new_manifest, args.approval):
         if path.is_symlink() or not path.is_file():
             raise StudyError("Recovery evidence must be regular files, not symlinks")
+    if args.calibration_manifest and (
+            args.calibration_manifest.is_symlink() or not args.calibration_manifest.is_file()):
+        raise StudyError("Calibration evidence must be a regular file, not a symlink")
     target = prepare(args.source_root, read_json(args.old_manifest), read_json(args.new_manifest),
-                     read_json(args.approval))
+                     read_json(args.approval), prior_source_root=args.prior_source_root,
+                     calibration_manifest=read_json(args.calibration_manifest) if args.calibration_manifest else None)
     print(f"Prepared separate recovery copy: {target}; no model sessions were started.")
 
 
