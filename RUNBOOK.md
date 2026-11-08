@@ -278,6 +278,65 @@ is torn/ambiguous, or a recorded process group may still be alive, recovery
 refuses rather than guessing or replacing the run. Stop that specific recorded
 writer safely before resuming; the controller does not kill unrelated processes.
 
+#### Specific 651-step estimation interruption
+
+The separately authorized recovery below is the sole exception to the
+same-source resume rule. It applies only to the disclosed stopped state
+`6eb8f45bcb54f8cad20cbd89aba72da7721ebf06ab6188fbf3c0cc460306723f`
+and source `99a1ed170d7c71acb428b52e0e24be8856cc3ea3`. It verifies
+the exact failed `edit` journal and complete original calibration accounting.
+It preserves the original study and creates a separate copy on the new source;
+it never edits the original, changes the original deadline, or treats the
+unknown charge as zero. The 300-credit reservation stays held, and the failed
+step can receive a new independently reserved allowance. Actual billing can
+exceed either reservation. Its full original step time allowance also starts
+afresh. This is a mid-study, unregistered change after
+observing data, not a continuation under a single frozen source.
+
+Before preparing a copy, the owner must review the source change, make the new
+commit publicly available, run its source-bound offline canary and create the
+normal new unregistered manifest. The owner must also supply a separate private
+JSON approval, using the actual new commit, disclosure URL and approval time:
+
+```json
+{
+  "schema": "estimation-incident-approval/v1",
+  "original_state_sha256": "6eb8f45bcb54f8cad20cbd89aba72da7721ebf06ab6188fbf3c0cc460306723f",
+  "original_commit": "99a1ed170d7c71acb428b52e0e24be8856cc3ea3",
+  "target_commit": "<new public 40-character commit>",
+  "attempt_id": "pilot-estimation-claude-sonnet-5.5-E-03-f03-repair-1",
+  "unknown_reservation_nano": 300000000000,
+  "accept_unknown_hold": true,
+  "accept_fresh_retry_reservation": true,
+  "accept_fresh_retry_time_allowance": true,
+  "accept_mid_study_source_change": true,
+  "owner_approved": true,
+  "approved_at": "<actual timezone-aware approval timestamp>",
+  "disclosure_url": "https://github.com/jmservera/ama-thought-mve/commit/<new commit>"
+}
+```
+
+In the clean new checkout, prepare the copy without starting any models:
+
+```bash
+.venv/bin/python harness/prepare_estimation_recovery.py \
+  --source-root /path/to/original-checkout \
+  --old-manifest /path/to/original-owner-evidence.json \
+  --new-manifest /path/to/new-owner-evidence.json \
+  --approval /path/to/private-recovery-approval.json
+```
+
+The original checkout and its study must remain available and unchanged.
+After separate launch review, use the normal estimation command with the new
+manifest and the original calibration ID, adding both
+`--recovery-source-root /path/to/original-checkout` and
+`--recovery-calibration-manifest /path/to/original-owner-evidence.json`.
+The controller locks both checkouts during paid work, verifies the saved
+pre-recovery state and approval, and keeps each attempt's source commit in the
+results. The original source, new source, state hash, retained hold and
+chronology must be disclosed in the paper. Do not interpret mixed-source
+trajectories as if they were all run under one frozen implementation.
+
 Agent/evaluator subprocess groups have timeouts and TERM/KILL/reap handling.
 The absolute study deadline persists across restarts. Work after expiry is
 unattempted, not silently excluded. Each cell's metadata is created before any
