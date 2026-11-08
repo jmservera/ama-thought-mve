@@ -370,3 +370,44 @@ records both source commits and the source of each attempt. A recovery copy
 is not itself permission to run models. If used, disclose the exact recovery
 commit and approval chronology and treat the mixed-source data as an
 unregistered deviation rather than a single-source or preregistered study.
+
+## 8 November backend interruption after 878 completed steps
+
+Following owner approval of the first incident recovery, the unregistered
+estimation continued at public source
+`3c2ce89b00fe583c1f0715e8ccd3510419d5e734`. It then stopped after 878 of
+5,355 completed steps, with 48 of 315 completed trajectories and 880 retained
+attempts. Confirmed estimation usage is 10,470.87094 credits. GPT arm E,
+replicate 04, F8 received a provider WebSocket HTTP 500,
+`internal_error` / `websocket_error`. The transport rejected the failure event
+and could not certify final usage. The interrupted attempt is
+`pilot-estimation-gpt-6.1-sol-E-04-f08-feature-1`; its additional 300-credit
+reservation is held with unknown actual usage. The earlier 300-credit
+estimation hold remains unchanged. Reservations are not measured charges and
+do not bound provider billing.
+
+The exact stopped state SHA-256 is
+`b8f9abfb13f45b1261b7bbf82f82f17f934523f662073bc443103b9d84787d9a`;
+the retained failed transport journal SHA-256 is
+`eac78300d5e12796fe6174b11a1fb052bdec1220b755cf56f724571ca8235abd`.
+The partial results ZIP was generated successfully and verified; there was no
+repeat of the earlier export-cap failure. Both the 651-step original and this
+878-step stopped checkout remain protected evidence.
+
+The subsequent transport amendment permits only bounded, correlated pinned
+provider retry activity within the original session. Final aggregate
+accounting and explicit failed-request charges remain mandatory. Missing
+charges still stop collection rather than being silently treated as zero.
+This amendment was made after observing the interruption and is unregistered,
+not a claim that the changed error-handling policy was fixed before collection.
+
+A separate copy-only recovery can retain all 878 completed steps, both
+unknown holds, the original calibration handoff and every attempt's source.
+It requires a new public/source-qualified manifest and explicit owner
+approval of this incident's hold, separately reserved retry, fresh step-time
+allowance and additional mid-study source change. It archives and revalidates
+the first recovery approval and snapshot; it does not replace or retrospectively
+extend them. Preparation starts no models and is not paid-launch permission.
+The entire source transition history, approval chronology and scientific
+limitations must accompany any results. The sampling frame, analysis plan,
+budget and original absolute deadline remain unchanged.

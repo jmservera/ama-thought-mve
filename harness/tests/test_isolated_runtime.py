@@ -135,6 +135,28 @@ print(json.dumps({"type":"complete","receipt":{"session_id":"owned","usage":{"cr
     assert len(records) == 2 and records[0]["sessionId"] == "owned"
 
 
+@pytest.mark.parametrize("code", ["provider_retry_usage_incomplete", "incomplete_provider_retry",
+                                 "provider_retry_limit", "transient_provider_failure"])
+def test_bridge_reports_backend_stops_without_echoing_provider_details(runtime, tmp_path, monkeypatch, code):
+    fake_bridge(runtime, monkeypatch, f"""
+import json, sys
+json.loads(sys.stdin.readline())
+print(json.dumps({{"type":"event","sessionId":"owned"}}), flush=True)
+print(json.dumps({{"type":"complete","exit_code":1,"receipt":{{
+ "session_id":"owned","protocol_error":{code!r},
+ "private_error":"provider details must not be displayed",
+ "usage":{{"credits_complete":False,"totalNanoAiu":None}}
+}}}}), flush=True)
+sys.exit(1)
+""")
+    with pytest.raises(runtime.StudyError, match="backend retry stopped") as failure:
+        runtime.run_bridge({"remainingSeconds": 5}, tmp_path, lambda *args: pytest.fail("No tool expected"))
+    assert code in str(failure.value)
+    assert "reservation is retained" in str(failure.value)
+    assert "provider details" not in str(failure.value)
+    assert len((tmp_path / "events.jsonl").read_bytes().splitlines()) == 2
+
+
 def test_bridge_evidence_cap_and_bad_correlation_never_yield_receipts(runtime, tmp_path, monkeypatch):
     monkeypatch.setattr(runtime, "JOURNAL_LIMIT", 250)
     programs = [

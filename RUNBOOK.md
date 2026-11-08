@@ -337,6 +337,85 @@ results. The original source, new source, state hash, retained hold and
 chronology must be disclosed in the paper. Do not interpret mixed-source
 trajectories as if they were all run under one frozen implementation.
 
+#### Transient provider failures and accounting
+
+The pinned transport accepts at most three correlated WebSocket provider
+failures per session with status 500, 502, 503 or 504, `internal_error`,
+`websocket_error`, unchanged model/medium effort and no automatic or BYOK
+routing. Both pinned event representations must agree with the active model
+turn. This lets the CLI's existing retry activity finish; the transport does
+not resend the prompt or create a new session. The original session deadline,
+soft credit limit, isolated-only tool catalog and all discovery/permission
+guards remain enforced.
+
+Continuation is not guaranteed. Successful retry work still requires the
+normal final correlated aggregate and an explicit complete charge for every
+failed API/service request. An omitted failed-request charge is unknown, not
+zero; an earlier turn's receipt cannot be reused even if request identifiers
+repeat. Exhausted retries, missing accounting, authentication/client errors or
+changed treatment still stop collection and retain reservations. Never clear a
+halt or mark a failed request free to force a restart.
+
+#### Specific 878-step backend interruption
+
+The second supported exception is the stopped state
+`b8f9abfb13f45b1261b7bbf82f82f17f934523f662073bc443103b9d84787d9a`
+at source `3c2ce89b00fe583c1f0715e8ccd3510419d5e734`. GPT arm E,
+replicate 04, F8 received a WebSocket HTTP 500. Its exact attempt
+`pilot-estimation-gpt-6.1-sol-E-04-f08-feature-1` has unknown usage and a
+300-credit reservation. The first incident's 300-credit hold remains too.
+Neither hold is a measured charge or a provider billing guarantee.
+
+The earlier approval does not approve this second incident. After reviewing,
+publishing and qualifying the new source, supply a new private approval using
+the same JSON schema above, replacing `original_state_sha256`,
+`original_commit` and `attempt_id` with this incident's values. Use the actual
+new target commit, its disclosure URL and an approval time after disclosure and
+the interrupted attempt. All five approval booleans must be explicitly true:
+the new unknown hold, a separately reserved fresh retry, a full fresh F8
+step-time allowance and the additional unregistered source change are
+material decisions. The original allocation, configuration and absolute
+deadline do not change.
+
+In a clean, separately qualified new checkout, prepare without inference:
+
+```bash
+.venv/bin/python harness/prepare_estimation_recovery.py \
+  --source-root /path/to/stopped-878-checkout \
+  --old-manifest /path/to/stopped-878-owner-evidence.json \
+  --prior-source-root /path/to/original-651-checkout \
+  --calibration-manifest /path/to/original-651-owner-evidence.json \
+  --new-manifest /path/to/new-owner-evidence.json \
+  --approval /path/to/new-private-recovery-approval.json
+```
+
+The new copy preserves all 878 completed steps, all 880 retained attempts and
+both unknown holds. It archives the first snapshot, approval and intermediate
+manifest and verifies both transitions. Results preserve every attempt's
+actual source commit and expose the earlier transition in
+`source_transition_history`, alongside the latest `source_transition`.
+Both stopped source checkouts remain intact and available.
+
+After preparation, use the normal estimation command with both original
+checkouts in chronological order. Run its read-only preflight first:
+
+```bash
+./run-experiment.sh --phase pilot-estimation --replicates 21 --parallel 8 \
+  --config /path/to/unchanged-budget-config.json \
+  --unregistered-manifest /path/to/new-owner-evidence.json \
+  --calibration-study-id excluded-short-calibration-toolfix \
+  --recovery-source-root /path/to/original-651-checkout \
+  --recovery-source-root /path/to/stopped-878-checkout \
+  --recovery-calibration-manifest /path/to/original-651-owner-evidence.json \
+  --dry-run
+```
+
+Removing `--dry-run` is a separate paid-launch decision. The controller locks
+the new checkout and both original paid-study roots and revalidates their
+exact stopped states. This is not a general unknown-usage waiver: undisclosed
+interruptions remain blocked. Preserve both approvals and disclose the entire
+source/accounting chronology in the paper.
+
 Agent/evaluator subprocess groups have timeouts and TERM/KILL/reap handling.
 The absolute study deadline persists across restarts. Work after expiry is
 unattempted, not silently excluded. Each cell's metadata is created before any
