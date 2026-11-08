@@ -94,7 +94,8 @@ async function runFake(options = {}, req = request(), limits) {
       buffer = buffer.slice(newline + 1);
       if (record.type === 'tool' && !options.noToolResult) {
         const reply = () => input.write(JSON.stringify({ type: 'tool_result', id: record.id,
-          result: { stdout: 'bounded output', stderr: '', exit_code: 0 } }) + '\n');
+          result: options.toolReply?.(record) ??
+            { stdout: 'bounded output', stderr: '', exit_code: 0 } }) + '\n');
         if (options.delayToolResult) setImmediate(reply);
         else reply();
       }
@@ -277,6 +278,31 @@ test('a verified missing edit can be followed by isolated work with complete usa
   assert.equal(result.exitCode, 0);
   assert.equal(result.receipt.usage.credits_complete, true);
   assert.equal(result.records.filter(record => record.type === 'tool').length, 1);
+});
+
+test('an authenticated isolated tool rejection lets the same session recover without a new prompt', async () => {
+  const result = await runFake({
+    toolReply: record => record.id === 'unsafe' ?
+      { stdout: '', stderr: 'Unsupported filesystem artifact; prior state is retained.', exit_code: 1 } :
+      { stdout: 'safe work', stderr: '', exit_code: 0 },
+    async action(config) {
+      for (const [id, command, expected] of [
+        ['unsafe', 'ln -s target unsupported-link', 'failure'],
+        ['safe', 'printf safe', 'success'],
+      ]) {
+        config.onEvent(event('tool.execution_start', { toolName: 'isolated_exec', toolCallId: id }));
+        const reply = await config.tools[0].handler({ command, timeoutSeconds: 1 },
+          { sessionId: config.sessionId, toolName: 'isolated_exec', toolCallId: id });
+        assert.equal(reply.resultType, expected);
+        config.onEvent(event('tool.execution_complete', { toolCallId: id, success: id === 'safe' }));
+      }
+    },
+  });
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.receipt.usage.credits_complete, true);
+  assert.equal(result.state.sent, 1);
+  assert.equal(result.records.filter(record => record.type === 'tool').length, 2);
+  assert.equal(result.state.config.sessionLimits.maxAiCredits, 173.5);
 });
 
 test('a changed or unavailable tool catalog stops before the first prompt', async () => {

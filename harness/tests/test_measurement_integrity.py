@@ -1279,6 +1279,63 @@ def test_candidate_source_exceptions_are_nonpasses_with_raw_private_evidence(
     assert evidence["frames"][-1]["file"] == str(repo / "src" / "product.py")
 
 
+@pytest.mark.parametrize("method", ["__getattr__", "__getattribute__"])
+@pytest.mark.parametrize("declared", [True, False])
+@pytest.mark.parametrize("layout", ["module", "package"])
+def test_declared_product_exceptions_from_view_access_are_attributed_without_accepting_arbitrary_traps(
+    hidden_candidate, measure_module, runner, method, declared, layout
+):
+    repo, suite, test = hidden_candidate
+    code = (
+        "class ProductError(Exception):\n    pass\n\n"
+        f"class View:\n    def {method}(self, name):\n"
+        "        raise ProductError('private product permission failure')\n"
+    )
+    if layout == "module":
+        (repo / "src/product.py").write_text(code, encoding="utf-8")
+    else:
+        package = repo / "src/product"
+        package.mkdir()
+        (package / "__init__.py").write_text("from .core import ProductError, View\n", encoding="utf-8")
+        (package / "core.py").write_text(code, encoding="utf-8")
+    (suite / "suite.json").write_text(json.dumps({
+        "package": "product",
+        "features": [{"id": "f1", "api": ["ProductError importable from product"] if declared else []}],
+    }), encoding="utf-8")
+    test.write_text("from product import View\n\ndef test_feature():\n    View().history\n", encoding="utf-8")
+    result = measure_module.run_hidden(str(repo), str(suite), ["f1"], runner)
+    expected = "failed" if declared else "error"
+    assert result == {"test_feature::test_feature": expected}
+    evidence = result.provenance["test_feature::test_feature"]
+    assert evidence["raw_outcome"] == ("error" if runner == "stdlib" else "failed")
+    assert evidence["attribution"] == ("candidate_exception" if declared else "unknown")
+    assert "private product permission failure" in evidence["diagnostic"]
+
+
+@pytest.mark.parametrize("failure", ["builtin", "wrapped_io", "foreign"])
+def test_declared_view_exception_names_do_not_reclassify_infrastructure_or_foreign_errors(
+    hidden_candidate, measure_module, runner, failure
+):
+    repo, suite, test = hidden_candidate
+    if failure == "builtin":
+        code = "ProductError = ValueError\n\nclass View:\n    def __getattr__(self, name):\n        raise ProductError('trap')\n"
+    elif failure == "wrapped_io":
+        code = ("class ProductError(Exception):\n    pass\n\nclass View:\n"
+                "    def __getattr__(self, name):\n        try:\n            raise OSError('disk')\n"
+                "        except OSError as error:\n            raise ProductError('wrapper') from error\n")
+    else:
+        code = ("from json import JSONDecodeError as ProductError\n\nclass View:\n"
+                "    def __getattr__(self, name):\n        raise ProductError('foreign', 'x', 0)\n")
+    (repo / "src/product.py").write_text(code, encoding="utf-8")
+    (suite / "suite.json").write_text(json.dumps({
+        "package": "product", "features": [{"id": "f1", "api": ["ProductError importable from product"]}],
+    }), encoding="utf-8")
+    test.write_text("from product import View\n\ndef test_feature():\n    View().history\n", encoding="utf-8")
+    result = measure_module.run_hidden(str(repo), str(suite), ["f1"], runner)
+    assert result == {"test_feature::test_feature": "error"}
+    assert result.provenance["test_feature::test_feature"]["attribution"] == "unknown"
+
+
 @pytest.mark.parametrize("product, test_body", [
     ("def exercise():\n    raise OSError('disk')\n", "exercise()"),
     ("def exercise():\n    raise MemoryError('memory')\n", "exercise()"),

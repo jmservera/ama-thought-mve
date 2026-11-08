@@ -38,10 +38,31 @@ EVALUATION_ENV_KEYS = {
     "PYTEST_DISABLE_PLUGIN_AUTOLOAD", "TEST_CMD", "MVE_COMPLEXITY", "MVE_DUPLICATION", "MVE_LINT",
 }
 SUPERVISOR_CAPS = (1 << 1) | (1 << 5) | (1 << 6) | (1 << 7)
+# Machine-readable code for the one authenticated, recoverable candidate-state
+# rejection: execute's post-command capture found a symlink, hard link, or
+# other special file. Every other pack_tree/restore_tree rejection (oversize,
+# privileged modes, unstable reads, directory/file collisions, ...) stays a
+# plain ProtocolError and remains fatal.
+STATE_REJECTION_LINKS_OR_SPECIAL = "links_or_special_files"
 
 
 class ProtocolError(ValueError):
     """Malformed or over-limit sandbox data."""
+
+
+class CandidateArtifactRejected(ProtocolError):
+    """Execute's post-command state capture found a disallowed filesystem artifact.
+
+    Raised only by pack_tree's regular-file/nlink check. supervisor() catches
+    this exception solely around the execute operation's post-command
+    pack_tree call so the rejection can be reported back as an authenticated,
+    recoverable failed command result instead of aborting the helper. Any
+    other pack_tree/restore_tree failure, and any occurrence of this same
+    condition outside that one call site (seed, export review), stays an
+    uncaught ProtocolError and remains fatal.
+    """
+
+    code = STATE_REJECTION_LINKS_OR_SPECIAL
 
 
 def identity_facts():
@@ -177,7 +198,7 @@ def pack_tree(root):
                 entries.append([rel, 0o755, -1])
                 continue
             if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
-                raise ProtocolError("State links/special files rejected")
+                raise CandidateArtifactRejected(f"State links/special files rejected: {rel}")
             if info.st_mode & 0o7000:
                 raise ProtocolError("State privileged modes rejected")
             file_count += 1
@@ -533,7 +554,22 @@ def supervisor(request, blob):
         if not isinstance(command, str) or not command or len(command.encode()) > 65536:
             raise ProtocolError("Invalid command")
         result = run_child(["/bin/sh", "-c", command], timeout)
-        return result, pack_tree(WORK)
+        # Only this capture is allowed to turn a links/special-files artifact into an
+        # authenticated, recoverable rejection; every other pack_tree/restore_tree call
+        # site (seed, export review) leaves CandidateArtifactRejected uncaught and fatal.
+        try:
+            tree = pack_tree(WORK)
+        except CandidateArtifactRejected as exc:
+            stderr = (
+                "Command changes were rejected because the working tree contains a "
+                f"disallowed filesystem artifact ({exc}); prior state is retained and no "
+                "changes from this command were applied."
+            )[:8192]
+            return {
+                "state_rejection": exc.code, "exit_code": 1, "stdout": "", "stderr": stderr,
+                "child_setup": result["child_setup"],
+            }, b""
+        return result, tree
     if op == "export":
         result = run_child(
             ["/usr/local/bin/python3", "-I", "/opt/isolation_helper.py", "_export",
@@ -625,8 +661,13 @@ def main():
         result, state = supervisor(request, blob)
         after = identity_facts()
         verify_identity(after, supervisor=True)
+        # supervisor() returns normally (no exception) for both an ordinary success and
+        # the one authenticated execute-only candidate-state rejection; only the latter
+        # carries state_rejection, so it alone flips this header to ok: False while still
+        # receiving the same before/after and child_setup proofs as a success response.
+        ok = "state_rejection" not in result
         sys.stdout.buffer.write(frame(
-            {"ok": True, **result, "supervisor": {"before": before, "after": after}}, state,
+            {"ok": ok, **result, "supervisor": {"before": before, "after": after}}, state,
         ))
     except (OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError) as exc:
         quiesce()

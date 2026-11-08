@@ -73,17 +73,46 @@ def test_state_rejects_symlink_hardlink_and_special_files(tmp_path):
     root.mkdir()
     (root / "plain").write_bytes(b"ok")
     (root / "link").symlink_to("plain")
-    with pytest.raises(helper.ProtocolError):
+    with pytest.raises(helper.CandidateArtifactRejected) as excinfo:
         helper.pack_tree(root)
+    assert excinfo.value.code == helper.STATE_REJECTION_LINKS_OR_SPECIAL
     (root / "link").unlink()
     import os
     os.link(root / "plain", root / "link")
-    with pytest.raises(helper.ProtocolError):
+    with pytest.raises(helper.CandidateArtifactRejected):
         helper.pack_tree(root)
     (root / "link").unlink()
     os.mkfifo(root / "fifo")
-    with pytest.raises(helper.ProtocolError):
+    with pytest.raises(helper.CandidateArtifactRejected):
         helper.pack_tree(root)
+
+
+def test_supervisor_execute_translates_candidate_artifact_rejection(tmp_path, monkeypatch):
+    """execute's post-command pack_tree call is the only caught CandidateArtifactRejected site."""
+    monkeypatch.setattr(helper, "WORK", tmp_path)
+    (tmp_path / "plain").write_bytes(b"ok")
+    (tmp_path / "bad-link").symlink_to("plain")
+    monkeypatch.setattr(helper, "run_child", lambda *args, **kwargs: {
+        "exit_code": 0, "stdout": "", "stderr": "", "child_setup": {"probe": "child"},
+    })
+    result, state = helper.supervisor({"op": "execute", "command": "irrelevant", "timeout": 5}, b"")
+    assert state == b""
+    assert result["state_rejection"] == helper.STATE_REJECTION_LINKS_OR_SPECIAL
+    assert result["exit_code"] == 1 and result["stdout"] == ""
+    assert result["child_setup"] == {"probe": "child"}
+    assert 0 < len(result["stderr"]) <= 8192
+    assert "rejected" in result["stderr"].lower() and "prior state is retained" in result["stderr"].lower()
+
+
+def test_pack_tree_links_rejection_stays_uncaught_outside_execute(tmp_path, monkeypatch):
+    """The same CandidateArtifactRejected is fatal for seed's own post-seed pack_tree call."""
+    monkeypatch.setattr(helper, "WORK", tmp_path)
+    (tmp_path / "bad-link").symlink_to("/etc/passwd")
+    monkeypatch.setattr(helper, "run_child", lambda *args, **kwargs: {
+        "exit_code": 0, "stdout": "{}", "stderr": "", "child_setup": {"probe": "child"},
+    })
+    with pytest.raises(helper.CandidateArtifactRejected):
+        helper.supervisor({"op": "seed", "files": [], "timeout": 5}, b"")
 
 
 def test_state_parser_rejects_duplicate_and_unsafe_records_before_writes(tmp_path):

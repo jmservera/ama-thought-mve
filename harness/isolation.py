@@ -20,6 +20,7 @@ try:
         HEADER_LIMIT,
         OUTPUT_LIMIT,
         STATE_LIMIT,
+        STATE_REJECTION_LINKS_OR_SPECIAL,
         canonical,
         frame,
         manifest,
@@ -34,6 +35,7 @@ except ImportError:
         HEADER_LIMIT,
         OUTPUT_LIMIT,
         STATE_LIMIT,
+        STATE_REJECTION_LINKS_OR_SPECIAL,
         canonical,
         frame,
         manifest,
@@ -43,9 +45,38 @@ except ImportError:
         verify_identity,
     )
 
+# Exact set of top-level keys the one authenticated, recoverable execute-only
+# candidate-state rejection header must carry -- nothing more, nothing less.
+_EXECUTE_REJECTION_KEYS = frozenset({
+    "ok", "state_rejection", "exit_code", "stdout", "stderr", "child_setup", "supervisor",
+})
+_EXECUTE_REJECTION_STDERR_LIMIT = 8192
+# frame() always adds these two framing fields to every header for every op,
+# success or failure; unframe() already derives and checks both against the
+# actual blob bytes before returning. They are mandatory transport metadata,
+# never business-logic fields, so they are verified once and discarded right
+# after unframe(), before any exact-schema check ever sees the header.
+_TRANSPORT_METADATA_KEYS = frozenset({"blob_length", "blob_sha256"})
+
 
 class IsolationError(RuntimeError):
     """Isolation, state publication, or ownership verification failed."""
+
+
+class StateRejected(Exception):
+    """Internal signal: the candidate's filesystem changes were authentically rejected.
+
+    Raised only by SandboxBroker._accept, after it verifies the exact execute-only
+    rejection schema and the supervisor/child identity proofs, and caught only by
+    SandboxBroker.execute. Never let this escape execute(); fail_closed converts any
+    other escaping exception into a fatal IsolationError, including this one if that
+    containment were ever bypassed by a coding error.
+    """
+
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+        self.message = message
 
 
 def fail_closed(method):
@@ -76,6 +107,28 @@ def atomic(path, content):
             os.close(directory)
     finally:
         pending.unlink(missing_ok=True)
+
+
+def _strip_transport_metadata(header, blob):
+    """Verify and discard unframe()'s own blob_length/blob_sha256 framing fields.
+
+    unframe() already derived blob_sha256 from the actual blob bytes it read and
+    compared it against the header before returning, so a header that reached
+    this point cannot carry a forged value for either key; this independently
+    re-derives the same check from the header and blob alone so that guarantee
+    never rests on trusting unframe()'s internals from a distance. Only this
+    exact pair is ever removed -- a header missing either key, or carrying a
+    value inconsistent with the blob, is rejected outright, and no other key is
+    ever touched. Every later exact-schema check (success vs. the one
+    authenticated execute rejection) then reasons only about the logical
+    protocol fields the helper itself constructed.
+    """
+    if not _TRANSPORT_METADATA_KEYS <= set(header):
+        raise IsolationError("Helper response missing transport framing metadata")
+    if (type(header["blob_length"]) is not int or header["blob_length"] != len(blob)
+            or header["blob_sha256"] != hashlib.sha256(blob).hexdigest()):
+        raise IsolationError("Helper response transport framing metadata mismatch")
+    return {key: value for key, value in header.items() if key not in _TRANSPORT_METADATA_KEYS}
 
 
 class SandboxBroker:
@@ -266,14 +319,8 @@ class SandboxBroker:
             if process.returncode:
                 raise IsolationError("Container helper failed: " + stderr.decode("utf-8", "replace")[:2048])
             header, next_state = unframe(io.BytesIO(stdout))
-            if not header.get("ok"):
-                raise IsolationError(header.get("error", "Helper rejected request"))
-            verify_identity(header["supervisor"]["before"], supervisor=True)
-            verify_identity(header["supervisor"]["after"], supervisor=True)
-            verify_identity(header["child_setup"])
-            self.last_supervisor = header["supervisor"]
-            self.last_child_setup = header["child_setup"]
-            return header, next_state
+            header = _strip_transport_metadata(header, next_state)
+            return self._accept(request, header, next_state)
         finally:
             selector.close()
             if process.poll() is None:
@@ -283,6 +330,73 @@ class SandboxBroker:
                 if not stream.closed:
                     stream.close()
             self.recover()
+
+    def _accept(self, request, header, next_state):
+        """Authenticate one helper response: an ordinary success, or execute's
+        one authenticated, recoverable candidate-state rejection.
+
+        Any other ok:false header, any op other than execute carrying a
+        rejection-shaped header, and any header only partially matching the
+        rejection schema all fail closed as IsolationError before identity
+        proofs are even consulted -- forged/malformed rejection codes, unexpected
+        state blobs, and rejections claimed outside execute can never reach
+        verify_identity. A genuine success and the one authenticated rejection
+        then share the same proof verification below, since both require real
+        supervisor before/after and child_setup evidence.
+        """
+        rejected = None
+        if header.get("ok") is not True:
+            if request.get("op") != "execute" or not self._exact_execute_rejection(header, next_state):
+                raise IsolationError(header.get("error", "Helper rejected request"))
+            rejected = (header["state_rejection"], header["stderr"])
+        elif "state_rejection" in header:
+            raise IsolationError("Successful helper response carried an unexpected rejection code")
+        verify_identity(header["supervisor"]["before"], supervisor=True)
+        verify_identity(header["supervisor"]["after"], supervisor=True)
+        verify_identity(header["child_setup"])
+        self.last_supervisor = header["supervisor"]
+        self.last_child_setup = header["child_setup"]
+        if rejected is not None:
+            raise StateRejected(*rejected)
+        return header, next_state
+
+    @staticmethod
+    def _exact_execute_rejection(header, blob):
+        """True only for the exact links/special-files execute rejection shape.
+
+        Requires the precise top-level and nested supervisor-proof key sets
+        (nothing forged in, nothing required missing), dict-shaped identity
+        proofs, the one known machine code, a true (non-bool) int exit_code
+        fixed at 1 -- JSON/Python bool is an int subtype and True == 1, so
+        exit_code's type is checked, not just its value -- empty stdout, a
+        nonempty stderr bounded both in characters and in encoded UTF-8
+        bytes, and no opaque state blob. The broker must never accept a new
+        candidate state alongside a rejection.
+        """
+        if blob or set(header) != _EXECUTE_REJECTION_KEYS:
+            return False
+        if header.get("state_rejection") != STATE_REJECTION_LINKS_OR_SPECIAL:
+            return False
+        exit_code = header.get("exit_code")
+        if type(exit_code) is not int or exit_code != 1:
+            return False
+        if header.get("stdout") != "":
+            return False
+        stderr = header.get("stderr")
+        if not isinstance(stderr, str) or not 0 < len(stderr) <= _EXECUTE_REJECTION_STDERR_LIMIT:
+            return False
+        try:
+            encoded_length = len(stderr.encode())
+        except UnicodeError:
+            return False
+        if not 0 < encoded_length <= _EXECUTE_REJECTION_STDERR_LIMIT:
+            return False
+        supervisor = header.get("supervisor")
+        if not isinstance(supervisor, dict) or set(supervisor) != {"before", "after"}:
+            return False
+        if not isinstance(supervisor.get("before"), dict) or not isinstance(supervisor.get("after"), dict):
+            return False
+        return isinstance(header.get("child_setup"), dict)
 
     def _state(self, token):
         metadata = json.loads(self.metadata.read_bytes())
@@ -337,9 +451,17 @@ class SandboxBroker:
                 or type(timeoutSeconds) not in (int, float) or not 0 < timeoutSeconds <= 300):
             raise IsolationError("Invalid isolated command or timeout")
         metadata, blob = self._state(state)
-        result, next_state = self._launch(
-            {"op": "execute", "command": command, "timeout": timeoutSeconds}, blob,
-        )
+        try:
+            result, next_state = self._launch(
+                {"op": "execute", "command": command, "timeout": timeoutSeconds}, blob,
+            )
+        except StateRejected as rejection:
+            # Authenticated candidate-state rejection: the candidate's command ran, but its
+            # filesystem changes (a symlink or special file) were never captured or published.
+            # Return a structured failed tool result on the same prior state token/metadata
+            # instead of raising; every other failure keeps raising IsolationError unchanged.
+            return {"state": state, "stdout": "", "stderr": rejection.message, "exit_code": 1,
+                    "timed_out": False, "state_rejection": rejection.code}
         token = self._publish(next_state, metadata)
         return {"state": token, "stdout": result["stdout"], "stderr": result["stderr"],
                 "exit_code": result["exit_code"], "timed_out": False}

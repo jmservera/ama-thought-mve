@@ -54,6 +54,11 @@ For a backend error followed by `oracle_halt`, do not clear the state or start
 a replacement experiment. The [incident-recovery runbook](RUNBOOK.md#specific-878-step-backend-interruption)
 documents the separately approved copy, retained unknown charges and exact-source
 launch checks required before continuing the stopped study.
+For the later link/special-file rejection, use the
+[1482-step recovery procedure](RUNBOOK.md#specific-1482-step-sandbox-interruption).
+Do not edit state, permit unsafe files or presume missing intervention records
+were unassisted. Historical attribution corrections are separate audited
+read-only analysis, not paid make-up attempts.
 
 ```bash
 ./run-experiment.sh --dry-run          # read-only readiness and schedule
