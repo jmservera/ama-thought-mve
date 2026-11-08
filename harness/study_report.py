@@ -359,6 +359,9 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
                  "a public commit alone does not establish preregistration.")]
                if (provenance.get("source_provenance") or {}).get("registration_status") == "unregistered"
                else []),
+             *(["**Mid-study source change:** observations span the original and recovery commits; "
+                "see provenance and per-attempt source commits. The interrupted charge remains unknown."]
+               if provenance.get("source_transition") else []),
              *(["One feature per model/arm; later-feature and CR1 costs are not measured."]
                if short_calibration else []),
              f"Cost unit: {result['cost_unit']}; no automatic unit fallback or currency conversion.",
@@ -415,12 +418,15 @@ def export(directory: Path, state: dict, study_id: str) -> None:
              "all_attempt_cr_cost": run["all_attempt_cr_cost"], "HIR": None, "IDR": None})
         for attempt in cell["attempts"]:
             entry = state["ledger"]["entries"][attempt["id"]]
-            attempts.append({"run_id": cell["run_id"], "step": attempt["step"],
+            row = {"run_id": cell["run_id"], "step": attempt["step"],
                              "attempt_id": attempt["id"], "status": attempt["status"],
                              "seconds": attempt.get("seconds"), "credits_status": entry["status"],
                              "parallelism": attempt.get("parallelism"),
                              "cost_included_in_step": attempt.get("cost_included_in_step", False),
-                             "actual_nano": entry["actual_nano"], "reserved_nano": entry["reserved_nano"]})
+                             "actual_nano": entry["actual_nano"], "reserved_nano": entry["reserved_nano"]}
+            if state.get("recovery"):
+                row["source_commit"] = attempt["source_commit"]
+            attempts.append(row)
     provenance = {"study_id": study_id, "diagnostic_stub": state["identity"]["smoke"],
                   "phase": state["identity"]["phase"], "collection_role": result["collection_role"],
                   "calibration_plan": state["identity"].get("calibration_plan"),
@@ -436,6 +442,8 @@ def export(directory: Path, state: dict, study_id: str) -> None:
                   **historical_budget_provenance(state["ledger"]),
                   "session_soft_limit_credits": state["identity"]["config"].get("session_soft_limit_credits", 300),
                   "billing_limit_kind": "local admission plus per-session soft caps; not guaranteed billed consumption"}
+    if state.get("recovery"):
+        provenance["source_transition"] = state["recovery"]
     write_pilot(directory / "results", result, provenance=provenance, dispositions=dispositions, attempts=attempts)
 
 

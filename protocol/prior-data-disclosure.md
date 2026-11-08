@@ -361,3 +361,12 @@ charge. Any continuation must disclose its exact new source, the change in
 source during collection, the recovery decision and the treatment of the
 interrupted attempt; it must not relabel old observations as having used the
 new source.
+
+An incident-specific recovery mechanism may prepare a separate copy only after
+explicit owner approval of the unknown 300-credit hold, an additional
+reservation and fresh step-time allowance for a new attempt, and the source change. It preserves the
+original source, state, deadline, accounting and 651 completed steps; it
+records both source commits and the source of each attempt. A recovery copy
+is not itself permission to run models. If used, disclose the exact recovery
+commit and approval chronology and treat the mixed-source data as an
+unregistered deviation rather than a single-source or preregistered study.
