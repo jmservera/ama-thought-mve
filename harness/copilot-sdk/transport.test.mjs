@@ -368,6 +368,49 @@ test('a retried provider error without explicit failed-request usage never becom
   }
 });
 
+test('an earlier matching charge cannot account for a later failed model turn', async () => {
+  const result = await runFake({
+    async action(config) {
+      config.onEvent(usage(config.sessionId, { apiCallId: 'failed-api',
+        serviceRequestId: 'failed-service', copilotUsage: { totalNanoAiu: 17 } }));
+      failProvider(config);
+      successfulRetry(config);
+    },
+    usage: sid => ({ accounting: { sourceSessionId: sid, sequence: 2, usageId: 'call-two' } }),
+    shutdown: sid => event('session.shutdown', {
+      shutdownType: 'routine', currentModel: 'test-model', totalNanoAiu: 140,
+      usageAccountingWatermarks: { [sid]: 2 },
+      modelMetrics: { 'test-model': { totalNanoAiu: 140, requests: { count: 2 } } },
+    }),
+  });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.receipt.protocol_error, 'provider_retry_usage_incomplete');
+  assert.equal(result.receipt.usage.totalNanoAiu, null);
+});
+
+test('explicit current-turn usage arriving before its error can still account for the failed request', () => {
+  const evidence = new Evidence(request(), 's');
+  evidence.observe(start('s'));
+  evidence.verifyToolCatalog({ tools: [{ name: 'isolated_exec' }] });
+  evidence.observe(event('model.call_start', { model: 'test-model', turnId: '0' }));
+  evidence.observe(usage('s', { apiCallId: 'failed-api', serviceRequestId: 'failed-service',
+    copilotUsage: { totalNanoAiu: 17 } }));
+  evidence.observe(event('model.call_failure', providerFailure()));
+  evidence.observe(event('model.model_call_failure', providerMirror(providerFailure())));
+  evidence.observe(event('model.call_finished', { turnId: '0', outcome: 'error' }));
+  evidence.observe(event('model.call_start', { model: 'test-model', turnId: '1' }));
+  evidence.observe(usage('s', { accounting: { sourceSessionId: 's', sequence: 2, usageId: 'call-two' } }));
+  evidence.observe(event('model.call_finished', { turnId: '1', outcome: 'success' }));
+  evidence.observe(event('session.idle', {}));
+  evidence.observe(event('session.shutdown', {
+    shutdownType: 'routine', currentModel: 'test-model', totalNanoAiu: 140,
+    usageAccountingWatermarks: { s: 2 },
+    modelMetrics: { 'test-model': { totalNanoAiu: 140, requests: { count: 2 } } },
+  }));
+  assert.equal(evidence.receipt().usage.credits_complete, true);
+  assert.equal(evidence.receipt().usage.totalNanoAiu, 140);
+});
+
 test('provider retries remain bounded and terminal failure never produces a successful idle', async () => {
   const limit = await runFake({ async action(config) {
     for (let turn = 0; turn < 4; turn++) {

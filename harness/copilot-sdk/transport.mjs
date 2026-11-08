@@ -175,6 +175,7 @@ export class Evidence {
     this.models = new Set();
     this.efforts = new Set();
     this.calls = new Map();
+    this.usageWatermark = 0;
     this.completeCalls = 0;
     this.reportedCalls = 0;
     this.routing = [];
@@ -227,7 +228,7 @@ export class Evidence {
       if (!this.started || !this.toolCatalogVerified || this.modelCall ||
         !text(data.turnId) || data.turnId.length > 128 || data.model !== this.request.model)
         throw fault('provider_call_correlation_unavailable');
-      this.modelCall = { turnId: data.turnId, failures: [] };
+      this.modelCall = { turnId: data.turnId, failures: [], usageWatermark: this.usageWatermark };
     } else if (event.type === 'model.call_failure') {
       this.identity(data.model, data.reasoningEffort);
       if (!this.started || !this.toolCatalogVerified || !this.modelCall ||
@@ -242,7 +243,8 @@ export class Evidence {
         throw fault('provider_failure_correlation_unavailable');
       if (this.providerFailures.size >= MAX_TRANSIENT_FAILURES)
         throw fault('provider_retry_limit');
-      this.providerFailures.set(data.serviceRequestId, { ...data, mirrored: false });
+      this.providerFailures.set(data.serviceRequestId,
+        { ...data, usageWatermark: this.modelCall.usageWatermark, mirrored: false });
       this.modelCall.failures.push(data.serviceRequestId);
     } else if (event.type === 'model.model_call_failure') {
       const call = data.modelCall;
@@ -278,6 +280,7 @@ export class Evidence {
       const previous = this.calls.get(accounting.sequence);
       if (previous && JSON.stringify(previous) !== JSON.stringify(data))
         throw fault('conflicting_usage_duplicate');
+      this.usageWatermark = Math.max(this.usageWatermark, accounting.sequence);
       this.calls.set(accounting.sequence, data);
       if (!previous && nano(data.copilotUsage?.totalNanoAiu)) {
         this.reportedCalls++;
@@ -355,6 +358,7 @@ export class Evidence {
     const providerFailures = [...this.providerFailures.values()];
     const accountedFailure = failure => failure.mirrored && calls.filter(call =>
       call.apiCallId === failure.apiCallId && call.serviceRequestId === failure.serviceRequestId &&
+      call.accounting.sequence > failure.usageWatermark &&
       call.aiCreditsStatus === 'complete' && nano(call.copilotUsage?.totalNanoAiu)).length === 1;
     const failuresComplete = providerFailures.every(accountedFailure);
     const sum = calls.reduce((total, call) => total + (call.copilotUsage?.totalNanoAiu ?? 0), 0);

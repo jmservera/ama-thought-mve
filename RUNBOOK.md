@@ -351,7 +351,8 @@ guards remain enforced.
 Continuation is not guaranteed. Successful retry work still requires the
 normal final correlated aggregate and an explicit complete charge for every
 failed API/service request. An omitted failed-request charge is unknown, not
-zero. Exhausted retries, missing accounting, authentication/client errors or
+zero; an earlier turn's receipt cannot be reused even if request identifiers
+repeat. Exhausted retries, missing accounting, authentication/client errors or
 changed treatment still stop collection and retain reservations. Never clear a
 halt or mark a failed request free to force a restart.
 
