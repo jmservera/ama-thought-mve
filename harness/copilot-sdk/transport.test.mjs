@@ -56,7 +56,15 @@ function fakeRuntime(options = {}) {
             config.onEvent(usage(config.sessionId, options.usage));
             config.onEvent(event('session.idle', {}));
           },
-          rpc: { async shutdown() { config.onEvent(shutdown(config.sessionId)); } },
+          rpc: {
+            tools: {
+              async initializeAndValidate() {},
+              async getCurrentMetadata() {
+                return options.metadata ?? { tools: [{ name: 'isolated_exec' }] };
+              },
+            },
+            async shutdown() { config.onEvent(shutdown(config.sessionId)); },
+          },
         };
       },
     };
@@ -199,6 +207,76 @@ test('only the exact disabled builtin MCP catalog is inert; active or ambiguous 
     { toolName: 'isolated_exec', mcpServerName: 'github-mcp-server' })), /unexpected_tool/);
 });
 
+test('only an exact isolated-only catalog and a correlated nonexistent create are accepted', () => {
+  const catalog = { tools: [{ name: 'isolated_exec' }] };
+  for (const invalid of [null, {}, { tools: null }, { tools: [] },
+    { tools: [{ name: 'create' }] }, { tools: [{ name: 'isolated_exec' }, { name: 'create' }] },
+    { tools: [{ name: 'isolated_exec', mcpServerName: 'server' }] },
+    { tools: [{ name: 'isolated_exec', namespacedName: 'server:isolated_exec' }] }]) {
+    assert.throws(() => new Evidence(request(), 's').verifyToolCatalog(invalid),
+      /unexpected_tool_catalog/);
+  }
+  const createStart = event('tool.execution_start', { toolName: 'create', toolCallId: 'c' });
+  const createDone = event('tool.execution_complete', { toolCallId: 'c', success: false,
+    error: { code: 'failure', message: "Tool 'create' does not exist." } });
+  assert.throws(() => new Evidence(request(), 's').observe(createStart), /unexpected_tool/);
+  const evidence = new Evidence(request(), 's');
+  evidence.verifyToolCatalog(catalog);
+  evidence.observe(createStart);
+  evidence.observe(event('tool.execution_start', { toolName: 'isolated_exec', toolCallId: 'i' }));
+  evidence.observe(event('tool.execution_complete', { toolCallId: 'i', success: true }));
+  evidence.observe(createDone);
+  assert.throws(() => evidence.observe(createStart), /unexpected_tool/);
+  assert.throws(() => evidence.observe(createDone), /unexpected_tool/);
+
+  for (const changed of [{ success: true }, { success: undefined }, { result: {} },
+    { error: undefined }, { error: { code: 'denied', message: "Tool 'create' does not exist." } },
+    { error: { code: 'failure', message: 'other failure' } }, { toolCallId: 'other' }]) {
+    const invalid = new Evidence(request(), 's');
+    invalid.verifyToolCatalog(catalog);
+    invalid.observe(createStart);
+    assert.throws(() => invalid.observe(event('tool.execution_complete',
+      { ...createDone.data, ...changed })), /unexpected_tool/);
+  }
+  const missing = new Evidence(request(), 's');
+  missing.verifyToolCatalog(catalog);
+  missing.observe(createStart);
+  assert.throws(() => missing.observe(event('session.idle', {})), /incomplete_tool_execution/);
+  assert.equal(missing.receipt().usage.credits_complete, false);
+  for (const data of [{ toolName: 'create' }, { toolName: 'bash', toolCallId: 'b' },
+    { toolName: 'create', toolCallId: 'c', mcpServerName: 'server' }]) {
+    const invalid = new Evidence(request(), 's');
+    invalid.verifyToolCatalog(catalog);
+    assert.throws(() => invalid.observe(event('tool.execution_start', data)), /unexpected_tool/);
+  }
+});
+
+test('a verified missing create can be followed by isolated work with complete usage', async () => {
+  const result = await runFake({ async action(config) {
+    config.onEvent(event('tool.execution_start', { toolName: 'create', toolCallId: 'c' }));
+    config.onEvent(event('tool.execution_complete', { toolCallId: 'c', success: false,
+      error: { code: 'failure', message: "Tool 'create' does not exist." } }));
+    config.onEvent(event('tool.execution_start', { toolName: 'isolated_exec', toolCallId: 'i' }));
+    const reply = await config.tools[0].handler({ command: 'touch feature.py', timeoutSeconds: 1 },
+      { sessionId: config.sessionId, toolName: 'isolated_exec', toolCallId: 'i' });
+    assert.equal(reply.resultType, 'success');
+    config.onEvent(event('tool.execution_complete', { toolCallId: 'i', success: true }));
+  } });
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.receipt.usage.credits_complete, true);
+  assert.equal(result.records.filter(record => record.type === 'tool').length, 1);
+});
+
+test('a changed or unavailable tool catalog stops before the first prompt', async () => {
+  for (const metadata of [{}, { tools: [] },
+    { tools: [{ name: 'isolated_exec' }, { name: 'create' }] }]) {
+    const result = await runFake({ metadata });
+    assert.equal(result.state.sent, 0);
+    assert.equal(result.receipt.protocol_error, 'unexpected_tool_catalog');
+    assert.equal(result.receipt.usage.credits_complete, false);
+  }
+});
+
 test('bounded input framing rejects oversized, aggregate floods, malformed UTF-8 and unterminated records', () => {
   const limits = { record: 20, events: 30 };
   for (const chunks of [
@@ -270,7 +348,7 @@ test('RPC frames are bounded before SDK parsing and owned proxy reaps its child'
   assert.equal(noise, 'runtime_guard_failure\n');
 });
 
-test('guarded SDK startup forwards built-in MCP disabling to its actual CLI child', async () => {
+test('guarded SDK startup forwards MCP disabling and the version pin to its actual CLI child', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mve-sdk-argv-'));
   let runtime;
   try {
@@ -282,6 +360,7 @@ test('guarded SDK startup forwards built-in MCP disabling to its actual CLI chil
     await assert.rejects(runtime.client.start());
     const argv = (await readFile(argvPath, 'utf8')).trim().split('\n');
     assert.ok(argv.includes('--disable-builtin-mcps'), 'CLI must explicitly disable built-in MCP');
+    assert.ok(argv.includes('--no-auto-update'), 'CLI must run the bundled pinned version');
   } finally {
     try { if (runtime) await runtime.close(); }
     catch (error) { assert.equal(error.message, 'runtime_guard_failure'); }
@@ -332,6 +411,52 @@ test('NDJSON happy path preserves raw events, exact shared budget and correlated
     assert.ok(record.event.id);
   }
 });
+
+test('real SDK rejects native create without touching host files and still dispatches isolated_exec',
+  { skip: !process.env.MVE_COPILOT_CLI, timeout: 95000 }, async () => {
+    assert.ok(process.env.TMUX, 'actual SDK checks require a new owned tmux session');
+    const directory = await mkdtemp(join(tmpdir(), 'mve-sdk-tool-test-'));
+    const original = join(directory, 'owned-sentinel');
+    const missing = join(directory, 'new-sentinel');
+    await writeFile(original, 'unchanged');
+    const req = request({ model: 'gpt-6.1-sol', maxAiCredits: 30, remainingSeconds: 90,
+      cliPath: process.env.MVE_COPILOT_CLI, baseDirectory: directory });
+    let runtime;
+    let isolatedCalls = 0;
+    class OfflineRequests extends CopilotRequestHandler {
+      async sendRequest() { return new Response('offline', { status: 403 }); }
+      async openWebSocket() { throw new Error('offline_fixture'); }
+    }
+    try {
+      runtime = await makeRuntime(req, Date.now() + 90000);
+      runtime.client.requestHandler = new OfflineRequests();
+      runtime.client.setupClientGlobalHandlers();
+      assert.equal(runtime.client.clientGlobalHandlers.llmInference, runtime.client.requestAdapter);
+      await assertRuntime(runtime.client);
+      const session = await runtime.client.createSession(sessionConfig(req, crypto.randomUUID(),
+        async () => { isolatedCalls++; return { textResultForLlm: 'fixture', resultType: 'success' }; },
+        () => {}));
+      await session.rpc.tools.initializeAndValidate();
+      const metadata = await session.rpc.tools.getCurrentMetadata();
+      const evidence = new Evidence(req, session.sessionId);
+      evidence.verifyToolCatalog(metadata);
+      for (const path of [original, missing]) {
+        const result = await session.rpc.tools.execute({ name: 'create',
+          arguments: { path, file_text: 'should not be written' }, toolCallId: crypto.randomUUID() });
+        assert.equal(result.resultType, 'failure');
+        assert.equal(result.error, "Tool 'create' does not exist.");
+      }
+      assert.equal(await readFile(original, 'utf8'), 'unchanged');
+      await assert.rejects(stat(missing), { code: 'ENOENT' });
+      const result = await session.rpc.tools.execute({ name: 'isolated_exec',
+        arguments: { command: 'pwd', timeoutSeconds: 1 }, toolCallId: crypto.randomUUID() });
+      assert.equal(result.resultType, 'success');
+      assert.equal(isolatedCalls, 1);
+    } finally {
+      try { if (runtime) await runtime.close(); }
+      finally { await rm(directory, { recursive: true, force: true }); }
+    }
+  });
 
 test('real SDK deferred startup disables MCP before locally rejected inference',
   { skip: !process.env.MVE_COPILOT_CLI, timeout: 95000 }, async () => {

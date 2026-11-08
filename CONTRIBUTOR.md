@@ -280,18 +280,30 @@ required in the controller environment. The SDK exposes only `isolated_exec`;
 built-in tools, discovery, MCP servers and unrelated permission requests are
 excluded or denied. Never add blanket approval, permission-skipping, extra host
 tools or trusted directories to repair a failed check. The owned CLI explicitly
-receives `--disable-builtin-mcps`, but CLI 1.0.105 does not apply that interactive
-setting in headless mode. The authoritative restriction is the SDK session's
+receives `--no-auto-update` so it uses the pinned bundled CLI even when a newer
+download is present. It also receives `--disable-builtin-mcps`, but CLI 1.0.105
+does not apply that interactive setting in headless mode. The authoritative
+restriction is the SDK session's
 `disabledMcpServers: ["github-mcp-server"]`. Empty mode/tool exclusion alone
 does not stop server startup. The SDK may report that exact disabled builtin as
 inert catalog metadata; pending/connected activity, foreign catalog entries and
 all MCP tools still fail closed.
 
+Before sending a prompt, the transport initializes and verifies that the live
+tool catalog contains only `isolated_exec`. That tool can create and edit files,
+run tests and commit inside the isolated workspace. A model may nevertheless
+request the unavailable `create` tool: the transport accepts that request only
+when its matching completion reports the exact pinned-runtime nonexistent-tool
+failure. Success, another failure, missing or uncorrelated completion, unexpected
+tools, or a changed catalog still stop the session. This is not permission to
+execute built-in host tools.
+
 The opt-in transport regression exercises actual deferred startup inside an
 owned tmux session with `MVE_COPILOT_CLI` set to the pinned executable. A registered
 local handler rejects every inference HTTP/WebSocket request without forwarding
-to a provider. It verifies startup and the isolated-only tool catalog, not real
-model access or complete provider billing. Ordinary `npm test` does not run it.
+to a provider. It verifies startup, the isolated-only tool catalog and native
+dispatch against owned host-file sentinels, not real model access or complete
+provider billing. Ordinary `npm test` does not run it.
 
 The bounded transport journal retains SDK events received after a failure,
 including shutdown usage diagnostics. Those observations do not clear the

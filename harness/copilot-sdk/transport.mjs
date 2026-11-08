@@ -182,6 +182,17 @@ export class Evidence {
     this.shutdown = null;
     this.checkpoints = [];
     this.status = 'unavailable';
+    this.toolCatalogVerified = false;
+    this.activeTools = new Map();
+    this.seenTools = new Set();
+  }
+  verifyToolCatalog(metadata) {
+    const tools = metadata?.tools;
+    const tool = Array.isArray(tools) && tools.length === 1 ? tools[0] : null;
+    if (!object(tool) || tool.name !== 'isolated_exec' || tool.namespacedName !== undefined ||
+      tool.mcpServerName !== undefined || tool.mcpToolName !== undefined)
+      throw fault('unexpected_tool_catalog');
+    this.toolCatalogVerified = true;
   }
   identity(model, effort) {
     if (text(model)) this.models.add(model);
@@ -237,6 +248,7 @@ export class Evidence {
       this.checkpoints.push(data);
     } else if (event.type === 'session.idle') {
       if (data.aborted) throw fault('session_aborted');
+      if (this.activeTools.size) throw fault('incomplete_tool_execution');
       this.idle = true;
     } else if (event.type === 'assistant.turn_start') {
       this.idle = false;
@@ -256,9 +268,22 @@ export class Evidence {
       (event.type === 'system.notification' && data.kind?.type === 'instruction_discovered') ||
       (event.type === 'model.call_finished' && data.outcome !== 'success')) {
       throw fault('unexpected_runtime_activity');
-    } else if (event.type === 'tool.execution_start' &&
-      (data.toolName !== 'isolated_exec' || data.mcpServerName)) {
-      throw fault('unexpected_tool');
+    } else if (event.type === 'tool.execution_start') {
+      const id = data.toolCallId;
+      if (!this.toolCatalogVerified || !text(id) || id.length > 200 ||
+        this.seenTools.has(id) || data.mcpServerName !== undefined ||
+        !['isolated_exec', 'create'].includes(data.toolName))
+        throw fault('unexpected_tool');
+      this.seenTools.add(id);
+      this.activeTools.set(id, data.toolName);
+    } else if (event.type === 'tool.execution_complete') {
+      const name = this.activeTools.get(data.toolCallId);
+      if (!name) throw fault('unexpected_tool');
+      if (name === 'create' &&
+        (data.success !== false || data.result !== undefined || data.error?.code !== 'failure' ||
+          data.error?.message !== "Tool 'create' does not exist."))
+        throw fault('unexpected_tool');
+      this.activeTools.delete(data.toolCallId);
     }
     const catalogs = {
       'session.skills_loaded': 'skills', 'session.custom_agents_updated': 'agents',
@@ -282,7 +307,7 @@ export class Evidence {
     const sum = calls.reduce((total, call) => total + (call.copilotUsage?.totalNanoAiu ?? 0), 0);
     const watermarks = shutdown?.usageAccountingWatermarks;
     const metric = shutdown?.modelMetrics?.[this.request.model];
-    const complete = !errorCode && this.started && this.idle && shutdown &&
+    const complete = !errorCode && this.started && this.idle && shutdown && !this.activeTools.size &&
       this.status === 'complete' && sequences.length > 0 &&
       sequences.every((sequence, index) => sequence === index + 1) &&
       new Set(calls.map(call => call.accounting.usageId)).size === calls.length &&
@@ -498,6 +523,9 @@ export async function runTransport({ input = process.stdin, output = process.std
     const session = await Promise.race([client.createSession(config), failed]);
     if (session.sessionId !== evidence.sessionId) throw fault('created_session_mismatch');
     if (!evidence.started) throw fault('session_identity_unavailable');
+    stage = 'session_tool_catalog';
+    await Promise.race([session.rpc.tools.initializeAndValidate(), failed]);
+    evidence.verifyToolCatalog(await Promise.race([session.rpc.tools.getCurrentMetadata(), failed]));
     stage = 'session_send';
     await Promise.race([session.sendAndWait({ prompt: request.prompt },
       Math.max(1, deadline - Date.now())), failed]);
