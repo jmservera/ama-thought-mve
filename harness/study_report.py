@@ -367,6 +367,10 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
              f"Cost unit: {result['cost_unit']}; no automatic unit fallback or currency conversion.",
              "All allocations retained, including assisted, incomplete and zero-step trajectories.",
              "H1/H2/H6 are endpoint labels, not hypothesis decisions. Formal H4/H7 claims deferred.",
+             (f"Historical attribution overlay: {(provenance.get('analysis_adjudications') or {}).get('status', 'unavailable')}; "
+              "original raw outcomes and metrics are preserved."),
+             (f"Operator intervention coverage: {(provenance.get('intervention_coverage') or {}).get('status', 'unavailable')}; "
+              "absent evidence is not inferred unassisted."),
              "Each primary contrast requires its full allocated unassisted frame; unknown assistance is not unassisted.",
              "H2 paired F/P values from an unaccepted panel are diagnostics only.",
              "Missing observations/accounting are unavailable, never zero or last-observed final values.",
@@ -399,9 +403,14 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
 
 
 def export(directory: Path, state: dict, study_id: str) -> None:
+    from analysis_adjudications import apply as analysis_adjudications
+    from intervention_coverage import apply as intervention_coverage
+
     raw = load_runs(directory / "runs", state["identity"]["phase"])
     if {run["meta"]["run_id"] for run in raw} != {cell["run_id"] for cell in state["cells"]}:
         raise StudyError("Analyzer sampling frame differs from immutable scheduled cells")
+    raw, adjudications = analysis_adjudications(directory, state, raw)
+    raw, coverage = intervention_coverage(directory, state, raw)
     result = analyze_pilot(raw, seed=state["identity"]["config"]["seed"], cells=state["cells"])
     dispositions, attempts = [], []
     by_id = {run["run_id"]: run for run in result["runs"]}
@@ -442,6 +451,8 @@ def export(directory: Path, state: dict, study_id: str) -> None:
                   **historical_budget_provenance(state["ledger"]),
                   "session_soft_limit_credits": state["identity"]["config"].get("session_soft_limit_credits", 300),
                   "billing_limit_kind": "local admission plus per-session soft caps; not guaranteed billed consumption"}
+    provenance["intervention_coverage"] = coverage
+    provenance["analysis_adjudications"] = adjudications
     if state.get("recovery"):
         provenance["source_transition"] = state["recovery"]
         if state.get("recovery_history"):

@@ -255,8 +255,17 @@ print(json.dumps(observations, sort_keys=True))
         state = result["state"]
         assert broker.export(state)["head_changed"]
         checks["hostile_git_config_attributes_contained"] = True
-        for attack in ("ln -s /etc/passwd bad-link", "ln source.py hard-link",
-                       "mkfifo fifo", "dd if=/dev/zero of=too-large bs=1048576 count=3 2>/dev/null",
+        # Links/special files are now an authenticated, recoverable candidate-state
+        # rejection (explicit failed result on the unchanged prior state/token), not an
+        # exception; oversize state and output floods stay fail-closed IsolationError.
+        for attack in ("ln -s /etc/passwd bad-link", "ln source.py hard-link", "mkfifo fifo"):
+            result = broker.execute(state, attack, 10)
+            assert result["state"] == state, "Rejected candidate state must retain the prior token"
+            assert result["state_rejection"] == "links_or_special_files", result
+            assert result["exit_code"] == 1 and result["stdout"] == "" and not result["timed_out"], result
+            assert result["stderr"] and "prior state is retained" in result["stderr"].lower(), result
+            broker.export(state)
+        for attack in ("dd if=/dev/zero of=too-large bs=1048576 count=3 2>/dev/null",
                        python("print('x' * 1100000)"),
                        python("import os; os.write(1, b'\\xff' * 400000)")):
             try:
@@ -267,6 +276,10 @@ print(json.dumps(observations, sort_keys=True))
                 raise AssertionError("Unsafe state/output accepted: " + attack)
             broker.export(state)
         checks["links_special_files_oversize_and_output_rejected_prior_state_preserved"] = True
+        result = broker.execute(state, "test ! -e bad-link && test ! -e hard-link && test ! -e fifo", 10)
+        assert result["exit_code"] == 0, result
+        state = result["state"]
+        checks["links_or_special_files_rejection_returns_explicit_result_and_resumes"] = True
         result = broker.execute(state, python("""
 import errno, pathlib
 p = pathlib.Path("/tmp/fill")
@@ -569,6 +582,8 @@ def main():
                    "Fresh calls preserve bounded regular filesystem/Git state, not daemon/process memory.",
                    ("Base and primary tools are pinned; transitive registry/distribution inputs are captured by "
                     "the built image content ID, not a fully locked reproducible build."),
+                   ("Only execute's post-command links/special-files artifact check is a recoverable, "
+                    "authenticated rejection; every other containment failure in this evidence remains fatal."),
                ]}
     try:
         canaries(args.image, directory, receipt)

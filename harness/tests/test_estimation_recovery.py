@@ -532,3 +532,207 @@ def test_backend_reports_preserve_both_transitions_and_per_attempt_sources(backe
     assert sum(row["source_commit"] == case["old"]["commit"] for row in rows) == 228
     assert sum(row["credits_status"] == "recovery_hold" and row["actual_nano"] == "" for row in rows) == 2
     assert report.package_results(target / "results", "pilot-estimation").is_file()
+
+
+@pytest.fixture
+def sandbox_incident(backend_incident, tmp_path, monkeypatch):
+    case = backend_incident
+    study, recovery = case["study"], case["recovery"]
+    source = prepare_backend_incident(case)
+    source_root = case["target_root"]
+    state = study.read_json(source / "state.json")
+    extra = study.credits("16961.29357") - study.credits("10470.87094")
+    quotient, remainder = divmod(extra, 604)
+    for index in range(604):
+        cell = state["cells"][index % len(state["cells"])]
+        identity = f"sandbox-complete-{index}"
+        amount = quotient + (index < remainder)
+        cell["completed_steps"] = cell.get("completed_steps", 0) + 1
+        cell["attempts"].append({"id": identity, "step": f"sandbox-step-{index}",
+                                 "status": "agent_returned", "seconds": 1,
+                                 "source_commit": case["new"]["commit"],
+                                 "usage": {"credits_complete": True, "totalNanoAiu": amount}})
+        state["ledger"]["entries"][identity] = {
+            "status": "complete", "reserved_nano": 300 * study.NANO, "actual_nano": amount}
+    cell = next(cell for cell in state["cells"] if cell["assigned_model"] == "gpt-6.1-sol"
+                and cell["arm"] == "B" and cell["replicate"] == 6)
+    identity = study.SANDBOX_RECOVERY_ATTEMPT
+    directory = f"runs/{cell['run_id']}/attempts/{identity}"
+    failed = {"id": identity, "step": "f02-consolidation", "status": "interrupted",
+              "source_commit": case["new"]["commit"], "usage": None,
+              "started": 1767571200, "seconds": 111.5681, "directory": directory}
+    cell["attempts"].append(failed)
+    cell["checkpoint"] = {"step": failed["step"], "head": "checkpoint"}
+    state["ledger"]["entries"][identity] = {
+        "status": "unknown", "reserved_nano": 300 * study.NANO, "actual_nano": None}
+    state.update(status="oracle_halt", oracle_halt=True, stop_requested=False)
+    journal = source / directory / "transport/events.jsonl"
+    journal.parent.mkdir(parents=True)
+    records = [
+        {"event": {"type": "tool.execution_start", "data": {
+            "toolName": "isolated_exec", "toolCallId": "final-tool"}}},
+        {"type": "tool", "id": "final-tool", "arguments": {
+            "command": "ln -s missing unsupported-link", "timeoutSeconds": 120}},
+    ]
+    journal.write_text("".join(json.dumps(record) + "\n" for record in records))
+    broker = source / "runs" / cell["run_id"] / "isolation"
+    broker.mkdir()
+    (broker / "latest.state").write_bytes(b"synthetic retained opaque state")
+    state_sha = hashlib.sha256((broker / "latest.state").read_bytes()).hexdigest()
+    (broker / "state.json").write_text(json.dumps({
+        "slot": "latest.state", "sha256": state_sha, "token": "original-token"}))
+    (broker / "owner").write_text("c" * 32)
+    study.atomic_json(source / "state.json", state)
+    original = (source / "state.json").read_bytes()
+    target_root = tmp_path / "sandbox-new"
+    target_root.mkdir()
+    shutil.copytree(source_root / "protocol", target_root / "protocol")
+    shutil.copytree(source_root / "harness", target_root / "harness")
+    new_commit = "e" * 40
+    new = {"commit": new_commit, "inputs_sha256": "4" * 64, "registration_status": "unregistered",
+           "public_disclosure_url": f"https://github.com/jmservera/ama-thought-mve/commit/{new_commit}",
+           "disclosed_at": "2026-01-05T00:00:00Z"}
+    monkeypatch.setattr(study, "SANDBOX_RECOVERY_SOURCE", case["new"]["commit"])
+    monkeypatch.setattr(study, "SANDBOX_RECOVERY_STATE_SHA256", hashlib.sha256(original).hexdigest())
+    monkeypatch.setattr(study, "SANDBOX_RECOVERY_JOURNAL_SHA256", hashlib.sha256(journal.read_bytes()).hexdigest())
+    monkeypatch.setattr(study, "SANDBOX_RECOVERY_BROKER_METADATA_SHA256",
+                        hashlib.sha256((broker / "state.json").read_bytes()).hexdigest())
+    monkeypatch.setattr(study, "SANDBOX_RECOVERY_BROKER_STATE_SHA256", state_sha)
+    monkeypatch.setattr(study, "SANDBOX_RECOVERY_BROKER_OWNER_SHA256",
+                        hashlib.sha256((broker / "owner").read_bytes()).hexdigest())
+    monkeypatch.setattr(study, "ROOT", target_root)
+    monkeypatch.setattr(recovery, "ROOT", target_root)
+    monkeypatch.setattr(study, "fingerprint", lambda *args: new["inputs_sha256"])
+    prior_roots = [case["prior_root"], case["source_root"]]
+    commits = {case["prior_root"]: case["calibration_manifest"]["commit"],
+               case["source_root"]: case["old"]["commit"], source_root: case["new"]["commit"]}
+    monkeypatch.setattr(study, "command", lambda args, **kwargs: commits.get(kwargs.get("cwd"), new_commit))
+    approval = {**case["approval"], "original_state_sha256": study.SANDBOX_RECOVERY_STATE_SHA256,
+                "original_commit": case["new"]["commit"], "target_commit": new_commit,
+                "attempt_id": identity, "approved_at": "2026-01-06T00:00:00Z",
+                "disclosure_url": new["public_disclosure_url"]}
+    return {**case, "source_root": source_root, "source": source, "target_root": target_root,
+            "old": case["new"], "new": new, "approval": approval, "original": original,
+            "journal": journal, "failed": failed, "broker": broker, "prior_roots": prior_roots}
+
+
+def prepare_sandbox_incident(case):
+    return case["recovery"].prepare(case["source_root"], case["old"], case["new"], case["approval"],
+                                    prior_source_root=case["prior_roots"],
+                                    calibration_manifest=case["calibration_manifest"])
+
+
+@pytest.mark.parametrize("damage", ["intact", "attempt-time", "attempt-source", "known-charge", "approval"])
+def test_analysis_scope_accepts_only_authorized_sandbox_bookkeeping(sandbox_incident, damage):
+    case = sandbox_incident
+    target = prepare_sandbox_incident(case)
+    analysis = importlib.import_module("analysis_adjudications")
+    state = case["study"].read_json(target / "state.json")
+    manifest = {"study_id": target.name, "execution_source_commit": case["new"]["commit"],
+                "scope_state_sha256": hashlib.sha256(case["original"]).hexdigest(),
+                "attribution_helper_sha256": analysis.current_helper_sha256()}
+    attempt = next(item for cell in state["cells"] for item in cell["attempts"]
+                   if item["id"] == case["failed"]["id"])
+    attempt["cost_included_in_step"] = True
+    if damage == "attempt-time":
+        attempt["seconds"] += 1
+    elif damage == "attempt-source":
+        attempt["source_commit"] = case["new"]["commit"]
+    elif damage == "known-charge":
+        state["ledger"]["entries"][attempt["id"]]["actual_nano"] = 1
+    elif damage == "approval":
+        path = target / "recovery-approval.json"
+        approval = case["study"].read_json(path)
+        approval["owner_approved"] = False
+        case["study"].atomic_json(path, approval)
+    if damage == "intact":
+        analysis.validate_trust_anchors(target, manifest, state)
+    else:
+        with pytest.raises(case["study"].StudyError):
+            analysis.validate_trust_anchors(target, manifest, state)
+    assert (case["source"] / "state.json").read_bytes() == case["original"]
+
+
+def test_sandbox_copy_keeps_all_holds_history_and_immutable_broker_evidence(sandbox_incident):
+    case = sandbox_incident
+    study = case["study"]
+    target = prepare_sandbox_incident(case)
+    state = study.read_json(target / "state.json")
+    assert len(study.recovery_records(state)) == 3
+    assert len(state["ledger"]["entries"]) == 1485
+    assert sum(cell.get("completed_steps", 0) for cell in state["cells"]) == 1482
+    assert (case["source"] / "state.json").read_bytes() == case["original"]
+    assert (target / "state.before-recovery.json").read_bytes() == case["original"]
+    assert (target / "state.before-recovery-01.json").is_file()
+    assert (target / "state.before-recovery-02.json").is_file()
+    assert sum(entry["reserved_nano"] for entry in state["ledger"]["entries"].values()
+               if entry["status"] == "recovery_hold") == 900 * study.NANO
+    archive = target / case["failed"]["directory"] / "recovery-broker"
+    for name in ("state.json", "latest.state", "owner"):
+        assert (archive / name).read_bytes() == (case["broker"] / name).read_bytes()
+    mutable = target / case["broker"].relative_to(case["source"])
+    (mutable / "state.json").write_text("{}")
+    (mutable / "latest.state").write_bytes(b"next runtime state")
+    controller = study.Controller(target, case["config"], smoke=False, phase="pilot-estimation",
+                                  study_id="pilot-estimation", replicates=21,
+                                  unregistered=case["new"], handoff=case["handoff"])
+    cell = next(cell for cell in controller.state["cells"]
+                if any(a["id"] == study.SANDBOX_RECOVERY_ATTEMPT for a in cell["attempts"]))
+    run = object.__new__(study.StudyRun)
+    run.controller, run.cell, run.arm, run.current_step = controller, cell, cell["arm"], "f02-consolidation"
+    assert run.remaining_allowance(900) == (900, 270 * study.NANO)
+    retry = controller.new_attempt(cell, "f02-consolidation")
+    assert retry["source_commit"] == case["new"]["commit"]
+    assert controller.state["ledger"]["entries"][retry["id"]]["reserved_nano"] == 300 * study.NANO
+    study.validate_recovery_evidence(target, controller.state, case["new"])
+
+
+@pytest.mark.parametrize("damage", ["terminal", "tool-name", "completion", "broker", "owner", "container"])
+def test_sandbox_recovery_requires_the_exact_incomplete_tool_and_preserved_state(sandbox_incident, damage):
+    case = sandbox_incident
+    if damage in ("terminal", "tool-name", "completion"):
+        records = [json.loads(line) for line in case["journal"].read_bytes().splitlines()]
+        if damage == "terminal":
+            records.append({"type": "complete", "exit_code": 1})
+        elif damage == "tool-name":
+            records[0]["event"]["data"]["toolName"] = "create"
+        else:
+            records.insert(1, {"event": {"type": "tool.execution_complete", "data": {
+                "toolCallId": "final-tool", "success": True}}})
+        case["journal"].write_text("".join(json.dumps(record) + "\n" for record in records))
+    elif damage == "broker":
+        (case["broker"] / "latest.state").write_bytes(b"changed")
+    elif damage == "owner":
+        (case["broker"] / "owner").write_text("d" * 32)
+    else:
+        (case["broker"] / "container.json").write_text("{}")
+    with pytest.raises(case["study"].StudyError):
+        prepare_sandbox_incident(case)
+    assert (case["source"] / "state.json").read_bytes() == case["original"]
+    assert not (case["target_root"] / ".study/pilot-estimation").exists()
+
+
+@pytest.mark.parametrize("damage", ["archive-state", "archive-metadata", "archive-owner", "older-approval"])
+def test_sandbox_resume_never_falls_back_from_tampered_archival_evidence(sandbox_incident, damage):
+    case = sandbox_incident
+    target = prepare_sandbox_incident(case)
+    archive = target / case["failed"]["directory"] / "recovery-broker"
+    name = {"archive-state": archive / "latest.state", "archive-metadata": archive / "state.json",
+            "archive-owner": archive / "owner", "older-approval": target / "recovery-approval-02.json"}[damage]
+    name.unlink()
+    with pytest.raises(case["study"].StudyError):
+        case["study"].Controller(target, case["config"], smoke=False, phase="pilot-estimation",
+                                 study_id="pilot-estimation", replicates=21,
+                                 unregistered=case["new"], handoff=case["handoff"])
+
+
+def test_sandbox_recovery_requires_all_three_source_roots_in_order(sandbox_incident):
+    case = sandbox_incident
+    target = prepare_sandbox_incident(case)
+    state = case["study"].read_json(target / "state.json")
+    roots = [*case["prior_roots"], case["source_root"]]
+    assert len(case["study"].recovery_source_locks(state, roots)) == 6
+    with pytest.raises(case["study"].StudyError, match="every original"):
+        case["study"].recovery_source_locks(state, roots[1:])
+    with pytest.raises(case["study"].StudyError, match="unavailable or changed"):
+        case["study"].recovery_source_locks(state, list(reversed(roots)))

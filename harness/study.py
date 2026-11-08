@@ -86,6 +86,13 @@ BACKEND_RECOVERY_STATE_SHA256 = "b8f9abfb13f45b1261b7bbf82f82f17f934523f662073bc
 BACKEND_RECOVERY_SOURCE = "3c2ce89b00fe583c1f0715e8ccd3510419d5e734"
 BACKEND_RECOVERY_ATTEMPT = "pilot-estimation-gpt-6.1-sol-E-04-f08-feature-1"
 BACKEND_RECOVERY_JOURNAL_SHA256 = "eac78300d5e12796fe6174b11a1fb052bdec1220b755cf56f724571ca8235abd"
+SANDBOX_RECOVERY_STATE_SHA256 = "18fcc0ece87305cca5205fd8bd24bc7cffaadde38e32e9c77f4bc922b4d7b4ab"
+SANDBOX_RECOVERY_SOURCE = "e71037d961cb80fc5c659437796de7736820f6c9"
+SANDBOX_RECOVERY_ATTEMPT = "pilot-estimation-gpt-6.1-sol-B-06-f02-consolidation-1"
+SANDBOX_RECOVERY_JOURNAL_SHA256 = "de131c24e0d2800d75c5c94e68a12f769a7eff5b5748c99310778d3897e3e635"
+SANDBOX_RECOVERY_BROKER_METADATA_SHA256 = "6a98302c57f1dc4673266f8f2f605e3d7c0a7515940d6b99afc1874d20aafc94"
+SANDBOX_RECOVERY_BROKER_STATE_SHA256 = "c80f6378326a077e74ad0c674bedba2f14c7a12ce58216180d76728b62476f3e"
+SANDBOX_RECOVERY_BROKER_OWNER_SHA256 = "1d6969a512d08cf1a7e80c04648614fffa26ac2d6e7c32f691a5935c6f4a78dd"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
@@ -534,7 +541,7 @@ def source_provenance(unregistered: dict) -> dict:
 
 
 def recovery_incident(state_sha256: str) -> dict:
-    """Accept only the two disclosed estimation interruptions, not arbitrary holds."""
+    """Accept only disclosed estimation interruptions, not arbitrary holds."""
     if state_sha256 == RECOVERY_STATE_SHA256:
         return {"source": RECOVERY_SOURCE, "attempt": RECOVERY_ATTEMPT,
                 "journal_sha256": RECOVERY_JOURNAL_SHA256, "steps": 651, "attempts": 652,
@@ -543,18 +550,30 @@ def recovery_incident(state_sha256: str) -> dict:
         return {"source": BACKEND_RECOVERY_SOURCE, "attempt": BACKEND_RECOVERY_ATTEMPT,
                 "journal_sha256": BACKEND_RECOVERY_JOURNAL_SHA256, "steps": 878, "attempts": 880,
                 "known_nano": credits("10470.87094"), "kind": "backend_500"}
+    if state_sha256 == SANDBOX_RECOVERY_STATE_SHA256:
+        return {"source": SANDBOX_RECOVERY_SOURCE, "attempt": SANDBOX_RECOVERY_ATTEMPT,
+                "journal_sha256": SANDBOX_RECOVERY_JOURNAL_SHA256, "steps": 1482, "attempts": 1485,
+                "known_nano": credits("16961.29357"), "kind": "state_links",
+                "run_id": "pilot-estimation-gpt-6.1-sol-B-06",
+                "broker_metadata_sha256": SANDBOX_RECOVERY_BROKER_METADATA_SHA256,
+                "broker_state_sha256": SANDBOX_RECOVERY_BROKER_STATE_SHA256,
+                "broker_owner_sha256": SANDBOX_RECOVERY_BROKER_OWNER_SHA256}
     raise StudyError("Recovery state is not one of the disclosed estimation interruptions")
+
+
+def recovery_state_hashes() -> tuple[str, ...]:
+    return RECOVERY_STATE_SHA256, BACKEND_RECOVERY_STATE_SHA256, SANDBOX_RECOVERY_STATE_SHA256
 
 
 def recovery_records(state: dict) -> list[dict]:
     recovery, history = state.get("recovery"), state.get("recovery_history", [])
-    if not isinstance(history, list) or len(history) > 1 or (history and recovery is None):
+    sequence = recovery_state_hashes()
+    if not isinstance(history, list) or len(history) >= len(sequence) or (history and recovery is None):
         raise StudyError("Invalid recovery history")
     records = [*history, recovery] if recovery is not None else []
     hashes = [record.get("original_state_sha256") if isinstance(record, dict) else None
               for record in records]
-    if hashes not in ([], [RECOVERY_STATE_SHA256],
-                      [RECOVERY_STATE_SHA256, BACKEND_RECOVERY_STATE_SHA256]):
+    if tuple(hashes) != sequence[:len(hashes)]:
         raise StudyError("Recovery history differs from the disclosed incident sequence")
     return records
 
@@ -633,7 +652,7 @@ def recovery_source_paths(root: Path, *, expected_state_sha256: str | None = Non
                    for path in (paid, original))):
         raise StudyError("Original recovery source or stopped state is unavailable or changed")
     state_sha256 = hashlib.sha256(state.read_bytes()).hexdigest()
-    if state_sha256 not in (RECOVERY_STATE_SHA256, BACKEND_RECOVERY_STATE_SHA256):
+    if state_sha256 not in recovery_state_hashes():
         raise StudyError("Original recovery source or stopped state is unavailable or changed")
     incident = recovery_incident(state_sha256)
     if (expected_state_sha256 is not None and state_sha256 != expected_state_sha256
@@ -732,7 +751,7 @@ def validate_recovery_evidence(directory: Path, state: dict, unregistered: dict 
             raise StudyError("Recovery changed the original attempt inventory")
         attempt = next((item for cell in original["cells"] for item in cell["attempts"]
                         if item["id"] == incident["attempt"]), None)
-        if attempt is None or verify_journal(directory, attempt) != incident["journal_sha256"]:
+        if attempt is None or verify_journal(directory, attempt, preserved_broker=True) != incident["journal_sha256"]:
             raise StudyError("Preserved interrupted attempt differs from the original journal")
         verify_approval_after_attempt(approval, attempt)
 

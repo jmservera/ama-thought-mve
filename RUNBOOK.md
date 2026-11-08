@@ -416,6 +416,128 @@ exact stopped states. This is not a general unknown-usage waiver: undisclosed
 interruptions remain blocked. Preserve both approvals and disclose the entire
 source/accounting chronology in the paper.
 
+#### Candidate filesystem rejections
+
+A candidate command that produces a link, hard link or special file is
+rejected; those artifacts are never accepted into the retained workspace.
+For this specific `execute`-operation rejection, the fixed supervisor now
+returns a bounded explicit failed tool result with unchanged prior state.
+The broker verifies the frame metadata and supervisor/child identity proofs
+before returning it to the same SDK session. The model can continue with
+another normal tool call within the original time/credit allowance. No prompt
+replay or new paid session is added.
+
+Ownership, cleanup, malformed framing, unknown state tokens, integrity failures,
+output floods, deadlines and other unclassified helper errors remain fatal.
+Do not catch every isolation failure and turn it into a recoverable result.
+Changing the fixed helper requires a new immutable image and source-bound
+canary; do not reuse the earlier image/receipt binding.
+
+#### Specific 1482-step sandbox interruption
+
+The third supported incident is the exact stopped state
+`18fcc0ece87305cca5205fd8bd24bc7cffaadde38e32e9c77f4bc922b4d7b4ab`
+at source `e71037d961cb80fc5c659437796de7736820f6c9`.
+`pilot-estimation-gpt-6.1-sol-B-06-f02-consolidation-1` requested a
+symlink-creating isolated command. The old helper rejected the state and the
+SDK session ended without a terminal usage receipt. Its journal SHA-256 is
+`de131c24e0d2800d75c5c94e68a12f769a7eff5b5748c99310778d3897e3e635`.
+The prior opaque broker state and its metadata/owner identity remain intact,
+and no owned container remained after cleanup.
+
+This incident retains a third 300-credit unknown reservation, alongside the
+two earlier study holds. The total 900-credit study provision is not measured
+spending or a guaranteed billing bound. A separately approved retry of this
+post-step reserves another 300 credits and receives a fresh full
+**900-second consolidation allowance**, not the 1800-second F8 feature allowance
+from the preceding incident. The original budget, allocation and absolute
+deadline remain unchanged.
+
+Review and disclose the new exact source and image before collection. Supply a
+new genuine approval with the same schema as the first incident, replacing
+the original state/source/attempt fields above and using the actual public
+target, disclosure URL and approval time. Prior approvals and synthetic
+qualification fixtures do not authorize this incident.
+
+Prepare the separate copy in the clean new qualified checkout:
+
+```bash
+.venv/bin/python harness/prepare_estimation_recovery.py \
+  --source-root /path/to/stopped-1482-checkout \
+  --old-manifest /path/to/stopped-1482-owner-evidence.json \
+  --prior-source-root /path/to/original-651-checkout \
+  --prior-source-root /path/to/stopped-878-checkout \
+  --calibration-manifest /path/to/original-651-owner-evidence.json \
+  --new-manifest /path/to/new-owner-evidence.json \
+  --approval /path/to/new-private-recovery-approval.json
+```
+
+The copy retains all 1482 durable steps and 1485 prior attempts, archives all
+earlier snapshots/approvals/manifests, and binds immutable broker evidence
+under the interrupted attempt's `recovery-broker/`. The live broker may later
+advance; it must not replace that archival evidence.
+
+Use the normal estimation command with the original calibration manifest and
+three `--recovery-source-root` options, ordered original 651, stopped 878,
+stopped 1482. Run `--dry-run` first. Paid work locks all four checkout roots,
+and every original state must remain available and byte-identical. The source
+of every older attempt is preserved, not relabelled as the new implementation.
+
+#### Exception attribution and intervention coverage
+
+A declared product exception raised by a candidate source-loaded view getter
+can be a failed software outcome. Its classification must bind the live
+exception class to a declared package export and the actual candidate source
+frame. Arbitrary attribute traps, foreign classes, builtin aliases and
+exceptions caused by memory, timeout, OS or import failures remain unknown.
+Do not classify an exception from its message or reported name alone.
+
+Historical raw measurements are retained. Attribution corrections require
+separate read-only reevaluation of the same recorded candidate snapshots and
+an explicit analysis-adjudication audit. No model is called to improve a poor
+outcome, and no passed/failed result may be promoted by the audit. The original
+metrics and raw step journals remain unchanged; derived reports must identify
+the attribution overlay and its source/image.
+
+Retain a separate `analysis-adjudications.json` manifest using
+`analysis-adjudications/v1`, bound to the exact pre-recovery state SHA-256,
+execution source commit, immutable image and attribution-helper SHA-256.
+Each entry names one original `run_id` / `step`, canonical whole-record
+SHA-256, candidate snapshot head, and a bounded regular audit file with its
+SHA-256. Each audit's `evaluation` also binds that same source/image/helper
+and the isolated, credential-minimal execution. Its metrics/diff are the
+preserved originals, not measurements from a new run.
+
+Known passed/failed outcomes and the original raw failure must be unchanged.
+Only positively proven candidate-exception `error` to `failed` changes are
+eligible. Any present invalid entry stops the entire overlay; it is not
+silently skipped or partially applied. The source-pinned reporting path
+accepts the exact approved interrupted attempt's recovery bookkeeping only
+with validated retained approval, never arbitrary changes to its timing,
+source or unknown charge. Do not overwrite an audit or rerun a contradictory
+result until it is green.
+
+The harness cannot infer the absence of out-of-band human edits or task hints.
+An absent intervention record remains unknown, not unassisted. The operator
+can supply `intervention-coverage/v1` evidence with `study_id`, exact
+`state_sha256`, `owner_attested: true`, a nonfuture timezone-aware `attested_at`,
+nonempty `evidence_reference`, and disjoint `unassisted_run_ids` /
+`assisted_run_ids` covering every completed trajectory in that scope.
+Partial or future trajectories are not covered prospectively.
+
+```bash
+.venv/bin/python harness/intervention_coverage.py \
+  --study-directory .study/pilot-estimation \
+  --attestation /private/path/operator-intervention-attestation.json
+```
+
+This records immutable sidecar evidence without rewriting original
+observations. Reporting applies it in memory only to unchanged completed
+trajectories in the scope. Logged content assistance cannot be erased. Existing
+attestations are never overwritten; preserve them when preparing any later
+analysis copy. Until real operator coverage is supplied, the affected primary
+unassisted comparison stays unavailable.
+
 Agent/evaluator subprocess groups have timeouts and TERM/KILL/reap handling.
 The absolute study deadline persists across restarts. Work after expiry is
 unattempted, not silently excluded. Each cell's metadata is created before any

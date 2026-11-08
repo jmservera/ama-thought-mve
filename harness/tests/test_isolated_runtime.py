@@ -284,7 +284,10 @@ def test_runtime_gate_rejects_missing_checks_stale_source_and_wrong_frozen_image
     runtime.atomic_json(freeze_path, freeze)
     cfg = {"freeze_manifest": "protocol/freeze.json"}
     assert runtime.runtime_errors(cfg, tmp_path) == []
-    for key, value in (("checks", {}), ("inputs_sha256", "stale"), ("image_helper_sha256", "wrong"),
+    missing_followup = {name: value for name, value in receipt["checks"].items()
+                        if name != "links_or_special_files_rejection_returns_explicit_result_and_resumes"}
+    for key, value in (("checks", {}), ("checks", missing_followup),
+                       ("inputs_sha256", "stale"), ("image_helper_sha256", "wrong"),
                        ("success", False), ("schema", "unsupported")):
         runtime.atomic_json(receipt_path, dict(receipt, **{key: value}))
         assert runtime.runtime_errors(cfg, tmp_path)

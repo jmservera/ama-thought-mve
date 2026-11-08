@@ -247,7 +247,12 @@ def exception_evidence(error, src, policy, raw_outcome="error", view_objects=Non
                 _module_origin(vars(cls_module), src) is not None and \
                 vars(cls_module).get(type(error).__name__) is type(error)
             if leaf.f_code.co_name in ("__getattr__", "__getattribute__"):
-                known = custom = False
+                known = False
+                package = sys.modules.get(policy.get("package"))
+                # A declared product exception is not an arbitrary attribute trap.
+                declared = package is not None and _module_origin(vars(package), src) is not None \
+                    and any(vars(package).get(name) is type(error) for name in policy.get("exports", []))
+                custom = custom and declared
             if candidate and os.path.realpath(leaf.f_code.co_filename) == candidate["source"] and (known or custom):
                 origin, reason = candidate, "candidate_exception"
     if origin:

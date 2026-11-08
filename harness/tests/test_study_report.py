@@ -42,6 +42,10 @@ def test_exact_export_schemas_unavailable_values_and_figure(modules, reports):
     assert summary["provenance"]["session_soft_limit_credits"] == 270
     assert summary["provenance"]["ceiling_nano"] == 270000 * study.NANO
     assert "not guaranteed" in summary["provenance"]["billing_limit_kind"]
+    assert summary["provenance"]["analysis_adjudications"]["status"] == "unavailable"
+    assert summary["provenance"]["intervention_coverage"]["status"] == "unavailable"
+    assert "Historical attribution overlay: unavailable" in (reports / "report.md").read_text()
+    assert "Operator intervention coverage: unavailable" in (reports / "report.md").read_text()
     assert summary["endpoints"]["H1"]["B-A"]["difference"] is None
     assert "verdict" not in json.dumps(summary) and "hypotheses" not in summary
     availability = study.read_json(reports / "availability.json")
@@ -67,6 +71,40 @@ def test_export_is_deterministic_and_has_no_private_paths(modules, reports):
     report.export(reports.parent, state, "export-test")
     assert before == {path.name: path.read_bytes() for path in reports.iterdir()}
     assert all(str(reports.parent).encode() not in data for data in before.values())
+
+
+def test_reporting_applies_both_overlays_before_endpoint_analysis(modules, reports, monkeypatch):
+    study, report = modules
+    attribution = importlib.import_module("analysis_adjudications")
+    intervention = importlib.import_module("intervention_coverage")
+    calls = []
+    real_attribution, real_intervention = attribution.apply, intervention.apply
+    real_analysis = report.analyze_pilot
+
+    def apply_attribution(directory, state, runs):
+        calls.append("attribution")
+        result, provenance = real_attribution(directory, state, runs)
+        return [{**run, "meta": {**run["meta"], "overlay_test": "attribution"}} for run in result], provenance
+
+    def apply_intervention(directory, state, runs):
+        assert calls == ["attribution"]
+        assert all(run["meta"]["overlay_test"] == "attribution" for run in runs)
+        calls.append("intervention")
+        return real_intervention(directory, state, runs)
+
+    def analyze(runs, **kwargs):
+        assert calls == ["attribution", "intervention"]
+        assert all(run["meta"]["overlay_test"] == "attribution" for run in runs)
+        calls.append("analysis")
+        return real_analysis(runs, **kwargs)
+
+    monkeypatch.setattr(attribution, "apply", apply_attribution)
+    monkeypatch.setattr(intervention, "apply", apply_intervention)
+    monkeypatch.setattr(report, "analyze_pilot", analyze)
+    before = (reports.parent / "state.json").read_bytes()
+    report.export(reports.parent, study.read_json(reports.parent / "state.json"), "export-test")
+    assert calls == ["attribution", "intervention", "analysis"]
+    assert (reports.parent / "state.json").read_bytes() == before
 
 
 def test_shareable_archive_is_deterministic_and_contains_only_validated_results(modules, reports):

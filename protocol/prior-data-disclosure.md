@@ -411,3 +411,64 @@ extend them. Preparation starts no models and is not paid-launch permission.
 The entire source transition history, approval chronology and scientific
 limitations must accompany any results. The sampling frame, analysis plan,
 budget and original absolute deadline remain unchanged.
+
+## 8 November sandbox interruption after 1482 completed steps
+
+The unregistered estimation continued at
+`e71037d961cb80fc5c659437796de7736820f6c9` and stopped after 1482 of
+5355 steps, with 83 completed trajectories and 1485 retained attempts.
+Confirmed estimation consumption was 16,961.29357 credits.
+`pilot-estimation-gpt-6.1-sol-B-06-f02-consolidation-1` created a link/special-file
+state during its isolated consolidation tool call. The fixed helper rejected
+that state; the old broker escalated the rejection to a fatal isolation error,
+ending the SDK session without terminal usage. Its 300-credit reservation
+remains unknown actual usage; the three study holds total 900 credits.
+Earlier historical provisions remain separate. None is a measured charge or
+provider-enforced billing guarantee.
+
+Stopped state SHA-256:
+`18fcc0ece87305cca5205fd8bd24bc7cffaadde38e32e9c77f4bc922b4d7b4ab`.
+Interrupted tool journal SHA-256:
+`de131c24e0d2800d75c5c94e68a12f769a7eff5b5748c99310778d3897e3e635`.
+Retained broker state SHA-256:
+`c80f6378326a077e74ad0c674bedba2f14c7a12ce58216180d76728b62476f3e`.
+The original state, broker state and all prior step journals are preserved.
+An exact copied-state offline replay reproduced the old rejection without
+calling a model; the prior state remained unchanged and cleanup completed.
+
+The subsequent implementation distinguishes this narrowly authenticated
+candidate artifact rejection from containment/infrastructure failure. The
+same session receives an explicit failed tool result with unchanged prior
+state. Links/special files remain prohibited; permission, identity, framing,
+resource, output and integrity failures remain fatal. The helper change
+requires a newly qualified immutable image. This behavior was selected after
+observing the failure and is not a preregistered policy.
+
+The owner requested an interim results review at this stopping point.
+The available-case summaries did not establish a consistent primary B-D
+advantage; notably Gemini's observed CR1 outcomes were adverse to B. These
+were interim descriptive observations, not hypothesis decisions or grounds
+for changing the selected sample. Raw final measurements with unclassified
+`workbench.NotAllowed` exceptions made many GPT endpoints unavailable.
+All intervention dispositions were unknown because operator coverage was
+absent. Unknown is not evidence that all trajectories were assisted or
+unassisted.
+
+The classification amendment recognizes only live, source-proven declared
+product exceptions in view getters. Old evidence is never blanket-relabelled:
+any correction requires separate read-only reevaluation and an audit binding
+the original record, snapshot and analysis/runtime source. Original journals,
+counts, metrics and source histories remain retained. This is a post-data
+implementation/attribution correction, not a revised hypothesis or successful
+rerun of failed software. Real operator attestation is separately required to
+establish intervention coverage; its absence must remain explicit.
+
+A new copy-only recovery is restricted to this exact stopped state and
+retained broker evidence. It requires applicable explicit owner approval of
+the new unknown hold, a separately reserved retry and fresh full 900-second
+consolidation allowance, and the further unregistered source change. It
+preserves all three prior source roots, every approval/snapshot, the original
+calibration handoff and the original allocation/budget/deadline. Preparation
+and diagnostic reevaluation start no model sessions. The full interim-analysis,
+source, image, approval and accounting chronology must be disclosed with any
+results; no complete-case or available-model substitute is the primary test.

@@ -68,9 +68,8 @@ def require_regular_tree(root: Path) -> None:
                 raise StudyError("Recovery trees must not contain links or special files")
 
 
-def verify_journal(directory: Path, attempt: dict) -> str:
-    incidents = [study.recovery_incident(value) for value in (
-        study.RECOVERY_STATE_SHA256, study.BACKEND_RECOVERY_STATE_SHA256)]
+def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = False) -> str:
+    incidents = [study.recovery_incident(value) for value in study.recovery_state_hashes()]
     incident = next((item for item in incidents if item["attempt"] == attempt.get("id")), None)
     if incident is None:
         raise StudyError("Failed attempt is not one of the disclosed estimation interruptions")
@@ -91,6 +90,48 @@ def verify_journal(directory: Path, attempt: dict) -> str:
                               or not isinstance(record["event"].get("data"), dict))) for record in records):
         raise StudyError("Failed attempt journal contains invalid records")
     complete = [record for record in records if record.get("type") == "complete"]
+    if incident["kind"] == "state_links":
+        tools = [record for record in records if record.get("type") == "tool"]
+        if complete or not tools or records[-1] is not tools[-1]:
+            raise StudyError("Sandbox interruption must retain the incomplete final tool transaction")
+        tool = tools[-1]
+        arguments = tool.get("arguments")
+        starts = [record["event"]["data"] for record in records
+                  if record.get("event", {}).get("type") == "tool.execution_start"
+                  and record["event"]["data"].get("toolCallId") == tool.get("id")]
+        finishes = [record for record in records
+                    if record.get("event", {}).get("type") == "tool.execution_complete"
+                    and record["event"]["data"].get("toolCallId") == tool.get("id")]
+        if (not isinstance(tool.get("id"), str) or not tool["id"] or len(starts) != 1
+                or starts[0].get("toolName") != "isolated_exec" or finishes
+                or any(key in starts[0] for key in ("mcpServerName", "mcpToolName", "namespacedName"))
+                or not isinstance(arguments, dict) or set(arguments) != {"command", "timeoutSeconds"}
+                or not isinstance(arguments["command"], str) or not arguments["command"]
+                or arguments["timeoutSeconds"] != 120):
+            raise StudyError("Sandbox interruption differs from the retained isolated tool request")
+        broker = (directory / relative / "recovery-broker" if preserved_broker
+                  else directory / "runs" / incident["run_id"] / "isolation")
+        if (broker.is_symlink() or not broker.is_dir()
+                or not broker.resolve().is_relative_to(directory.resolve())):
+            raise StudyError("Retained sandbox state is missing or unsafe")
+        files = {"state.json": incident["broker_metadata_sha256"],
+                 "latest.state": incident["broker_state_sha256"],
+                 "owner": incident["broker_owner_sha256"]}
+        for name, expected in files.items():
+            item = broker / name
+            if (item.is_symlink() or not item.is_file() or item.stat().st_size > 64 * 1024 * 1024
+                    or hashlib.sha256(item.read_bytes()).hexdigest() != expected):
+                raise StudyError("Retained sandbox state differs from the disclosed rejection")
+        metadata = read_json(broker / "state.json")
+        if (metadata.get("slot") != "latest.state"
+                or metadata.get("sha256") != incident["broker_state_sha256"]
+                or any((broker / name).exists() or (broker / name).is_symlink()
+                       for name in ("container.json", "container.cid"))):
+            raise StudyError("Sandbox rejection lacks a preserved state and confirmed cleanup")
+        value = hashlib.sha256(payload).hexdigest()
+        if value != incident["journal_sha256"]:
+            raise StudyError("Failed attempt journal differs from the disclosed incident")
+        return value
     if len(complete) != 1:
         raise StudyError("Failed attempt lacks a unique terminal receipt")
     receipt = complete[0].get("receipt", {})
@@ -152,20 +193,24 @@ def verify_journal(directory: Path, attempt: dict) -> str:
 
 
 def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval: dict, *,
-            prior_source_root: Path | None = None, calibration_manifest: dict | None = None) -> Path:
+            prior_source_root: Path | list[Path] | None = None, calibration_manifest: dict | None = None) -> Path:
     """Copy the stopped study; never alter its original state or release its hold."""
     verify_approval(approval, new_manifest)
     incident = study.recovery_incident(approval["original_state_sha256"])
     original_paid_lock, source = study.recovery_source_paths(
         source_root, expected_state_sha256=approval["original_state_sha256"])
-    prior_locks = []
-    if incident["kind"] == "backend_500":
-        if prior_source_root is None or calibration_manifest is None:
-            raise StudyError("Backend recovery requires the first original checkout and calibration manifest")
-        prior_locks = study.recovery_source_paths(prior_source_root,
-                                                 expected_state_sha256=study.RECOVERY_STATE_SHA256)
-    elif prior_source_root is not None or calibration_manifest is not None:
+    prior_roots = ([] if prior_source_root is None else [prior_source_root]
+                   if isinstance(prior_source_root, Path) else prior_source_root)
+    index = study.recovery_state_hashes().index(approval["original_state_sha256"])
+    if not isinstance(prior_roots, list) or any(not isinstance(root, Path) for root in prior_roots):
+        raise StudyError("Earlier recovery sources must be checkout paths")
+    prior_hashes = study.recovery_state_hashes()[:index]
+    if index and (len(prior_roots) != index or calibration_manifest is None):
+        raise StudyError("Later recovery requires the first original and every earlier checkout and calibration manifest")
+    if not index and (prior_roots or calibration_manifest is not None):
         raise StudyError("The first incident must not supply an unrelated recovery source")
+    prior_locks = [path for root, state_sha in zip(prior_roots, prior_hashes)
+                   for path in study.recovery_source_paths(root, expected_state_sha256=state_sha)]
     calibration_manifest = old_manifest if calibration_manifest is None else calibration_manifest
     calibration = source_root / ".study/excluded-short-calibration-toolfix"
     if any(path.is_symlink() or not path.is_dir()
@@ -190,8 +235,8 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
             locks.enter_context(study.study_lock(path))
         locks.enter_context(study.study_lock(calibration))
         study.recovery_source_paths(source_root, expected_state_sha256=approval["original_state_sha256"])
-        if prior_locks:
-            study.recovery_source_paths(prior_source_root, expected_state_sha256=study.RECOVERY_STATE_SHA256)
+        for root, state_sha in zip(prior_roots, prior_hashes):
+            study.recovery_source_paths(root, expected_state_sha256=state_sha)
         state_path = source / "state.json"
         if state_path.is_symlink() or not state_path.is_file():
             raise StudyError("Original state is missing or unsafe")
@@ -213,9 +258,9 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
         cfg = identity["config"]
         study.validate_recovery_state(state)
         previous = study.recovery_records(state)
-        if incident["kind"] == "backend_500":
-            if len(previous) != 1:
-                raise StudyError("Backend recovery must preserve the first approved recovery")
+        if index:
+            if len(previous) != index:
+                raise StudyError("Later recovery must preserve every earlier approved recovery")
             study.validate_recovery_evidence(source, state, old_manifest)
             if study.source_provenance(calibration_manifest)["manifest_sha256"] != previous[0]["prior_manifest_sha256"]:
                 raise StudyError("Calibration manifest differs from the first original source")
@@ -261,6 +306,15 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
             raise StudyError("Original state changed during copying; retain the partial recovery copy")
         if (target / "state.json").read_bytes() != original:
             raise StudyError("Copied state differs from the original; retain the partial recovery copy")
+        if incident["kind"] == "state_links":
+            archive = target / attempt["directory"] / "recovery-broker"
+            if archive.exists() or archive.is_symlink():
+                raise StudyError("Recovery must not overwrite retained sandbox evidence")
+            archive.mkdir(mode=0o700)
+            old_broker = target / "runs" / incident["run_id"] / "isolation"
+            for name in ("state.json", "latest.state", "owner"):
+                shutil.copyfile(old_broker / name, archive / name)
+                (archive / name).chmod(0o600)
         if previous:
             suffix = f"-{len(previous):02d}"
             archives = [target / f"state.before-recovery{suffix}.json",
@@ -308,8 +362,8 @@ def main() -> None:
     parser.add_argument("--old-manifest", required=True, type=Path)
     parser.add_argument("--new-manifest", required=True, type=Path)
     parser.add_argument("--approval", required=True, type=Path)
-    parser.add_argument("--prior-source-root", type=Path,
-                        help="first original checkout required for the later backend interruption")
+    parser.add_argument("--prior-source-root", type=Path, action="append",
+                        help="earlier original checkout; repeat in chronological recovery order")
     parser.add_argument("--calibration-manifest", type=Path,
                         help="first original owner manifest required for the preserved calibration")
     args = parser.parse_args()

@@ -40,6 +40,7 @@ CANARY_CHECKS = {
     "image_fixed_helper_matches_source",
     "inspected_kernel_resource_and_container_profile",
     "installed_pinned_external_tools",
+    "links_or_special_files_rejection_returns_explicit_result_and_resumes",
     "links_special_files_oversize_and_output_rejected_prior_state_preserved",
     "memory_bound_and_exact_cleanup",
     "no_network_host_write_credentials_or_child_capabilities",
