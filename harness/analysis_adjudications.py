@@ -150,9 +150,9 @@ def validate_entries_shape(entries: list) -> None:
         seen.add(key)
 
 
-def load_scope_state(directory: Path, manifest: dict) -> dict:
+def load_scope_state(directory: Path, manifest: dict, *, snapshot_suffix: str = "") -> dict:
     """Read the exact preserved pre-recovery snapshot the manifest claims to be scoped to."""
-    name = manifest.get("scope_state_file", DEFAULT_SCOPE_STATE_NAME)
+    name = manifest.get("scope_state_file", f"state.before-recovery{snapshot_suffix}.json")
     if not isinstance(name, str) or not name:
         raise StudyError("Analysis adjudication scope snapshot path is unsafe")
     candidate = PurePosixPath(name)
@@ -229,33 +229,78 @@ def scope_matches_current(scope_state: dict, current_state: dict, recovery_attem
     return True
 
 
-def verified_recovery_attempt(directory: Path, manifest: dict, state: dict, scope_state: dict) -> str | None:
-    """Allow only bookkeeping for the exact incident with retained, validated owner approval."""
-    recovery = state.get("recovery")
-    if recovery is None:
+def audit_recovery_binding(state: dict, manifest: dict) -> tuple[dict, str, dict | None, str] | None:
+    """Locate the audit's original qualified transition in the validated recovery sequence."""
+    if state.get("recovery") is None:
         return None
-    if (not isinstance(recovery, dict)
-            or recovery.get("original_state_sha256") != manifest["scope_state_sha256"]
+    from study import recovery_records, validate_recovery_state
+
+    validate_recovery_state(state)
+    records = recovery_records(state)
+    matches = [(index, record) for index, record in enumerate(records)
+               if record["original_state_sha256"] == manifest["scope_state_sha256"]
+               and record["target_commit"] == manifest["execution_source_commit"]]
+    if len(matches) != 1:
+        raise StudyError("Analysis adjudication has no exact qualified recovery source and scope")
+    index, record = matches[0]
+    suffix = "" if index == len(records) - 1 else f"-{index + 1:02d}"
+    next_record = records[index + 1] if index + 1 < len(records) else None
+    next_suffix = "" if index + 1 == len(records) - 1 else f"-{index + 2:02d}"
+    return record, suffix, next_record, next_suffix
+
+
+def verified_recovery_attempt(directory: Path, manifest: dict, state: dict, scope_state: dict,
+                              binding: tuple[dict, str, dict | None, str] | None = None) -> str | None:
+    """Allow only bookkeeping for the exact incident with retained, validated owner approval."""
+    binding = audit_recovery_binding(state, manifest) if binding is None else binding
+    if binding is None:
+        return None
+    recovery, suffix, next_record, next_suffix = binding
+    if (recovery.get("original_state_sha256") != manifest["scope_state_sha256"]
             or recovery.get("original_commit") != scope_state["identity"]["commit"]
-            or recovery.get("target_commit") != state["identity"]["commit"]):
+            or recovery.get("target_commit") != manifest["execution_source_commit"]):
         raise StudyError("Analysis adjudication scope differs from the approved recovery")
     from prepare_estimation_recovery import (
         verify_approval,
         verify_approval_after_attempt,
     )
-    from study import validate_recovery_state
+    from study import source_provenance
 
-    validate_recovery_state(state)
     try:
-        approval = json.loads(regular_payload(directory / "recovery-approval.json"))
+        approval = json.loads(regular_payload(directory / f"recovery-approval{suffix}.json"))
     except ValueError as error:
         raise StudyError("Analysis adjudication recovery approval is invalid") from error
     if not isinstance(approval, dict) or canonical_sha256(approval) != recovery.get("approval_sha256"):
         raise StudyError("Analysis adjudication recovery approval differs from the retained authorization")
-    provenance = state["identity"].get("source_provenance") or {}
-    verify_approval(approval, {"commit": state["identity"]["commit"],
-                              "public_disclosure_url": provenance.get("public_disclosure_url"),
-                              "disclosed_at": provenance.get("disclosed_at_owner_reported")})
+    if suffix:
+        if next_record is None:
+            raise StudyError("Archived audit source has no preserved following state")
+        source_file = safe_relative_path(directory, f"recovery-manifest{suffix}.json")
+        if source_file is None:
+            raise StudyError("Archived audit source manifest is missing or unsafe")
+        try:
+            source_manifest = json.loads(regular_payload(source_file))
+        except ValueError as error:
+            raise StudyError("Archived audit source manifest is invalid") from error
+        if not isinstance(source_manifest, dict):
+            raise StudyError("Archived audit source manifest must be an object")
+        verify_approval(approval, source_manifest)
+        target_state = load_scope_state(
+            directory, {"scope_state_sha256": next_record["original_state_sha256"]},
+            snapshot_suffix=next_suffix)
+        if (source_manifest.get("commit") != manifest["execution_source_commit"]
+                or source_manifest.get("inputs_sha256") != target_state["identity"].get("inputs_sha256")
+                or source_manifest.get("runtime_image") != manifest["runtime_image"]
+                or source_provenance(source_manifest) != target_state["identity"].get("source_provenance")
+                or target_state.get("recovery") != recovery):
+            raise StudyError("Archived audit source authority differs from its preserved qualified state")
+    else:
+        provenance = state["identity"].get("source_provenance") or {}
+        verify_approval(approval, {"commit": state["identity"]["commit"],
+                                  "public_disclosure_url": provenance.get("public_disclosure_url"),
+                                  "disclosed_at": provenance.get("disclosed_at_owner_reported")})
+    if approval["approved_at"] != recovery.get("approved_at") or approval["disclosure_url"] != recovery.get("disclosure_url"):
+        raise StudyError("Analysis adjudication approval differs from its recorded source authorization")
     attempt = next((item for cell in scope_state["cells"] for item in cell["attempts"]
                     if item.get("id") == approval["attempt_id"]), None)
     if attempt is None:
@@ -272,18 +317,19 @@ def validate_trust_anchors(directory: Path, manifest: dict, state: dict) -> None
     identity = state["identity"]
     if manifest["study_id"] != identity.get("study_id") or manifest["study_id"] != directory.name:
         raise StudyError("Analysis adjudication study ID differs from the current study")
-    if manifest["execution_source_commit"] != identity.get("commit"):
-        raise StudyError("Analysis adjudication execution source commit differs from the current study")
     helper_sha256 = current_helper_sha256()
     if helper_sha256 is None or helper_sha256 != manifest["attribution_helper_sha256"]:
         raise StudyError("Analysis adjudication helper hash differs from the live attribution helper")
-    scope_state = load_scope_state(directory, manifest)
+    binding = audit_recovery_binding(state, manifest)
+    if binding is None and manifest["execution_source_commit"] != identity.get("commit"):
+        raise StudyError("Analysis adjudication execution source commit differs from the current study")
+    scope_state = load_scope_state(directory, manifest, snapshot_suffix=binding[1] if binding else "")
     scope_identity = scope_state.get("identity")
     if not isinstance(scope_identity, dict):
         raise StudyError("Analysis adjudication scope snapshot has no identity")
     if manifest["execution_source_commit"] == scope_identity.get("commit"):
         raise StudyError("Analysis adjudication execution source commit must differ from the original scope")
-    recovery_attempt = verified_recovery_attempt(directory, manifest, state, scope_state)
+    recovery_attempt = verified_recovery_attempt(directory, manifest, state, scope_state, binding)
     if not scope_matches_current(scope_state, state, recovery_attempt):
         raise StudyError("Analysis adjudication scope differs from the current study beyond commit/input/provenance")
 
@@ -440,8 +486,8 @@ def apply(directory: Path, state: dict, runs: list[dict]) -> tuple[list[dict], d
     manifest, returns (runs, {"status": "unavailable", ...}) unchanged - same objects, zero
     copies; this is the only case that does not raise. A manifest that is present but fails
     any structural, identity or scope check raises StudyError; nothing is applied. Once the
-    manifest's own trust anchors (live attribution_helper_sha256, current study/commit
-    identity, and the preserved state.before-recovery.json scope - or an explicit safe
+    manifest's own trust anchors (live attribution_helper_sha256, current study allocation,
+    and its original qualified source/approval/snapshot lineage - or an explicit safe
     relative scope_state_file - all bind), every entry is independently bound to its exact
     original record (by run_id/step and a canonical whole-record digest) and its trusted
     audit file (by a bounded, contained, non-symlinked relative path and digest). Only

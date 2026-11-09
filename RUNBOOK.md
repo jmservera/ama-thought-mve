@@ -483,6 +483,60 @@ stopped 1482. Run `--dry-run` first. Paid work locks all four checkout roots,
 and every original state must remain available and byte-identical. The source
 of every older attempt is preserved, not relabelled as the new implementation.
 
+#### Specific 2082-step service interruption
+
+The fourth supported incident is stopped state
+`ec36955567ffc2424ce4a9a748f43a3e584c3c3d6756488028f4b0b5bd008a7c`
+at source `fb1a90a0347609b1b1c33f4cd1147433a25cab96`.
+`pilot-estimation-gpt-6.1-sol-A-09-f02-feature-1` received a WebSocket HTTP
+503 with `service_unavailable` / `websocket_error`. Its journal SHA-256 is
+`e4b44c1f0145fe5d54422187dc4c21229a2db405e93aca0aacbc7fbc4c2834db`.
+The terminal receipt is an incomplete `unexpected_runtime_activity` failure,
+not a certified zero charge.
+
+The transport amendment adds only this exact 503 code/transport combination.
+It also accepts a next attempt in the same logical turn only after that
+turn's correlated modern failure and legacy mirror. Arbitrary duplicate or
+overlapping starts, changed turns without a terminal error, model/effort or
+routing changes, authentication/client/rate-limit errors and mismatched IDs
+remain fatal. The maximum three provider failures, original prompt, shared
+time/credit limits, complete failed-request charges and terminal aggregate
+stay mandatory. Each attempt captures its own accounting watermark.
+
+The harness does not schedule new retries/backoff or send a new prompt;
+it permits only verified pinned CLI retry activity. Internal CLI backoff is
+not promised. Missing failed-request charges still halt collection.
+
+This copy retains all 2082 steps, 2086 prior attempts and four 300-credit
+study holds (1200 nominal credits, not measured spending or a billing bound).
+A separately approved fresh F2 feature retry reserves another 300 credits and
+receives the full **1800-second feature allowance**. The allocation, budget,
+calibration and original absolute deadline remain unchanged.
+
+Use a genuine new post-disclosure approval for this exact state/source/attempt
+and the new qualified target. Preserve the earlier approvals, rather than
+extending or replacing them. In the clean qualified target checkout:
+
+```bash
+.venv/bin/python harness/prepare_estimation_recovery.py \
+  --source-root /path/to/stopped-2082-checkout \
+  --old-manifest /path/to/stopped-2082-owner-evidence.json \
+  --prior-source-root /path/to/original-651-checkout \
+  --prior-source-root /path/to/stopped-878-checkout \
+  --prior-source-root /path/to/stopped-1482-checkout \
+  --calibration-manifest /path/to/original-651-owner-evidence.json \
+  --new-manifest /path/to/new-owner-evidence.json \
+  --approval /path/to/new-private-recovery-approval.json
+```
+
+For launch, supply four `--recovery-source-root` values: original 651,
+stopped 878, stopped 1482, then stopped 2082, in that order. All five paid-study
+roots are locked. Verify `--dry-run` first and leave paid launch separate.
+Existing historical attribution manifests/audits stay byte-identical and bound
+to their original qualified source/image/helper. Reporting locates only their
+exact validated archival snapshot/approval/manifest, never a silent fallback
+to an unrelated or tampered object. No historical outcome is rerun to improve it.
+
 #### Exception attribution and intervention coverage
 
 A declared product exception raised by a candidate source-loaded view getter

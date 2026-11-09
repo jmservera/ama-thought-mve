@@ -225,15 +225,26 @@ export class Evidence {
       this.identity(data.newModel, data.reasoningEffort);
       if (data.source === 'automatic' || data.cause) throw fault('unexpected_model_routing');
     } else if (event.type === 'model.call_start') {
-      if (!this.started || !this.toolCatalogVerified || this.modelCall ||
+      if (!this.started || !this.toolCatalogVerified ||
         !text(data.turnId) || data.turnId.length > 128 || data.model !== this.request.model)
         throw fault('provider_call_correlation_unavailable');
-      this.modelCall = { turnId: data.turnId, failures: [], usageWatermark: this.usageWatermark };
+      if (this.modelCall) {
+        const failure = this.providerFailures.get(this.modelCall.failures.at(-1));
+        if (this.modelCall.turnId !== data.turnId || this.modelCall.attemptActive || !failure?.mirrored)
+          throw fault('provider_call_correlation_unavailable');
+        this.modelCall.attemptActive = true;
+        this.modelCall.usageWatermark = this.usageWatermark;
+      } else {
+        this.modelCall = { turnId: data.turnId, failures: [], attemptActive: true,
+          usageWatermark: this.usageWatermark };
+      }
     } else if (event.type === 'model.call_failure') {
       this.identity(data.model, data.reasoningEffort);
-      if (!this.started || !this.toolCatalogVerified || !this.modelCall ||
+      const transientCode = data.errorCode === 'internal_error' ||
+        (data.statusCode === 503 && data.errorCode === 'service_unavailable');
+      if (!this.started || !this.toolCatalogVerified || !this.modelCall?.attemptActive ||
         ![500, 502, 503, 504].includes(data.statusCode) || data.failureKind !== 'api' ||
-        data.transport !== 'websocket' || data.errorCode !== 'internal_error' ||
+        data.transport !== 'websocket' || !transientCode ||
         data.errorType !== 'websocket_error' || data.isAuto !== false || data.isByok !== false ||
         data.fusion || !text(data.apiCallId) || data.apiCallId.length > 200 ||
         !text(data.serviceRequestId) || data.serviceRequestId.length > 200 ||
@@ -246,10 +257,13 @@ export class Evidence {
       this.providerFailures.set(data.serviceRequestId,
         { ...data, usageWatermark: this.modelCall.usageWatermark, mirrored: false });
       this.modelCall.failures.push(data.serviceRequestId);
+      this.modelCall.attemptActive = false;
     } else if (event.type === 'model.model_call_failure') {
       const call = data.modelCall;
       const failure = this.providerFailures.get(call?.service_request_id);
-      if (!failure || failure.mirrored || this.modelCall?.turnId !== String(data.turn) ||
+      if (!failure || failure.mirrored || this.modelCall?.attemptActive ||
+        this.modelCall?.turnId !== String(data.turn) ||
+        this.modelCall.failures.at(-1) !== call.service_request_id ||
         call.model !== failure.model || data.reasoningEffort !== failure.reasoningEffort ||
         call.status !== failure.statusCode || call.api_id !== failure.apiCallId ||
         call.transport !== failure.transport || call.errorCode !== failure.errorCode ||
@@ -262,6 +276,9 @@ export class Evidence {
         throw fault('provider_call_correlation_unavailable');
       if (this.modelCall.failures.some(id => !this.providerFailures.get(id).mirrored))
         throw fault('provider_failure_correlation_unavailable');
+      if ((data.outcome === 'success' && !this.modelCall.attemptActive) ||
+        (data.outcome === 'error' && this.modelCall.attemptActive))
+        throw fault('unexpected_runtime_activity');
       if (data.outcome === 'error' && !this.modelCall.failures.length)
         throw fault('unexpected_runtime_activity');
       this.retryNeedsSuccess = data.outcome === 'error';
