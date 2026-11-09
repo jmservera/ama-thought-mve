@@ -93,6 +93,10 @@ SANDBOX_RECOVERY_JOURNAL_SHA256 = "de131c24e0d2800d75c5c94e68a12f769a7eff5b5748c
 SANDBOX_RECOVERY_BROKER_METADATA_SHA256 = "6a98302c57f1dc4673266f8f2f605e3d7c0a7515940d6b99afc1874d20aafc94"
 SANDBOX_RECOVERY_BROKER_STATE_SHA256 = "c80f6378326a077e74ad0c674bedba2f14c7a12ce58216180d76728b62476f3e"
 SANDBOX_RECOVERY_BROKER_OWNER_SHA256 = "1d6969a512d08cf1a7e80c04648614fffa26ac2d6e7c32f691a5935c6f4a78dd"
+SERVICE_RECOVERY_STATE_SHA256 = "ec36955567ffc2424ce4a9a748f43a3e584c3c3d6756488028f4b0b5bd008a7c"
+SERVICE_RECOVERY_SOURCE = "fb1a90a0347609b1b1c33f4cd1147433a25cab96"
+SERVICE_RECOVERY_ATTEMPT = "pilot-estimation-gpt-6.1-sol-A-09-f02-feature-1"
+SERVICE_RECOVERY_JOURNAL_SHA256 = "e4b44c1f0145fe5d54422187dc4c21229a2db405e93aca0aacbc7fbc4c2834db"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
@@ -558,11 +562,16 @@ def recovery_incident(state_sha256: str) -> dict:
                 "broker_metadata_sha256": SANDBOX_RECOVERY_BROKER_METADATA_SHA256,
                 "broker_state_sha256": SANDBOX_RECOVERY_BROKER_STATE_SHA256,
                 "broker_owner_sha256": SANDBOX_RECOVERY_BROKER_OWNER_SHA256}
+    if state_sha256 == SERVICE_RECOVERY_STATE_SHA256:
+        return {"source": SERVICE_RECOVERY_SOURCE, "attempt": SERVICE_RECOVERY_ATTEMPT,
+                "journal_sha256": SERVICE_RECOVERY_JOURNAL_SHA256, "steps": 2082, "attempts": 2086,
+                "known_nano": credits("23969.42938"), "kind": "backend_503_same_turn"}
     raise StudyError("Recovery state is not one of the disclosed estimation interruptions")
 
 
 def recovery_state_hashes() -> tuple[str, ...]:
-    return RECOVERY_STATE_SHA256, BACKEND_RECOVERY_STATE_SHA256, SANDBOX_RECOVERY_STATE_SHA256
+    return (RECOVERY_STATE_SHA256, BACKEND_RECOVERY_STATE_SHA256, SANDBOX_RECOVERY_STATE_SHA256,
+            SERVICE_RECOVERY_STATE_SHA256)
 
 
 def recovery_records(state: dict) -> list[dict]:

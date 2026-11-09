@@ -472,3 +472,43 @@ calibration handoff and the original allocation/budget/deadline. Preparation
 and diagnostic reevaluation start no model sessions. The full interim-analysis,
 source, image, approval and accounting chronology must be disclosed with any
 results; no complete-case or available-model substitute is the primary test.
+
+## 9 November service interruption after 2082 completed steps
+
+The unregistered run continued at
+`fb1a90a0347609b1b1c33f4cd1147433a25cab96` and stopped after 2082 of
+5355 steps, with 118 completed trajectories and 2086 retained attempts.
+Confirmed estimation consumption is 23,969.42938 credits.
+`pilot-estimation-gpt-6.1-sol-A-09-f02-feature-1` received a provider
+WebSocket HTTP 503, `service_unavailable` / `websocket_error`, at
+2026-11-09T00:06:05.216Z. The previous transport recognized only
+`internal_error` signatures and rejected this event before preserving its
+retry evidence or certifying final usage. The new 300-credit reservation is
+held with unknown actual charges. Four study holds total 1200 nominal credits;
+other historical provisions remain separate and none is a billing guarantee.
+
+Stopped state SHA-256:
+`ec36955567ffc2424ce4a9a748f43a3e584c3c3d6756488028f4b0b5bd008a7c`.
+Failed journal SHA-256:
+`e4b44c1f0145fe5d54422187dc4c21229a2db405e93aca0aacbc7fbc4c2834db`.
+The report ZIP is valid and all completed observations remain preserved.
+
+Offline replay of the unchanged journal confirmed both the status-code
+signature gap and a second gap: after a correlated failure/mirror the pinned
+CLI started a retry in the same logical turn without the cross-turn sequence
+used by earlier synthetic tests. The amendment permits only that exact
+bounded correlated next attempt and captures each attempt's usage watermark.
+Original model/effort/routing, prompt/time/credit limits, maximum three failures,
+complete failed-request charges and terminal aggregate stay mandatory.
+No new paid session, prompt replay, generic retry/backoff or zero-cost fallback
+is introduced. These are post-data runtime corrections, not preregistration.
+
+The fourth copy-only recovery requires genuine approval after new-source
+disclosure, retains every previous approval/source/snapshot and all original
+data/configuration/calibration/deadline, and grants only the separately reserved
+fresh full 1800-second F2 feature allowance. The earlier 87-record / 98-test
+hidden attribution audit remains bound to its original qualified source,
+image, helper and scope through validated archived evidence. It is not relabelled
+as a new-source evaluation or rerun to improve known outcomes. Operator coverage
+remains explicit rather than inferred. The scientific hypotheses, selected
+sample and complete-frame primary analysis are unchanged.

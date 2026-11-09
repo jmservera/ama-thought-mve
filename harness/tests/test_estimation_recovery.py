@@ -736,3 +736,177 @@ def test_sandbox_recovery_requires_all_three_source_roots_in_order(sandbox_incid
         case["study"].recovery_source_locks(state, roots[1:])
     with pytest.raises(case["study"].StudyError, match="unavailable or changed"):
         case["study"].recovery_source_locks(state, list(reversed(roots)))
+
+
+@pytest.fixture
+def service_incident(sandbox_incident, tmp_path, monkeypatch):
+    case = {**sandbox_incident, "new": {**sandbox_incident["new"], "runtime_image": "sha256:" + "d" * 64}}
+    study, recovery = case["study"], case["recovery"]
+    source = prepare_sandbox_incident(case)
+    source_root = case["target_root"]
+    state = study.read_json(source / "state.json")
+    extra = study.credits("23969.42938") - study.credits("16961.29357")
+    quotient, remainder = divmod(extra, 600)
+    for index in range(600):
+        cell = state["cells"][index % len(state["cells"])]
+        identity = f"service-complete-{index}"
+        amount = quotient + (index < remainder)
+        cell["completed_steps"] = cell.get("completed_steps", 0) + 1
+        cell["attempts"].append({"id": identity, "step": f"service-step-{index}",
+                                 "status": "agent_returned", "seconds": 1,
+                                 "source_commit": case["new"]["commit"],
+                                 "usage": {"credits_complete": True, "totalNanoAiu": amount}})
+        state["ledger"]["entries"][identity] = {
+            "status": "complete", "reserved_nano": 300 * study.NANO, "actual_nano": amount}
+    cell = next(cell for cell in state["cells"] if cell["assigned_model"] == "gpt-6.1-sol"
+                and cell["arm"] == "A" and cell["replicate"] == 9)
+    identity = study.SERVICE_RECOVERY_ATTEMPT
+    directory = f"runs/{cell['run_id']}/attempts/{identity}"
+    failed = {"id": identity, "step": "f02-feature", "status": "interrupted",
+              "source_commit": case["new"]["commit"], "usage": None,
+              "started": 1767744000, "seconds": 44.2488, "directory": directory}
+    cell["attempts"].append(failed)
+    cell["checkpoint"] = {"step": failed["step"], "head": "checkpoint"}
+    state["ledger"]["entries"][identity] = {
+        "status": "unknown", "reserved_nano": 300 * study.NANO, "actual_nano": None}
+    state.update(status="oracle_halt", oracle_halt=True, stop_requested=False)
+    failure = {"model": "gpt-6.1-sol", "reasoningEffort": "medium", "statusCode": 503,
+               "failureKind": "api", "transport": "websocket", "errorCode": "service_unavailable",
+               "errorType": "websocket_error", "retryAttempt": 0, "isAuto": False, "isByok": False,
+               "apiCallId": "failed-api", "serviceRequestId": "failed-service"}
+    records = [
+        {"event": {"type": "model.call_start", "data": {"model": failure["model"], "turnId": "3"}}},
+        {"event": {"type": "model.call_failure", "data": failure}},
+        {"event": {"type": "model.model_call_failure", "data": {
+            "turn": 3, "reasoningEffort": "medium", "modelCall": {
+                "model": failure["model"], "status": 503, "api_id": failure["apiCallId"],
+                "service_request_id": failure["serviceRequestId"], "transport": "websocket",
+                "errorCode": "service_unavailable", "errorType": "websocket_error", "retry_attempt": 0}}}},
+        {"event": {"type": "model.call_start", "data": {"model": failure["model"], "turnId": "3"}}},
+        {"type": "complete", "exit_code": 1, "receipt": {
+            "failure_stage": "session_send", "protocol_error": "unexpected_runtime_activity",
+            "actual_models": [failure["model"]], "actual_reasoning_efforts": ["medium"],
+            "provider_failures": [], "routing_changes": [],
+            "usage": {"credits_complete": False, "totalNanoAiu": None}}},
+    ]
+    journal = source / directory / "transport/events.jsonl"
+    journal.parent.mkdir(parents=True)
+    journal.write_text("".join(json.dumps(record) + "\n" for record in records))
+    study.atomic_json(source / "state.json", state)
+    original = (source / "state.json").read_bytes()
+    target_root = tmp_path / "service-new"
+    target_root.mkdir()
+    shutil.copytree(source_root / "protocol", target_root / "protocol")
+    shutil.copytree(source_root / "harness", target_root / "harness")
+    new_commit = "f" * 40
+    new = {**case["new"], "commit": new_commit, "inputs_sha256": "5" * 64,
+           "public_disclosure_url": f"https://github.com/jmservera/ama-thought-mve/commit/{new_commit}",
+           "disclosed_at": "2026-01-08T00:00:00Z"}
+    monkeypatch.setattr(study, "SERVICE_RECOVERY_SOURCE", case["new"]["commit"])
+    monkeypatch.setattr(study, "SERVICE_RECOVERY_STATE_SHA256", hashlib.sha256(original).hexdigest())
+    monkeypatch.setattr(study, "SERVICE_RECOVERY_JOURNAL_SHA256", hashlib.sha256(journal.read_bytes()).hexdigest())
+    monkeypatch.setattr(study, "ROOT", target_root)
+    monkeypatch.setattr(recovery, "ROOT", target_root)
+    monkeypatch.setattr(study, "fingerprint", lambda *args: new["inputs_sha256"])
+    prior_roots = [*case["prior_roots"], case["source_root"]]
+    commits = {root: study.read_json(root / ".study/pilot-estimation/state.json")["identity"]["commit"]
+               for root in [*prior_roots, source_root]}
+    monkeypatch.setattr(study, "command", lambda args, **kwargs: commits.get(kwargs.get("cwd"), new_commit))
+    approval = {**case["approval"], "original_state_sha256": study.SERVICE_RECOVERY_STATE_SHA256,
+                "original_commit": case["new"]["commit"], "target_commit": new_commit,
+                "attempt_id": identity, "approved_at": "2026-01-09T00:00:00Z",
+                "disclosure_url": new["public_disclosure_url"]}
+    return {**case, "source_root": source_root, "source": source, "target_root": target_root,
+            "old": case["new"], "new": new, "approval": approval, "original": original,
+            "journal": journal, "failed": failed, "prior_roots": prior_roots}
+
+
+def prepare_service_incident(case):
+    return case["recovery"].prepare(case["source_root"], case["old"], case["new"], case["approval"],
+                                    prior_source_root=case["prior_roots"],
+                                    calibration_manifest=case["calibration_manifest"])
+
+
+def test_service_copy_retains_four_holds_and_full_feature_allowance(service_incident):
+    case = service_incident
+    study = case["study"]
+    target = prepare_service_incident(case)
+    state = study.read_json(target / "state.json")
+    assert len(study.recovery_records(state)) == 4 and len(state["ledger"]["entries"]) == 2086
+    assert sum(c.get("completed_steps", 0) for c in state["cells"]) == 2082
+    assert sum(e["reserved_nano"] for e in state["ledger"]["entries"].values()
+               if e["status"] == "recovery_hold") == 1200 * study.NANO
+    assert (case["source"] / "state.json").read_bytes() == case["original"]
+    assert (target / "state.before-recovery-03.json").is_file()
+    assert state["started"] == study.read_json(case["source"] / "state.json")["started"]
+    assert state["deadline"] == study.read_json(case["source"] / "state.json")["deadline"]
+    controller = study.Controller(target, case["config"], smoke=False, phase="pilot-estimation",
+                                  study_id="pilot-estimation", replicates=21,
+                                  unregistered=case["new"], handoff=case["handoff"])
+    cell = next(c for c in state["cells"] if any(a["id"] == case["failed"]["id"] for a in c["attempts"]))
+    run = object.__new__(study.StudyRun)
+    run.controller, run.cell, run.arm, run.current_step = controller, cell, "A", "f02-feature"
+    assert run.remaining_allowance(1800) == (1800, 270 * study.NANO)
+    study.validate_recovery_evidence(target, state, case["new"])
+    assert len(study.recovery_source_locks(state, [*case["prior_roots"], case["source_root"]])) == 8
+
+
+@pytest.mark.parametrize("damage", ["code", "status", "turn", "order", "usage", "identity"])
+def test_service_recovery_requires_exact_retained_retry_and_unknown_receipt(service_incident, damage):
+    case = service_incident
+    records = [json.loads(line) for line in case["journal"].read_bytes().splitlines()]
+    if damage == "code":
+        records[1]["event"]["data"]["errorCode"] = "internal_error"
+    elif damage == "status":
+        records[1]["event"]["data"]["statusCode"] = 500
+    elif damage == "turn":
+        records[3]["event"]["data"]["turnId"] = "4"
+    elif damage == "order":
+        records[2], records[3] = records[3], records[2]
+    elif damage == "usage":
+        records[-1]["receipt"]["usage"]["totalNanoAiu"] = 0
+    else:
+        records[-1]["receipt"]["actual_models"] = ["other-model"]
+    case["journal"].write_text("".join(json.dumps(record) + "\n" for record in records))
+    with pytest.raises(case["study"].StudyError):
+        prepare_service_incident(case)
+    assert (case["source"] / "state.json").read_bytes() == case["original"]
+
+
+@pytest.mark.parametrize("damage", ["intact", "scope", "approval", "source", "image", "next-state", "helper"])
+def test_original_audit_authority_survives_only_intact_archived_recovery(service_incident, damage):
+    case = service_incident
+    analysis = importlib.import_module("analysis_adjudications")
+    manifest = {"schema": "analysis-adjudications/v1", "study_id": "pilot-estimation",
+                "scope_state_sha256": case["study"].SANDBOX_RECOVERY_STATE_SHA256,
+                "execution_source_commit": case["old"]["commit"],
+                "runtime_image": case["old"]["runtime_image"],
+                "attribution_helper_sha256": analysis.current_helper_sha256(), "entries": []}
+    source_manifest = case["source"] / "analysis-adjudications.json"
+    case["study"].atomic_json(source_manifest, manifest)
+    before = source_manifest.read_bytes()
+    target = prepare_service_incident(case)
+    state = case["study"].read_json(target / "state.json")
+    if damage == "scope":
+        (target / "state.before-recovery-03.json").unlink()
+    elif damage == "approval":
+        (target / "recovery-approval-03.json").write_text("{}")
+    elif damage in ("source", "image"):
+        path = target / "recovery-manifest-03.json"
+        retained = case["study"].read_json(path)
+        retained["commit" if damage == "source" else "runtime_image"] = \
+            "b" * 40 if damage == "source" else "sha256:" + "b" * 64
+        case["study"].atomic_json(path, retained)
+    elif damage == "next-state":
+        (target / "state.before-recovery.json").write_text("{}")
+    elif damage == "helper":
+        manifest["attribution_helper_sha256"] = "0" * 64
+    if damage == "intact":
+        analysis.validate_trust_anchors(target, manifest, state)
+        assert state["identity"]["commit"] != manifest["execution_source_commit"]
+        assert (target / "analysis-adjudications.json").read_bytes() == before
+    else:
+        with pytest.raises(case["study"].StudyError):
+            analysis.validate_trust_anchors(target, manifest, state)
+    assert source_manifest.read_bytes() == before
+    assert (case["source"] / "state.json").read_bytes() == case["original"]
