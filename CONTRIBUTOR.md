@@ -59,6 +59,10 @@ For the later link/special-file rejection, use the
 Do not edit state, permit unsafe files or presume missing intervention records
 were unassisted. Historical attribution corrections are separate audited
 read-only analysis, not paid make-up attempts.
+For the later 503/service-unavailable interruption, follow the
+[2082-step recovery procedure](RUNBOOK.md#specific-2082-step-service-interruption).
+Preserve all four unknown holds and original source roots; a generic restart
+does not authorize a fresh attempt or clear missing charges.
 
 ```bash
 ./run-experiment.sh --dry-run          # read-only readiness and schedule

@@ -158,6 +158,9 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
                 or receipt.get("protocol_error") != "unexpected_tool"):
             raise StudyError("Failed attempt does not match the retained edit failure and unknown usage")
     else:
+        same_turn_retry = incident["kind"] == "backend_503_same_turn"
+        status_code = 503 if same_turn_retry else 500
+        error_code = "service_unavailable" if same_turn_retry else "internal_error"
         failures = [event["data"] for event in events if event["type"] == "model.call_failure"]
         mirrors = [event["data"] for event in events if event["type"] == "model.model_call_failure"]
         if len(failures) != 1 or len(mirrors) != 1:
@@ -170,22 +173,37 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
         finished = [event["data"] for event in events if event["type"] == "model.call_finished"
                     and event["data"].get("turnId") == turn]
         if (failure.get("model") != "gpt-6.1-sol" or failure.get("reasoningEffort") != "medium"
-                or failure.get("statusCode") != 500 or failure.get("failureKind") != "api"
-                or failure.get("transport") != "websocket" or failure.get("errorCode") != "internal_error"
+                or failure.get("statusCode") != status_code or failure.get("failureKind") != "api"
+                or failure.get("transport") != "websocket" or failure.get("errorCode") != error_code
                 or failure.get("errorType") != "websocket_error" or failure.get("retryAttempt") != 0
                 or failure.get("isAuto") is not False or failure.get("isByok") is not False
                 or any(not isinstance(failure.get(key), str) or not failure[key]
                        for key in ("apiCallId", "serviceRequestId"))
                 or not isinstance(call, dict) or call.get("model") != failure["model"]
-                or mirror.get("reasoningEffort") != "medium" or call.get("status") != 500
+                or mirror.get("reasoningEffort") != "medium" or call.get("status") != status_code
                 or call.get("api_id") != failure["apiCallId"]
                 or call.get("service_request_id") != failure["serviceRequestId"]
                 or call.get("errorCode") != failure["errorCode"] or call.get("errorType") != failure["errorType"]
                 or call.get("transport") != failure["transport"] or call.get("retry_attempt") != 0
-                or len(starts) != 1 or starts[0].get("model") != failure["model"]
-                or len(finished) != 1 or finished[0].get("outcome") != "error"
+                or len(starts) != (2 if same_turn_retry else 1)
+                or any(start.get("model") != failure["model"] for start in starts)
+                or (same_turn_retry and bool(finished))
+                or (not same_turn_retry and (len(finished) != 1 or finished[0].get("outcome") != "error"))
                 or receipt.get("protocol_error") != "unexpected_runtime_activity"):
-            raise StudyError("Failed attempt differs from the retained backend 500 and unknown usage")
+            raise StudyError("Failed attempt differs from the retained backend signature and unknown usage")
+        if same_turn_retry:
+            start_indices = [index for index, event in enumerate(events)
+                             if event["type"] == "model.call_start" and event["data"].get("turnId") == turn]
+            failure_index = next(index for index, event in enumerate(events)
+                                 if event["type"] == "model.call_failure")
+            mirror_index = next(index for index, event in enumerate(events)
+                                if event["type"] == "model.model_call_failure")
+            if (not start_indices[0] < failure_index < mirror_index < start_indices[1]
+                    or receipt.get("actual_models") != ["gpt-6.1-sol"]
+                    or receipt.get("actual_reasoning_efforts") != ["medium"]
+                    or receipt.get("provider_failures") != []
+                    or receipt.get("routing_changes") != []):
+                raise StudyError("Service interruption lacks the exact correlated same-turn retry and pinned identity")
     value = hashlib.sha256(payload).hexdigest()
     if value != incident["journal_sha256"]:
         raise StudyError("Failed attempt journal differs from the disclosed incident")

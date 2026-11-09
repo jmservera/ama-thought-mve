@@ -342,6 +342,114 @@ function successfulRetry(config, turn = 1) {
   config.onEvent(event('model.call_finished', { turnId: String(turn), outcome: 'success' }));
 }
 
+test('real same-turn provider retry preserves limits and accounts for the failed request', async () => {
+  for (const failure of [providerFailure(),
+    providerFailure({ statusCode: 503, errorCode: 'service_unavailable' })]) {
+    const result = await runFake({
+      async action(config) {
+        config.onEvent(event('model.call_start', { model: 'test-model', turnId: '0' }));
+        config.onEvent(event('model.call_failure', failure));
+        config.onEvent(event('model.model_call_failure', providerMirror(failure)));
+        config.onEvent(usage(config.sessionId, { apiCallId: failure.apiCallId,
+          serviceRequestId: failure.serviceRequestId, copilotUsage: { totalNanoAiu: 17 } }));
+        successfulRetry(config, 0);
+      },
+      usage: sid => ({ accounting: { sourceSessionId: sid, sequence: 2, usageId: 'call-two' } }),
+      shutdown: sid => event('session.shutdown', {
+        shutdownType: 'routine', currentModel: 'test-model', totalNanoAiu: 140,
+        usageAccountingWatermarks: { [sid]: 2 },
+        modelMetrics: { 'test-model': { totalNanoAiu: 140, requests: { count: 2 } } },
+      }),
+    });
+    assert.equal(result.exitCode, 0, `status ${failure.statusCode}`);
+    assert.equal(result.receipt.usage.totalNanoAiu, 140);
+    assert.equal(result.receipt.provider_failures[0].accounting_complete, true);
+    assert.equal(result.state.sent, 1);
+    assert.equal(result.state.config.sessionLimits.maxAiCredits, 173.5);
+  }
+});
+
+test('same-turn service-unavailable retry still requires complete failed-request charges', async () => {
+  const failure = providerFailure({ statusCode: 503, errorCode: 'service_unavailable' });
+  const result = await runFake({ async action(config) {
+    config.onEvent(event('model.call_start', { model: 'test-model', turnId: '0' }));
+    config.onEvent(event('model.call_failure', failure));
+    config.onEvent(event('model.model_call_failure', providerMirror(failure)));
+    successfulRetry(config, 0);
+  } });
+  assert.equal(result.receipt.protocol_error, 'provider_retry_usage_incomplete');
+  assert.equal(result.receipt.usage.credits_complete, false);
+  assert.equal(result.receipt.usage.totalNanoAiu, null);
+});
+
+test('same-turn retry requires one matched failure and rejects overlap or changed turns', async () => {
+  for (const damage of ['before-mirror', 'duplicate-start', 'changed-turn', 'unpaired-error']) {
+    const failure = providerFailure();
+    const result = await runFake({ async action(config) {
+      config.onEvent(event('model.call_start', { model: 'test-model', turnId: '0' }));
+      config.onEvent(event('model.call_failure', failure));
+      if (damage !== 'before-mirror')
+        config.onEvent(event('model.model_call_failure', providerMirror(failure)));
+      config.onEvent(event('model.call_start', {
+        model: 'test-model', turnId: damage === 'changed-turn' ? '1' : '0',
+      }));
+      if (damage === 'duplicate-start')
+        config.onEvent(event('model.call_start', { model: 'test-model', turnId: '0' }));
+      if (damage === 'unpaired-error')
+        config.onEvent(event('model.call_finished', { turnId: '0', outcome: 'error' }));
+    } });
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.receipt.usage.credits_complete, false);
+    assert.ok(['provider_call_correlation_unavailable', 'unexpected_runtime_activity']
+      .includes(result.receipt.protocol_error), damage);
+  }
+});
+
+test('same-turn provider retry remains bounded at three failures', async () => {
+  const result = await runFake({ async action(config) {
+    config.onEvent(event('model.call_start', { model: 'test-model', turnId: '0' }));
+    for (let retry = 0; retry < 4; retry++) {
+      const failure = providerFailure({ statusCode: 503, errorCode: 'service_unavailable',
+        retryAttempt: retry, apiCallId: `failed-${retry}`, serviceRequestId: `service-${retry}` });
+      config.onEvent(event('model.call_failure', failure));
+      config.onEvent(event('model.model_call_failure', providerMirror(failure)));
+      config.onEvent(event('model.call_start', { model: 'test-model', turnId: '0' }));
+    }
+  } });
+  assert.equal(result.receipt.protocol_error, 'provider_retry_limit');
+  assert.equal(result.receipt.provider_failures.length, 3);
+  assert.equal(result.receipt.usage.credits_complete, false);
+});
+
+test('an earlier matching charge cannot account for a later attempt in the same turn', async () => {
+  const first = providerFailure();
+  const later = providerFailure({ retryAttempt: 1, apiCallId: 'later-api', serviceRequestId: 'later-service' });
+  const result = await runFake({
+    async action(config) {
+      config.onEvent(event('model.call_start', { model: 'test-model', turnId: '0' }));
+      config.onEvent(event('model.call_failure', first));
+      config.onEvent(event('model.model_call_failure', providerMirror(first)));
+      config.onEvent(usage(config.sessionId, { apiCallId: later.apiCallId,
+        serviceRequestId: later.serviceRequestId, copilotUsage: { totalNanoAiu: 17 } }));
+      config.onEvent(event('model.call_start', { model: 'test-model', turnId: '0' }));
+      config.onEvent(event('model.call_failure', later));
+      config.onEvent(event('model.model_call_failure', providerMirror(later)));
+      config.onEvent(usage(config.sessionId, { apiCallId: first.apiCallId,
+        serviceRequestId: first.serviceRequestId, copilotUsage: { totalNanoAiu: 17 },
+        accounting: { sourceSessionId: config.sessionId, sequence: 2, usageId: 'first-failure' } }));
+      successfulRetry(config, 0);
+    },
+    usage: sid => ({ accounting: { sourceSessionId: sid, sequence: 3, usageId: 'successful-retry' } }),
+    shutdown: sid => event('session.shutdown', {
+      shutdownType: 'routine', currentModel: 'test-model', totalNanoAiu: 157,
+      usageAccountingWatermarks: { [sid]: 3 },
+      modelMetrics: { 'test-model': { totalNanoAiu: 157, requests: { count: 3 } } },
+    }),
+  });
+  assert.equal(result.receipt.protocol_error, 'provider_retry_usage_incomplete');
+  assert.equal(result.receipt.usage.totalNanoAiu, null);
+});
+
 test('correlated transient retry preserves original limits and requires every failed request charge', async () => {
   const result = await runFake({
     async action(config) {
@@ -463,7 +571,10 @@ test('uncorrelated, auth, client, model, effort and routing failures remain deni
     { failureKind: 'permission' }, { transport: 'unknown' }, { errorCode: 'quota_exceeded' },
     { errorType: 'authentication_error' }, { isAuto: true }, { isByok: true },
     { fusion: true }, { model: 'other' }, { reasoningEffort: 'high' },
-    { serviceRequestId: undefined }, { apiCallId: undefined }, { retryAttempt: 1 }]) {
+    { serviceRequestId: undefined }, { apiCallId: undefined }, { retryAttempt: 1 },
+    { statusCode: 500, errorCode: 'service_unavailable' },
+    { statusCode: 504, errorCode: 'service_unavailable' },
+    { statusCode: 503, errorCode: 'quota_exceeded' }]) {
     const result = await runFake({ async action(config) {
       failProvider(config, providerFailure(change));
     } });
