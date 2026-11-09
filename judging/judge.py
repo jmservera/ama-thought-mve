@@ -29,6 +29,7 @@ from scenarios import DIMENSIONS, SCENARIOS, eligible
 
 SCHEMA = "blind-s1-judging-v1"
 LIMIT = 2 * 1024 * 1024
+METADATA_LIMIT = 64 * 1024 * 1024
 POST = {"A": "feature", "B": "consolidation", "C": "review", "D": "feature", "E": "repair"}
 EVALUATOR_FILES = (
     "judging/judge.py", "judging/scenarios.py", "judging/execute.py", "judging/copilot-judge.mjs",
@@ -76,7 +77,7 @@ def evaluator_hashes() -> dict[str, str]:
     return {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in EVALUATOR_FILES}
 
 
-def read_json(path: Path) -> dict:
+def read_json(path: Path, *, limit: int = LIMIT) -> dict:
     """Read bounded regular JSON and reject duplicate keys and nonfinite numbers."""
     def pairs(items):
         result = {}
@@ -86,7 +87,7 @@ def read_json(path: Path) -> dict:
             result[key] = value
         return result
 
-    if path.is_symlink() or not path.is_file() or path.stat().st_size > LIMIT:
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > limit:
         raise StudyError(f"Missing, linked or oversized JSON: {path.name}")
     try:
         value = json.loads(path.read_bytes(), object_pairs_hook=pairs,
@@ -264,7 +265,7 @@ def prepare(study: Path, output: Path, image: str, *, diagnostic: bool = False,
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", image):
         raise StudyError("Use an inspected immutable evaluator image ID")
     state_path = study / "state.json"
-    state = read_json(state_path)
+    state = read_json(state_path, limit=METADATA_LIMIT)
     state_hash = digest(state)
     if state.get("status") == "running":
         raise StudyError("Do not evaluate a running study; use a stopped local archive")
@@ -380,7 +381,7 @@ def prepare(study: Path, output: Path, image: str, *, diagnostic: bool = False,
                                               "model": cell["assigned_model"], "endpoint": endpoint,
                                               "head": heads.get(endpoint)}
     secrets.SystemRandom().shuffle(manifest["packets"])
-    if digest(read_json(state_path)) != state_hash:
+    if digest(read_json(state_path, limit=METADATA_LIMIT)) != state_hash:
         raise StudyError("Archive changed during preparation; bundle is not frozen")
     if any(digest(load_records(study / "runs" / run_id / "steps.jsonl")) != checksum
            for run_id, checksum in mapping["source_records_sha256"].items()):
@@ -396,7 +397,7 @@ def prepare(study: Path, output: Path, image: str, *, diagnostic: bool = False,
 def frozen_bundle(output: Path) -> tuple[dict, dict, dict[str, dict]]:
     output = no_links(output)
     manifest = read_json(output / "public/manifest.json")
-    mapping = read_json(output / "private/mapping.json")
+    mapping = read_json(output / "private/mapping.json", limit=METADATA_LIMIT)
     seal = read_json(output / "private/seal.json")
     if (manifest.get("schema") != SCHEMA or seal != {"manifest_sha256": digest(manifest),
                                                    "mapping_sha256": digest(mapping)}):
@@ -564,13 +565,13 @@ def _run_judges(output: Path, config: dict, *, caller=invoke) -> dict:
     ledger_path = private / "judges.json"
     binding = {"config_sha256": digest(config), "manifest_sha256": digest(manifest)}
     if ledger_path.exists():
-        ledger = read_json(ledger_path)
+        ledger = read_json(ledger_path, limit=METADATA_LIMIT)
         if ledger.get("binding") != binding:
             raise StudyError("Cannot change judge configuration or evidence on resume")
     else:
         ledger = {"schema": SCHEMA, "binding": binding, "config": config, "calls": {}}
         atomic_json(ledger_path, ledger)
-    validate_ledger(ledger, config, packets)
+    validate_ledger(output, ledger, config, packets)
     for specimen, packet in packets.items():
         if all(item["final"]["status"] == "unavailable" for item in packet["scenarios"]):
             continue
@@ -584,7 +585,7 @@ def _run_judges(output: Path, config: dict, *, caller=invoke) -> dict:
                         raise StudyError("Frozen judge request changed")
                     if existing["status"] != "complete":
                         raise StudyError("Prior judge call needs manual reconciliation; no automatic retry")
-                    validate_response(existing["response"], judge, packet)
+                    validate_response(load_response(output, key, existing), judge, packet)
                     continue
                 spent = sum(call["actual_nano"] if call["actual_nano"] is not None else call["reserved_nano"]
                             for call in ledger["calls"].values())
@@ -592,15 +593,20 @@ def _run_judges(output: Path, config: dict, *, caller=invoke) -> dict:
                 if spent + reserve > config["ceiling_credits"] * 1_000_000_000:
                     raise StudyError("Separate judging credit ceiling would be exceeded")
                 call = {"status": "running", "request_sha256": digest(request),
-                        "reserved_nano": reserve, "actual_nano": None, "response": None}
+                        "reserved_nano": reserve, "actual_nano": None, "response_sha256": None}
                 ledger["calls"][key] = call
                 atomic_json(ledger_path, ledger)
                 try:
                     response = caller(judge["command"], request, private / key, config["timeout_seconds"])
                     actual = validate_response(response, judge, packet)
-                    call.update(actual_nano=actual, response=response)
+                    call["actual_nano"] = actual
                     if actual > reserve:
                         raise StudyError("Judge consumption exceeded its reservation; stop admission")
+                    path = no_links(private / key / "validated-response.json")
+                    if path.exists():
+                        raise StudyError("Unexpected pre-existing validated response")
+                    atomic_json(path, response)
+                    call["response_sha256"] = digest(response)
                     call["status"] = "complete"
                     atomic_json(ledger_path, ledger)
                 except (StudyError, OSError, subprocess.SubprocessError) as error:
@@ -614,7 +620,16 @@ def mean(values: list[float]) -> float | None:
     return sum(values) / len(values) if values else None
 
 
-def validate_ledger(ledger: dict, config: dict, packets: dict[str, dict]) -> None:
+def load_response(output: Path, key: str, call: dict) -> dict:
+    """Read one durable verdict without widening the per-reply resource limit."""
+    path = no_links(output / "private" / key / "validated-response.json")
+    response = read_json(path)
+    if digest(response) != call.get("response_sha256"):
+        raise StudyError("Validated judge response changed")
+    return response
+
+
+def validate_ledger(output: Path, ledger: dict, config: dict, packets: dict[str, dict]) -> None:
     """Reject accounting edits, foreign calls and request drift before admission."""
     if (set(ledger) != {"schema", "binding", "config", "calls"} or ledger["schema"] != SCHEMA
             or ledger["config"] != config or not isinstance(ledger["calls"], dict)):
@@ -633,7 +648,7 @@ def validate_ledger(ledger: dict, config: dict, packets: dict[str, dict]) -> Non
                 or call.get("status") not in ("running", "blocked", "complete")):
             raise StudyError("Judging ledger reservation/request changed")
         if call["status"] == "complete":
-            measured = validate_response(call.get("response", {}), judge, packet)
+            measured = validate_response(load_response(output, key, call), judge, packet)
             if actual != measured or measured > call["reserved_nano"]:
                 raise StudyError("Judging ledger actual consumption changed")
 
@@ -646,24 +661,26 @@ def report(output: Path) -> dict:
 def _report(output: Path) -> dict:
     """Describe the full allocated frame; never turn available survivors into an effect estimate."""
     manifest, mapping, packets = frozen_bundle(output)
-    ledger = read_json(output / "private/judges.json")
+    ledger = read_json(output / "private/judges.json", limit=METADATA_LIMIT)
     config = ledger["config"]
     validate_config(config)
     if ledger["binding"] != {"config_sha256": digest(config), "manifest_sha256": digest(manifest)}:
         raise StudyError("Report config or manifest changed")
-    validate_ledger(ledger, config, packets)
+    validate_ledger(output, ledger, config, packets)
     rows = []
     for specimen, packet in packets.items():
         identity = mapping["specimens"][specimen]
         calls = []
         for judge in config["judges"]:
             for repeat in range(1, config["repeats"] + 1):
-                call = ledger["calls"].get(f"{specimen}-{judge['id']}-{repeat}")
+                key = f"{specimen}-{judge['id']}-{repeat}"
+                call = ledger["calls"].get(key)
                 if call and call["status"] == "complete":
                     if call["request_sha256"] != digest(request_for(packet, judge, config)):
                         raise StudyError("Report request binding changed")
-                    validate_response(call["response"], judge, packet)
-                    calls.append(call["response"]["verdict"]["scenarios"])
+                    response = load_response(output, key, call)
+                    validate_response(response, judge, packet)
+                    calls.append(response["verdict"]["scenarios"])
         scores = {}
         for dimension in DIMENSIONS:
             values = []
