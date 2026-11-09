@@ -21,9 +21,18 @@ const fault = code => Object.assign(new Error(code), { transportCode: code });
 
 export function isWebSocketReset(data) {
   return object(data) && data.failureKind === 'transport' && data.transport === 'websocket' &&
-    data.rte === true && data.source === 'top_level' && data.apiEndpoint === 'ws:/responses' &&
+    data.source === 'top_level' && data.apiEndpoint === 'ws:/responses' &&
     data.errorMessage === WEBSOCKET_RESET_MESSAGE &&
     ['statusCode', 'errorCode', 'errorType'].every(key => !Object.hasOwn(data, key));
+}
+
+export function isWebSocketGoingAway(data) {
+  return object(data) && data.failureKind === 'transport' && data.transport === 'websocket' &&
+    data.source === 'top_level' && data.apiEndpoint === 'ws:/responses' &&
+    typeof data.errorMessage === 'string' &&
+    /^"WebSocket closed unexpectedly \(request-id: [A-Za-z0-9_-]{1,200}\): 1001 please reconnect"$/.test(data.errorMessage) &&
+    ['statusCode', 'errorCode', 'errorType', 'apiCallId', 'serviceRequestId']
+      .every(key => !Object.hasOwn(data, key));
 }
 
 export function validateRequest(request) {
@@ -249,6 +258,9 @@ export class Evidence {
       }
     } else if (event.type === 'model.call_failure') {
       this.identity(data.model, data.reasoningEffort);
+      if (this.started && this.toolCatalogVerified && this.modelCall?.attemptActive &&
+        data.isAuto === false && data.isByok === false && !data.fusion &&
+        isWebSocketGoingAway(data)) throw fault('websocket_closed_usage_unknown');
       const transientCode = data.errorCode === 'internal_error' ||
         (data.statusCode === 503 && data.errorCode === 'service_unavailable');
       const transientApi = [500, 502, 503, 504].includes(data.statusCode) &&
@@ -272,7 +284,7 @@ export class Evidence {
       const call = data.modelCall;
       const failure = this.providerFailures.get(call?.service_request_id);
       const transportMirror = isWebSocketReset(failure) &&
-        call?.failure_kind === 'transport' && call.rte === true &&
+        call?.failure_kind === 'transport' &&
         call.api_endpoint === failure.apiEndpoint && call.error === failure.errorMessage &&
         ['status', 'errorCode', 'errorType'].every(key => !Object.hasOwn(call, key));
       if (!failure || failure.mirrored || this.modelCall?.attemptActive ||

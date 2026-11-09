@@ -101,6 +101,10 @@ TRANSPORT_RECOVERY_STATE_SHA256 = "1c79a8eba989779464cd2757e65887fae727538fb7469
 TRANSPORT_RECOVERY_SOURCE = "355d33389441b325da72363a9c3028dbdefa2b4b"
 TRANSPORT_RECOVERY_ATTEMPT = "pilot-estimation-gpt-6.1-sol-D-10-f07-feature-1"
 TRANSPORT_RECOVERY_JOURNAL_SHA256 = "9057d6c157011ade7dbf9412d791d28c2667acc3a5f7f2182b130c43ebf8d8c4"
+CLOSE_RECOVERY_STATE_SHA256 = "7379f557090b61ed94479a9cccf49ac83925d7c45bab606838e007e1377a7732"
+CLOSE_RECOVERY_SOURCE = "1d663f08af117332773feb22efc8e182734780a3"
+CLOSE_RECOVERY_ATTEMPT = "pilot-estimation-gpt-6.1-sol-E-10-f05-feature-1"
+CLOSE_RECOVERY_JOURNAL_SHA256 = "19bffffd77043723c325765c2e11b188acd3a9ce7bc85a4bc7e577e0617bd068"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
@@ -577,12 +581,17 @@ def recovery_incident(state_sha256: str) -> dict:
                 "journal_sha256": TRANSPORT_RECOVERY_JOURNAL_SHA256, "steps": 2289, "attempts": 2294,
                 "known_nano": credits("26552.15674"), "kind": "websocket_reset",
                 "reserved_nano": 600 * NANO}
+    if state_sha256 == CLOSE_RECOVERY_STATE_SHA256:
+        return {"source": CLOSE_RECOVERY_SOURCE, "attempt": CLOSE_RECOVERY_ATTEMPT,
+                "journal_sha256": CLOSE_RECOVERY_JOURNAL_SHA256, "steps": 2402, "attempts": 2408,
+                "known_nano": credits("27814.55969"), "kind": "websocket_closed_1001",
+                "reserved_nano": 300 * NANO}
     raise StudyError("Recovery state is not one of the disclosed estimation interruptions")
 
 
 def recovery_state_hashes() -> tuple[str, ...]:
     return (RECOVERY_STATE_SHA256, BACKEND_RECOVERY_STATE_SHA256, SANDBOX_RECOVERY_STATE_SHA256,
-            SERVICE_RECOVERY_STATE_SHA256, TRANSPORT_RECOVERY_STATE_SHA256)
+            SERVICE_RECOVERY_STATE_SHA256, TRANSPORT_RECOVERY_STATE_SHA256, CLOSE_RECOVERY_STATE_SHA256)
 
 
 def recovery_records(state: dict) -> list[dict]:

@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import shutil
 import stat
 import time
@@ -157,6 +158,47 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
                 or matches[0].get("error") != {"code": "failure", "message": "Tool 'edit' does not exist."}
                 or receipt.get("protocol_error") != "unexpected_tool"):
             raise StudyError("Failed attempt does not match the retained edit failure and unknown usage")
+    elif incident["kind"] == "websocket_closed_1001":
+        failures = [event["data"] for event in events if event["type"] == "model.call_failure"]
+        mirrors = [event["data"] for event in events if event["type"] == "model.model_call_failure"]
+        if len(failures) != 1 or len(mirrors) != 1:
+            raise StudyError("Close interruption lacks a unique modern/legacy event pair")
+        failure, mirror = failures[0], mirrors[0]
+        call = mirror.get("modelCall", {})
+        message = failure.get("errorMessage")
+        turn = str(mirror.get("turn"))
+        starts = [index for index, event in enumerate(events) if event["type"] == "model.call_start"
+                  and event["data"].get("turnId") == turn and event["data"].get("model") == "gpt-6.1-sol"]
+        finishes = [event for event in events if event["type"] == "model.call_finished"
+                    and event["data"].get("turnId") == turn]
+        if (failure.get("model") != "gpt-6.1-sol" or failure.get("reasoningEffort") != "medium"
+                or failure.get("failureKind") != "transport" or failure.get("transport") != "websocket"
+                or failure.get("source") != "top_level" or failure.get("apiEndpoint") != "ws:/responses"
+                or not isinstance(message, str)
+                or re.fullmatch(r'"WebSocket closed unexpectedly \(request-id: [A-Za-z0-9_-]{1,200}\): 1001 please reconnect"',
+                                message) is None
+                or failure.get("rte") is not False
+                or failure.get("isAuto") is not False or failure.get("isByok") is not False
+                or failure.get("retryAttempt") != 0
+                or any(key in failure for key in ("apiCallId", "serviceRequestId", "statusCode", "errorCode", "errorType"))
+                or not isinstance(call, dict) or call.get("model") != failure["model"]
+                or mirror.get("reasoningEffort") != "medium" or mirror.get("rte") is not False
+                or call.get("failure_kind") != "transport" or call.get("transport") != "websocket"
+                or call.get("rte") is not False or call.get("error") != message
+                or call.get("api_endpoint") != failure["apiEndpoint"] or call.get("retry_attempt") != 0
+                or any(key in call for key in ("api_id", "service_request_id", "status", "errorCode", "errorType"))
+                or len(starts) != 1 or finishes
+                or events[-1]["type"] != "model.model_call_failure"
+                or receipt.get("protocol_error") != "unexpected_runtime_activity"
+                or receipt.get("failure_stage") != "session_send"
+                or receipt.get("actual_models") != ["gpt-6.1-sol"]
+                or receipt.get("actual_reasoning_efforts") != ["medium"]
+                or receipt.get("provider_failures") != [] or receipt.get("routing_changes") != []):
+            raise StudyError("Close interruption differs from its pinned signature and unknown-usage receipt")
+        failure_index = next(index for index, event in enumerate(events) if event["type"] == "model.call_failure")
+        mirror_index = next(index for index, event in enumerate(events) if event["type"] == "model.model_call_failure")
+        if not starts[0] < failure_index < mirror_index:
+            raise StudyError("Close interruption lacks ordered start, failure and mirror")
     elif incident["kind"] == "websocket_reset":
         failures = [event["data"] for event in events if event["type"] == "model.call_failure"]
         mirrors = [event["data"] for event in events if event["type"] == "model.model_call_failure"]

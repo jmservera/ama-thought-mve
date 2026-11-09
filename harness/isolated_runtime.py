@@ -584,6 +584,9 @@ def run_bridge(request: dict, directory: Path, tool, *, on_start=None, on_stop=N
                 raise StudyError("SDK terminal receipt belongs to a different session")
             if process.returncode:
                 code = terminal.get("protocol_error")
+                if code == "websocket_closed_usage_unknown":
+                    raise StudyError(f"SDK WebSocket closed (1001, {code}); final usage is unknown and "
+                                     "the reservation is retained; source-bound recovery is required")
                 if code in ("provider_retry_usage_incomplete", "incomplete_provider_retry",
                             "provider_retry_limit", "transient_provider_failure"):
                     raise StudyError(f"SDK backend retry stopped ({code}); "
