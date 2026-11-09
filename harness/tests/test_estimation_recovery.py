@@ -1077,3 +1077,155 @@ def test_fifth_copy_preserves_the_original_analysis_audit_authority(transport_in
     analysis.validate_trust_anchors(target, manifest, state)
     assert (target / "analysis-adjudications.json").read_bytes() == before
     assert source_manifest.read_bytes() == before
+
+
+@pytest.fixture
+def close_incident(transport_incident, tmp_path, monkeypatch):
+    case = transport_incident
+    study, recovery = case["study"], case["recovery"]
+    source = prepare_transport_incident(case)
+    source_root = case["target_root"]
+    state = study.read_json(source / "state.json")
+    extra = study.credits("27814.55969") - study.credits("26552.15674")
+    quotient, remainder = divmod(extra, 113)
+    for index in range(113):
+        cell = state["cells"][index % len(state["cells"])]
+        identity = f"close-complete-{index}"
+        amount = quotient + (index < remainder)
+        cell["completed_steps"] = cell.get("completed_steps", 0) + 1
+        cell["attempts"].append({"id": identity, "step": f"close-step-{index}",
+                                "status": "agent_returned", "seconds": 1,
+                                "source_commit": case["new"]["commit"],
+                                "usage": {"credits_complete": True, "totalNanoAiu": amount}})
+        state["ledger"]["entries"][identity] = {
+            "status": "complete", "reserved_nano": 300 * study.NANO, "actual_nano": amount}
+    cell = next(cell for cell in state["cells"] if cell["assigned_model"] == "gpt-6.1-sol"
+                and cell["arm"] == "E" and cell["replicate"] == 10)
+    identity = study.CLOSE_RECOVERY_ATTEMPT
+    directory = f"runs/{cell['run_id']}/attempts/{identity}"
+    failed = {"id": identity, "step": "f05-feature", "status": "interrupted",
+              "source_commit": case["new"]["commit"], "usage": None,
+              "started": 1768176000, "seconds": 74.6676, "seconds_limit": 1800,
+              "credit_limit_nano": 270 * study.NANO, "directory": directory}
+    cell["attempts"].append(failed)
+    cell["checkpoint"] = {"step": failed["step"], "head": "checkpoint"}
+    state["ledger"]["entries"][identity] = {
+        "status": "unknown", "reserved_nano": 300 * study.NANO, "actual_nano": None}
+    state.update(status="oracle_halt", oracle_halt=True, stop_requested=False)
+    message = '"WebSocket closed unexpectedly (request-id: opaque-reference): 1001 please reconnect"'
+    failure = {"model": "gpt-6.1-sol", "reasoningEffort": "medium", "failureKind": "transport",
+               "transport": "websocket", "rte": False, "source": "top_level", "apiEndpoint": "ws:/responses",
+               "errorMessage": message, "retryAttempt": 0, "isAuto": False, "isByok": False}
+    records = [
+        {"event": {"type": "model.call_start", "data": {"model": failure["model"], "turnId": "5"}}},
+        {"event": {"type": "model.call_failure", "data": failure}},
+        {"event": {"type": "model.model_call_failure", "data": {
+            "turn": 5, "reasoningEffort": "medium", "rte": False, "modelCall": {
+                "model": failure["model"], "transport": "websocket",
+                "failure_kind": "transport", "rte": False, "api_endpoint": "ws:/responses",
+                "error": message, "retry_attempt": 0}}}},
+        {"type": "complete", "exit_code": 1, "receipt": {
+            "failure_stage": "session_send", "protocol_error": "unexpected_runtime_activity",
+            "actual_models": [failure["model"]], "actual_reasoning_efforts": ["medium"],
+            "provider_failures": [], "routing_changes": [],
+            "usage": {"credits_complete": False, "totalNanoAiu": None}}},
+    ]
+    journal = source / directory / "transport/events.jsonl"
+    journal.parent.mkdir(parents=True)
+    journal.write_text("".join(json.dumps(record) + "\n" for record in records))
+    study.atomic_json(source / "state.json", state)
+    original = (source / "state.json").read_bytes()
+    target_root = tmp_path / "close-new"
+    target_root.mkdir()
+    shutil.copytree(source_root / "protocol", target_root / "protocol")
+    shutil.copytree(source_root / "harness", target_root / "harness")
+    new_commit = "9" * 40
+    new = {**case["new"], "commit": new_commit, "inputs_sha256": "7" * 64,
+           "public_disclosure_url": f"https://github.com/jmservera/ama-thought-mve/commit/{new_commit}",
+           "disclosed_at": "2026-01-13T00:00:00Z"}
+    monkeypatch.setattr(study, "CLOSE_RECOVERY_SOURCE", case["new"]["commit"])
+    monkeypatch.setattr(study, "CLOSE_RECOVERY_STATE_SHA256", hashlib.sha256(original).hexdigest())
+    monkeypatch.setattr(study, "CLOSE_RECOVERY_JOURNAL_SHA256", hashlib.sha256(journal.read_bytes()).hexdigest())
+    monkeypatch.setattr(study, "ROOT", target_root)
+    monkeypatch.setattr(recovery, "ROOT", target_root)
+    monkeypatch.setattr(study, "fingerprint", lambda *args: new["inputs_sha256"])
+    prior_roots = [*case["prior_roots"], case["source_root"]]
+    commits = {root: study.read_json(root / ".study/pilot-estimation/state.json")["identity"]["commit"]
+               for root in [*prior_roots, source_root]}
+    monkeypatch.setattr(study, "command", lambda args, **kwargs: commits.get(kwargs.get("cwd"), new_commit))
+    approval = {**case["approval"], "original_state_sha256": study.CLOSE_RECOVERY_STATE_SHA256,
+                "original_commit": case["new"]["commit"], "target_commit": new_commit,
+                "attempt_id": identity, "unknown_reservation_nano": 300 * study.NANO,
+                "approved_at": "2026-01-14T00:00:00Z", "disclosure_url": new["public_disclosure_url"]}
+    return {**case, "source_root": source_root, "source": source, "target_root": target_root,
+            "old": case["new"], "new": new, "approval": approval, "original": original,
+            "journal": journal, "failed": failed, "prior_roots": prior_roots}
+
+
+def prepare_close_incident(case):
+    return case["recovery"].prepare(case["source_root"], case["old"], case["new"], case["approval"],
+                                    prior_source_root=case["prior_roots"],
+                                    calibration_manifest=case["calibration_manifest"])
+
+
+def test_close_copy_preserves_six_holds_and_ordinary_feature_allowance(close_incident):
+    case, study = close_incident, close_incident["study"]
+    target = prepare_close_incident(case)
+    state = study.read_json(target / "state.json")
+    assert len(study.recovery_records(state)) == 6 and len(state["ledger"]["entries"]) == 2408
+    assert sum(cell.get("completed_steps", 0) for cell in state["cells"]) == 2402
+    assert sum(entry["reserved_nano"] for entry in state["ledger"]["entries"].values()
+               if entry["status"] == "recovery_hold") == 2100 * study.NANO
+    assert (case["source"] / "state.json").read_bytes() == case["original"]
+    assert (target / "state.before-recovery-05.json").is_file()
+    controller = study.Controller(target, case["config"], smoke=False, phase="pilot-estimation",
+                                  study_id="pilot-estimation", replicates=21,
+                                  unregistered=case["new"], handoff=case["handoff"])
+    cell = next(c for c in controller.state["cells"] if any(a["id"] == case["failed"]["id"] for a in c["attempts"]))
+    run = object.__new__(study.StudyRun)
+    run.controller, run.cell, run.arm, run.current_step = controller, cell, "E", "f05-feature"
+    assert run.remaining_allowance(1800) == (1800, 270 * study.NANO)
+    retry = controller.new_attempt(cell, "f05-feature")
+    assert controller.state["ledger"]["entries"][retry["id"]]["reserved_nano"] == 300 * study.NANO
+    assert controller.state["ledger"]["entries"][case["failed"]["id"]]["actual_nano"] is None
+    study.validate_recovery_evidence(target, controller.state, case["new"])
+    assert len(study.recovery_source_locks(state, [*case["prior_roots"], case["source_root"]])) == 12
+
+
+@pytest.mark.parametrize("damage", ["message", "treatment", "invented-id", "mirror", "order", "usage"])
+def test_close_recovery_requires_exact_retained_signature_and_unknown_usage(close_incident, damage):
+    case = close_incident
+    records = [json.loads(line) for line in case["journal"].read_bytes().splitlines()]
+    if damage == "message":
+        records[1]["event"]["data"]["errorMessage"] = "1001 please reconnect"
+    elif damage == "treatment":
+        records[1]["event"]["data"]["rte"] = True
+    elif damage == "invented-id":
+        records[1]["event"]["data"]["apiCallId"] = "guessed-from-message"
+    elif damage == "mirror":
+        records[2]["event"]["data"]["modelCall"]["error"] = "different error"
+    elif damage == "order":
+        records[0], records[1] = records[1], records[0]
+    else:
+        records[-1]["receipt"]["usage"] = {"credits_complete": True, "totalNanoAiu": 0}
+    case["journal"].write_text("".join(json.dumps(record) + "\n" for record in records))
+    with pytest.raises(case["study"].StudyError):
+        case["recovery"].verify_journal(case["source"], case["failed"])
+
+
+def test_sixth_copy_preserves_original_analysis_audit_authority(close_incident):
+    case = close_incident
+    analysis = importlib.import_module("analysis_adjudications")
+    authority = case["study"].read_json(case["source"] / "recovery-manifest-03.json")
+    manifest = {"schema": "analysis-adjudications/v1", "study_id": "pilot-estimation",
+                "scope_state_sha256": case["study"].SANDBOX_RECOVERY_STATE_SHA256,
+                "execution_source_commit": authority["commit"], "runtime_image": authority["runtime_image"],
+                "attribution_helper_sha256": analysis.current_helper_sha256(), "entries": []}
+    path = case["source"] / "analysis-adjudications.json"
+    case["study"].atomic_json(path, manifest)
+    before = path.read_bytes()
+    target = prepare_close_incident(case)
+    state = case["study"].read_json(target / "state.json")
+    analysis.validate_trust_anchors(target, manifest, state)
+    assert (target / "analysis-adjudications.json").read_bytes() == before
+    assert path.read_bytes() == before

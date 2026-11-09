@@ -553,9 +553,18 @@ an HTTP 500/503 response. The modern failure has `failureKind=transport`,
 `transport=websocket`, `rte=true`, `source=top_level`, endpoint `ws:/responses`,
 the exact closing-handshake ECONNRESET message, pinned model/effort and
 explicitly non-auto/non-BYOK routing. It has no HTTP status, error code or error
-type. The legacy mirror must agree on request IDs, endpoint, retryability,
+type. The legacy mirror must agree on request IDs, endpoint,
 transport kind and exact error, without inventing an HTTP status.
 An error-message substring alone is not sufficient evidence.
+
+Correction: `rte` is the Copilot API's `X-GitHub-Copilot-Request-TE`
+treatment/eligibility header signal, **not retryability**. The pinned SDK
+defines it in its generated `session-events` event types. The earlier
+description of this field as retryability was incorrect. Its historical value
+is retained for the exact archived incident; generic reset handling no longer
+uses the treatment signal to decide whether an otherwise correlated reset is
+accepted. Complete failed-request charges and the existing retry ceiling are
+still required.
 
 The transport recognizes only this structured signature in addition to the
 existing reviewed API failures. It permits the pinned CLI's already bounded
@@ -614,6 +623,53 @@ original calibration manifest. All six paid-study roots are locked.
 Check `--dry-run` before a separately authorized researcher launch.
 Do not update/reset the stopped original checkout or manually clear
 `oracle_halt`, reservations or checkpoints.
+
+#### Specific 2402-step WebSocket-close interruption
+
+The stopped state
+`7379f557090b61ed94479a9cccf49ac83925d7c45bab606838e007e1377a7732`
+is source `1d663f08af117332773feb22efc8e182734780a3`: 2402 completed
+measurements, 2408 attempts and 138 completed trajectories of 315.
+The interrupted attempt is
+`pilot-estimation-gpt-6.1-sol-E-10-f05-feature-1`; its journal SHA-256 is
+`19bffffd77043723c325765c2e11b188acd3a9ce7bc85a4bc7e577e0617bd068`.
+
+The provider closed its WebSocket with `1001 please reconnect`. This is a
+different signature from the earlier ECONNRESET: there are no modern API-call
+or service-request correlation IDs and no complete terminal usage. The
+`rte=false` observation is a treatment-header value, not evidence that a
+retry is forbidden or free. The request reference embedded in the error text
+must not be promoted into missing accounting identifiers.
+
+Normal resume remains blocked. The new diagnostic
+`websocket_closed_usage_unknown` explicitly aborts this terminal closure; it
+does not authorize an automatic retry, waive billing, switch to HTTP or mark a
+feature failed. An unknown charge is not zero. This correction cannot guarantee
+provider connectivity.
+
+The separately approved sixth copy preserves every observation and all six
+unknown study holds, totalling **2100 nominal credits**: five 300-credit holds
+and the earlier 600-credit D hold. Known study consumption is 27814.55969
+credits. A fresh attempt of this same E/F5 step needs a separately reserved
+**300 credits** and the full **1800-second feature allowance**, under the
+unchanged 270-credit operational soft limit. Preserve calibration, prior
+spending, allocation, ceiling and absolute deadline.
+
+Publish and qualify the exact new source before a genuine state/source-specific
+owner approval. Use the existing approval schema with this state, source and
+attempt, `unknown_reservation_nano=300000000000`, and explicit acceptance of the
+retained hold, fresh reservation/time and unregistered mid-study source change.
+No prior approval authorizes this sixth transition.
+
+In the new qualified checkout, use the standard copy-only preparer with the
+stopped 2402 checkout as `--source-root`, its manifest as `--old-manifest`,
+and five `--prior-source-root` values in order: original 651, stopped 878,
+stopped 1482, stopped 2082, stopped 2289. Keep the original calibration manifest.
+For launch, supply all six original roots as `--recovery-source-root`, adding
+the stopped 2402 root last. All seven paid-study roots remain locked.
+Verify `--dry-run`; leave paid collection to the researcher.
+Do not edit/reset an original study, clear its halt/hold, or rerun a historical
+outcome to obtain a better result.
 
 #### Exception attribution and intervention coverage
 

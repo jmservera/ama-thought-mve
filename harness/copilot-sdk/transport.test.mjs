@@ -356,7 +356,8 @@ function successfulRetry(config, turn = 1) {
 
 test('real same-turn provider retry preserves limits and accounts for the failed request', async () => {
   for (const failure of [providerFailure(),
-    providerFailure({ statusCode: 503, errorCode: 'service_unavailable' }), resetFailure()]) {
+    providerFailure({ statusCode: 503, errorCode: 'service_unavailable' }), resetFailure(),
+    resetFailure({ rte: false })]) {
     const result = await runFake({
       async action(config) {
         config.onEvent(event('model.call_start', { model: 'test-model', turnId: '0' }));
@@ -395,7 +396,7 @@ test('a matched transport reset does not certify a missing failed-request charge
 
 test('a transport reset needs the exact structured top-level signature, not a message alone', async () => {
   for (const change of [
-    { failureKind: 'api' }, { transport: 'http' }, { rte: false }, { source: 'subagent' },
+    { failureKind: 'api' }, { transport: 'http' }, { source: 'subagent' },
     { apiEndpoint: 'https://unreviewed.example/responses' }, { isAuto: true }, { isByok: true },
     { statusCode: 500 }, { errorCode: 'internal_error' }, { errorType: 'websocket_error' },
     { errorMessage: '"WebSocket authentication failed"' }, { errorMessage: '[ECONNRESET]' },
@@ -409,8 +410,8 @@ test('a transport reset needs the exact structured top-level signature, not a me
   }
 });
 
-test('reset mirrors must match retryability, transport endpoint, exact error and IDs', async () => {
-  for (const change of [{ rte: false }, { failure_kind: 'api' }, { api_endpoint: 'ws:/other' },
+test('reset mirrors must match transport endpoint, exact error and IDs', async () => {
+  for (const change of [{ failure_kind: 'api' }, { api_endpoint: 'ws:/other' },
     { error: 'different error' }, { status: 500 }, { errorCode: 'internal_error' },
     { service_request_id: 'other-request' }, { api_id: 'other-api' }]) {
     const result = await runFake({ async action(config) {
@@ -424,6 +425,23 @@ test('reset mirrors must match retryability, transport endpoint, exact error and
     assert.equal(result.receipt.protocol_error, 'provider_failure_correlation_unavailable');
     assert.equal(result.receipt.usage.credits_complete, false);
   }
+});
+
+test('close1001 without request correlation is an explicit usage-unknown stop, never a retry', async () => {
+  const result = await runFake({ async action(config) {
+    config.onEvent(event('model.call_start', { model: 'test-model', turnId: '0' }));
+    config.onEvent(event('model.call_failure', {
+      model: 'test-model', reasoningEffort: 'medium', failureKind: 'transport',
+      transport: 'websocket', apiEndpoint: 'ws:/responses', source: 'top_level',
+      rte: false, isAuto: false, isByok: false, retryAttempt: 0,
+      errorMessage: '"WebSocket closed unexpectedly (request-id: opaque-reference): 1001 please reconnect"',
+    }));
+  } });
+  assert.equal(result.receipt.protocol_error, 'websocket_closed_usage_unknown');
+  assert.equal(result.receipt.usage.credits_complete, false);
+  assert.equal(result.receipt.usage.totalNanoAiu, null);
+  assert.deepEqual(result.receipt.provider_failures, []);
+  assert.equal(result.state.sent, 1);
 });
 
 test('repeated WebSocket resets share the three-failure ceiling', async () => {
