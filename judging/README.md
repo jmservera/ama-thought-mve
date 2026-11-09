@@ -152,6 +152,11 @@ the local sandbox without Git metadata or checkout filters. Removing such assets
 could create artificial failures. No files or treatment notes from that sandbox
 are directly included in judge packets.
 
+Whole-study state, private mapping and ledger metadata have a separate 64 MiB
+read limit: a real full-study state can exceed 2 MiB. Individual judge packets,
+adapter replies and validated response files retain the 2 MiB limit. Larger
+metadata capacity does not permit oversized model output.
+
 ### Run the blinded judge
 
 Copy [config.example.json](config.example.json) to a private configuration,
@@ -187,6 +192,12 @@ block further admission; the tool does not automatically retry or silently
 replace a rating. Preserve the ledger, reconcile charges privately and document
 an approved recovery/new assessment rather than manually clearing reservations.
 Do not change model/rubric after seeing scores and call it the same assessment.
+
+Each validated response is persisted in its own private per-call file before
+the ledger marks the call complete. The ledger stores its hash, request binding
+and accounting, not another full copy of every verdict. Resume and reporting
+verify these files against the ledger; a missing or changed response blocks
+further work rather than generating a replacement rating.
 
 ### Report and handoff
 

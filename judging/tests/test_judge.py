@@ -325,6 +325,62 @@ def test_given_duplicate_or_nonfinite_json_when_reading_then_it_is_refused(judge
         with pytest.raises(judge.StudyError):
             judge.read_json(path)
 
+def test_given_large_metadata_when_reading_then_reply_limits_remain_strict(judge, tmp_path):
+    path = tmp_path / "large-metadata.json"
+    value = {"padding": "x" * (judge.LIMIT + 4096)}
+    path.write_text(json.dumps(value))
+
+    assert judge.read_json(path, limit=judge.METADATA_LIMIT) == value
+    with pytest.raises(judge.StudyError, match="oversized"):
+        judge.read_json(path)
+    with pytest.raises(judge.StudyError, match="oversized"):
+        judge.read_json(path, limit=1024)
+
+
+def test_given_full_study_metadata_when_preparing_then_private_mapping_is_not_truncated(judge, archive, tmp_path):
+    path = archive / "state.json"
+    state = json.loads(path.read_text())
+    state["identity"]["private_diagnostic_padding"] = "x" * (judge.LIMIT + 4096)
+    path.write_text(json.dumps(state))
+    output = tmp_path / "large-study-bundle"
+    judge.prepare(archive, output, "sha256:" + "1" * 64, diagnostic=True,
+                  collector=lambda repo, commit, k, cr, image, scratch: outcomes(judge, k, cr))
+    _, mapping, packets = judge.frozen_bundle(output)
+
+    assert mapping["identity"]["private_diagnostic_padding"] == state["identity"]["private_diagnostic_padding"]
+    assert (output / "private/mapping.json").stat().st_size > judge.LIMIT
+    assert all("private_diagnostic_padding" not in json.dumps(packet) for packet in packets.values())
+    judge.run_judges(output, config(judge), caller=caller)
+    assert len(judge.report(output)["runs"]) == 10
+
+
+def test_given_completed_judgments_when_storing_then_ledger_has_only_hash_bound_response_references(judge, bundle):
+    judge.run_judges(bundle, config(judge), caller=caller)
+    ledger = judge.read_json(bundle / "private/judges.json", limit=judge.METADATA_LIMIT)
+
+    for key, call in ledger["calls"].items():
+        assert "response" not in call
+        response = judge.read_json(bundle / "private" / key / "validated-response.json")
+        assert call["response_sha256"] == judge.digest(response)
+    assert (bundle / "private/judges.json").stat().st_size < sum(
+        (bundle / "private" / key / "validated-response.json").stat().st_size for key in ledger["calls"])
+    judge.run_judges(bundle, config(judge), caller=lambda *args: pytest.fail("No completed call may be replayed"))
+
+
+def test_given_tampered_per_call_response_when_resuming_then_no_new_spend_or_report_is_allowed(judge, bundle):
+    judge.run_judges(bundle, config(judge), caller=caller)
+    ledger = judge.read_json(bundle / "private/judges.json", limit=judge.METADATA_LIMIT)
+    key = next(iter(ledger["calls"]))
+    path = bundle / "private" / key / "validated-response.json"
+    response = judge.read_json(path)
+    response["verdict"]["scenarios"][0]["scores"]["api_usability"] = 0
+    path.write_text(json.dumps(response))
+
+    with pytest.raises(judge.StudyError, match="response changed"):
+        judge.run_judges(bundle, config(judge), caller=lambda *args: pytest.fail("No new call permitted"))
+    with pytest.raises(judge.StudyError, match="response changed"):
+        judge.report(bundle)
+
 def test_given_missing_declared_model_when_preparing_then_survivor_frame_is_refused(judge, archive, tmp_path):
     path = archive / "state.json"
     state = json.loads(path.read_text())
