@@ -1,0 +1,15 @@
+{
+  "schema": "blind-s1-judging-v1",
+  "judges": [
+    {
+      "id": "independent-judge",
+      "model": "PIN-AN-ENTITLED-MODEL-ID",
+      "version": "sdk1.0.28-cli1.0.105-judge1",
+      "command": ["node", "{root}/judging/copilot-judge.mjs"]
+    }
+  ],
+  "repeats": 3,
+  "timeout_seconds": 180,
+  "per_call_credits": 10,
+  "ceiling_credits": 10000
+}
