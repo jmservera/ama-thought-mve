@@ -11,11 +11,20 @@ export const CLI_VERSION = '1.0.105';
 export const PROTOCOL_VERSION = 3;
 const DISABLED_BUILTIN_MCP = 'github-mcp-server';
 const MAX_TRANSIENT_FAILURES = 3;
+export const WEBSOCKET_RESET_MESSAGE =
+  '"WebSocket receive failed: WebSocket protocol error: Connection reset without closing handshake [ECONNRESET]"';
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const keysOnly = (value, names) => object(value) && Object.keys(value).every(key => names.includes(key));
 const text = value => typeof value === 'string' && value.length > 0;
 const nano = value => Number.isSafeInteger(value) && value >= 0;
 const fault = code => Object.assign(new Error(code), { transportCode: code });
+
+export function isWebSocketReset(data) {
+  return object(data) && data.failureKind === 'transport' && data.transport === 'websocket' &&
+    data.rte === true && data.source === 'top_level' && data.apiEndpoint === 'ws:/responses' &&
+    data.errorMessage === WEBSOCKET_RESET_MESSAGE &&
+    ['statusCode', 'errorCode', 'errorType'].every(key => !Object.hasOwn(data, key));
+}
 
 export function validateRequest(request) {
   if (!keysOnly(request, ['model', 'reasoningEffort', 'prompt', 'remainingSeconds',
@@ -242,10 +251,11 @@ export class Evidence {
       this.identity(data.model, data.reasoningEffort);
       const transientCode = data.errorCode === 'internal_error' ||
         (data.statusCode === 503 && data.errorCode === 'service_unavailable');
+      const transientApi = [500, 502, 503, 504].includes(data.statusCode) &&
+        data.failureKind === 'api' && transientCode && data.errorType === 'websocket_error';
       if (!this.started || !this.toolCatalogVerified || !this.modelCall?.attemptActive ||
-        ![500, 502, 503, 504].includes(data.statusCode) || data.failureKind !== 'api' ||
-        data.transport !== 'websocket' || !transientCode ||
-        data.errorType !== 'websocket_error' || data.isAuto !== false || data.isByok !== false ||
+        (!transientApi && !isWebSocketReset(data)) ||
+        data.transport !== 'websocket' || data.isAuto !== false || data.isByok !== false ||
         data.fusion || !text(data.apiCallId) || data.apiCallId.length > 200 ||
         !text(data.serviceRequestId) || data.serviceRequestId.length > 200 ||
         data.retryAttempt !== this.modelCall.failures.length)
@@ -261,13 +271,18 @@ export class Evidence {
     } else if (event.type === 'model.model_call_failure') {
       const call = data.modelCall;
       const failure = this.providerFailures.get(call?.service_request_id);
+      const transportMirror = isWebSocketReset(failure) &&
+        call?.failure_kind === 'transport' && call.rte === true &&
+        call.api_endpoint === failure.apiEndpoint && call.error === failure.errorMessage &&
+        ['status', 'errorCode', 'errorType'].every(key => !Object.hasOwn(call, key));
       if (!failure || failure.mirrored || this.modelCall?.attemptActive ||
         this.modelCall?.turnId !== String(data.turn) ||
         this.modelCall.failures.at(-1) !== call.service_request_id ||
         call.model !== failure.model || data.reasoningEffort !== failure.reasoningEffort ||
-        call.status !== failure.statusCode || call.api_id !== failure.apiCallId ||
+        call.api_id !== failure.apiCallId ||
         call.transport !== failure.transport || call.errorCode !== failure.errorCode ||
-        call.errorType !== failure.errorType || call.retry_attempt !== failure.retryAttempt)
+        call.errorType !== failure.errorType || call.retry_attempt !== failure.retryAttempt ||
+        (isWebSocketReset(failure) ? !transportMirror : call.status !== failure.statusCode))
         throw fault('provider_failure_correlation_unavailable');
       failure.mirrored = true;
     } else if (event.type === 'model.call_finished') {
@@ -413,7 +428,8 @@ export class Evidence {
         totalNanoAiu: nano(call.copilotUsage?.totalNanoAiu) ? call.copilotUsage.totalNanoAiu : null,
       })),
       provider_failures: providerFailures.map(failure => ({
-        status_code: failure.statusCode, error_code: failure.errorCode,
+        status_code: failure.statusCode ?? null, error_code: failure.errorCode ?? null,
+        ...(failure.failureKind === 'transport' ? { failure_kind: 'transport' } : {}),
         transport: failure.transport, retry_attempt: failure.retryAttempt,
         accounting_complete: accountedFailure(failure),
       })),

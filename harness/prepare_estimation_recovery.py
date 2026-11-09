@@ -33,7 +33,7 @@ def verify_approval(approval: dict, new_manifest: dict) -> None:
             or approval["target_commit"] == incident["source"]
             or approval["attempt_id"] != incident["attempt"]
             or type(approval["unknown_reservation_nano"]) is not int
-            or approval["unknown_reservation_nano"] != 300 * study.NANO
+            or approval["unknown_reservation_nano"] != incident["reserved_nano"]
             or any(approval[key] is not True for key in ("accept_unknown_hold",
                    "accept_fresh_retry_reservation", "accept_fresh_retry_time_allowance",
                    "accept_mid_study_source_change", "owner_approved"))
@@ -157,6 +157,47 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
                 or matches[0].get("error") != {"code": "failure", "message": "Tool 'edit' does not exist."}
                 or receipt.get("protocol_error") != "unexpected_tool"):
             raise StudyError("Failed attempt does not match the retained edit failure and unknown usage")
+    elif incident["kind"] == "websocket_reset":
+        failures = [event["data"] for event in events if event["type"] == "model.call_failure"]
+        mirrors = [event["data"] for event in events if event["type"] == "model.model_call_failure"]
+        if len(failures) != 1 or len(mirrors) != 1:
+            raise StudyError("Reset interruption lacks a unique correlated transport failure")
+        failure, mirror = failures[0], mirrors[0]
+        call = mirror.get("modelCall", {})
+        message = '"WebSocket receive failed: WebSocket protocol error: Connection reset without closing handshake [ECONNRESET]"'
+        turn = str(mirror.get("turn"))
+        starts = [index for index, event in enumerate(events) if event["type"] == "model.call_start"
+                  and event["data"].get("turnId") == turn and event["data"].get("model") == "gpt-6.1-sol"]
+        finishes = [index for index, event in enumerate(events) if event["type"] == "model.call_finished"
+                    and event["data"].get("turnId") == turn and event["data"].get("outcome") == "error"]
+        if (failure.get("model") != "gpt-6.1-sol" or failure.get("reasoningEffort") != "medium"
+                or failure.get("failureKind") != "transport" or failure.get("transport") != "websocket"
+                or failure.get("rte") is not True or failure.get("source") != "top_level"
+                or failure.get("apiEndpoint") != "ws:/responses" or failure.get("errorMessage") != message
+                or any(key in failure for key in ("statusCode", "errorCode", "errorType"))
+                or failure.get("isAuto") is not False or failure.get("isByok") is not False
+                or failure.get("retryAttempt") != 0
+                or any(not isinstance(failure.get(key), str) or not failure[key]
+                       for key in ("apiCallId", "serviceRequestId"))
+                or not isinstance(call, dict) or call.get("model") != failure["model"]
+                or mirror.get("reasoningEffort") != "medium" or call.get("failure_kind") != "transport"
+                or call.get("transport") != "websocket" or call.get("rte") is not True
+                or call.get("error") != message or call.get("api_endpoint") != failure["apiEndpoint"]
+                or call.get("api_id") != failure["apiCallId"]
+                or call.get("service_request_id") != failure["serviceRequestId"]
+                or call.get("retry_attempt") != 0
+                or any(key in call for key in ("status", "errorCode", "errorType"))
+                or len(starts) != 1 or len(finishes) != 1
+                or receipt.get("protocol_error") != "unexpected_runtime_activity"
+                or receipt.get("failure_stage") != "session_send"
+                or receipt.get("actual_models") != ["gpt-6.1-sol"]
+                or receipt.get("actual_reasoning_efforts") != ["medium"]
+                or receipt.get("provider_failures") != [] or receipt.get("routing_changes") != []):
+            raise StudyError("Reset interruption differs from its pinned transport/identity/unknown-usage signature")
+        failure_index = next(index for index, event in enumerate(events) if event["type"] == "model.call_failure")
+        mirror_index = next(index for index, event in enumerate(events) if event["type"] == "model.model_call_failure")
+        if not starts[0] < failure_index < mirror_index < finishes[0]:
+            raise StudyError("Reset interruption lacks ordered start, failure, mirror and terminal error")
     else:
         same_turn_retry = incident["kind"] == "backend_503_same_turn"
         status_code = 503 if same_turn_retry else 500
@@ -308,7 +349,7 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
         entry = entries[incident["attempt"]]
         if (attempt.get("status") != "interrupted" or attempt.get("usage") is not None
                 or attempt.get("measurement") or entry != {
-                    "status": "unknown", "actual_nano": None, "reserved_nano": 300 * study.NANO}
+                    "status": "unknown", "actual_nano": None, "reserved_nano": incident["reserved_nano"]}
                 or (cell.get("checkpoint") or {}).get("step") != attempt["step"]
                 or any(item["status"] == "running" for item in attempts)):
             raise StudyError("Failed attempt or held reservation is not recoverable")

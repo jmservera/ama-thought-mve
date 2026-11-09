@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { CopilotRequestHandler } from '@github/copilot-sdk';
 import { Evidence, InputRecords, OutputRecords, assertRuntime, permissionHandler,
-  runTransport, sessionConfig, validateArguments } from './transport.mjs';
+  runTransport, sessionConfig, validateArguments, WEBSOCKET_RESET_MESSAGE } from './transport.mjs';
 import { RpcFrames, hostEnvironment, makeRuntime, prepareRuntimeDirectories } from './runtime-guard.mjs';
 
 const request = (extra = {}) => ({ model: 'test-model', reasoningEffort: 'medium', prompt: 'test',
@@ -325,7 +325,19 @@ const providerFailure = (extra = {}) => ({
   isAuto: false, isByok: false, retryAttempt: 0,
   apiCallId: 'failed-api', serviceRequestId: 'failed-service', ...extra,
 });
-const providerMirror = (failure, turn = 0) => ({
+const resetFailure = (extra = {}) => ({
+  model: 'test-model', reasoningEffort: 'medium', failureKind: 'transport',
+  transport: 'websocket', rte: true, source: 'top_level', apiEndpoint: 'ws:/responses',
+  errorMessage: WEBSOCKET_RESET_MESSAGE, isAuto: false, isByok: false, retryAttempt: 0,
+  apiCallId: 'failed-api', serviceRequestId: 'failed-service', ...extra,
+});
+const providerMirror = (failure, turn = 0) => failure.failureKind === 'transport' ? {
+  kind: 'model_call_failure', turn, reasoningEffort: failure.reasoningEffort,
+  modelCall: { model: failure.model, api_id: failure.apiCallId,
+    service_request_id: failure.serviceRequestId, transport: failure.transport,
+    failure_kind: 'transport', rte: failure.rte, api_endpoint: failure.apiEndpoint,
+    error: failure.errorMessage, retry_attempt: failure.retryAttempt },
+} : ({
   kind: 'model_call_failure', turn, reasoningEffort: failure.reasoningEffort,
   modelCall: { model: failure.model, status: failure.statusCode, api_id: failure.apiCallId,
     service_request_id: failure.serviceRequestId, transport: failure.transport,
@@ -344,7 +356,7 @@ function successfulRetry(config, turn = 1) {
 
 test('real same-turn provider retry preserves limits and accounts for the failed request', async () => {
   for (const failure of [providerFailure(),
-    providerFailure({ statusCode: 503, errorCode: 'service_unavailable' })]) {
+    providerFailure({ statusCode: 503, errorCode: 'service_unavailable' }), resetFailure()]) {
     const result = await runFake({
       async action(config) {
         config.onEvent(event('model.call_start', { model: 'test-model', turnId: '0' }));
@@ -367,6 +379,67 @@ test('real same-turn provider retry preserves limits and accounts for the failed
     assert.equal(result.state.sent, 1);
     assert.equal(result.state.config.sessionLimits.maxAiCredits, 173.5);
   }
+});
+
+test('a matched transport reset does not certify a missing failed-request charge', async () => {
+  const failure = resetFailure();
+  const result = await runFake({ async action(config) {
+    failProvider(config, failure);
+    successfulRetry(config, 0);
+  } });
+  assert.equal(result.receipt.protocol_error, 'provider_retry_usage_incomplete');
+  assert.equal(result.receipt.usage.totalNanoAiu, null);
+  assert.equal(result.receipt.provider_failures[0].failure_kind, 'transport');
+  assert.equal(result.receipt.provider_failures[0].status_code, null);
+});
+
+test('a transport reset needs the exact structured top-level signature, not a message alone', async () => {
+  for (const change of [
+    { failureKind: 'api' }, { transport: 'http' }, { rte: false }, { source: 'subagent' },
+    { apiEndpoint: 'https://unreviewed.example/responses' }, { isAuto: true }, { isByok: true },
+    { statusCode: 500 }, { errorCode: 'internal_error' }, { errorType: 'websocket_error' },
+    { errorMessage: '"WebSocket authentication failed"' }, { errorMessage: '[ECONNRESET]' },
+  ]) {
+    const result = await runFake({ async action(config) {
+      failProvider(config, resetFailure(change));
+      successfulRetry(config);
+    } });
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.receipt.usage.credits_complete, false);
+  }
+});
+
+test('reset mirrors must match retryability, transport endpoint, exact error and IDs', async () => {
+  for (const change of [{ rte: false }, { failure_kind: 'api' }, { api_endpoint: 'ws:/other' },
+    { error: 'different error' }, { status: 500 }, { errorCode: 'internal_error' },
+    { service_request_id: 'other-request' }, { api_id: 'other-api' }]) {
+    const result = await runFake({ async action(config) {
+      const failure = resetFailure();
+      config.onEvent(event('model.call_start', { model: 'test-model', turnId: '0' }));
+      config.onEvent(event('model.call_failure', failure));
+      const mirror = providerMirror(failure);
+      mirror.modelCall = { ...mirror.modelCall, ...change };
+      config.onEvent(event('model.model_call_failure', mirror));
+    } });
+    assert.equal(result.receipt.protocol_error, 'provider_failure_correlation_unavailable');
+    assert.equal(result.receipt.usage.credits_complete, false);
+  }
+});
+
+test('repeated WebSocket resets share the three-failure ceiling', async () => {
+  const result = await runFake({ async action(config) {
+    config.onEvent(event('model.call_start', { model: 'test-model', turnId: '0' }));
+    for (let retry = 0; retry < 4; retry++) {
+      const failure = resetFailure({ retryAttempt: retry, apiCallId: `failed-${retry}`,
+        serviceRequestId: `service-${retry}` });
+      config.onEvent(event('model.call_failure', failure));
+      config.onEvent(event('model.model_call_failure', providerMirror(failure)));
+      config.onEvent(event('model.call_start', { model: 'test-model', turnId: '0' }));
+    }
+  } });
+  assert.equal(result.receipt.protocol_error, 'provider_retry_limit');
+  assert.equal(result.receipt.provider_failures.length, 3);
+  assert.equal(result.receipt.usage.credits_complete, false);
 });
 
 test('same-turn service-unavailable retry still requires complete failed-request charges', async () => {

@@ -537,6 +537,84 @@ to their original qualified source/image/helper. Reporting locates only their
 exact validated archival snapshot/approval/manifest, never a silent fallback
 to an unrelated or tampered object. No historical outcome is rerun to improve it.
 
+#### Specific 2289-step WebSocket-reset interruption
+
+The stopped state
+`1c79a8eba989779464cd2757e65887fae727538fb74691e50228c27bde0db60f`
+is source `355d33389441b325da72363a9c3028dbdefa2b4b`, with 2289 completed
+measurements, 2294 attempts and 130 completed trajectories out of 315.
+The interrupted attempt is
+`pilot-estimation-gpt-6.1-sol-D-10-f07-feature-1`.
+Its retained journal SHA-256 is
+`9057d6c157011ade7dbf9412d791d28c2667acc3a5f7f2182b130c43ebf8d8c4`.
+
+This was a top-level WebSocket transport reset, not a feature-test failure or
+an HTTP 500/503 response. The modern failure has `failureKind=transport`,
+`transport=websocket`, `rte=true`, `source=top_level`, endpoint `ws:/responses`,
+the exact closing-handshake ECONNRESET message, pinned model/effort and
+explicitly non-auto/non-BYOK routing. It has no HTTP status, error code or error
+type. The legacy mirror must agree on request IDs, endpoint, retryability,
+transport kind and exact error, without inventing an HTTP status.
+An error-message substring alone is not sufficient evidence.
+
+The transport recognizes only this structured signature in addition to the
+existing reviewed API failures. It permits the pinned CLI's already bounded
+retry activity, not a new harness prompt or unlimited connection retries.
+The shared three-failure ceiling, original session limits, complete correlated
+failed-request charges, model/effort/routing and tool isolation remain mandatory.
+This cannot repair an upstream connection or guarantee a successful retry.
+
+The real stopped session has no successful retry or complete terminal charge.
+Accepting its event signature does not make its usage complete or its charge
+zero. The five study reservations remain held: four previous 300-credit holds
+and this **600-credit D feature hold**, totalling 1800 nominal credits.
+Known study consumption is 26552.15674 credits; calibration, prior spend and
+historical reservations remain separate and unchanged.
+
+An approved separate copy can give the same D/F7 step a fresh **2700-second**
+feature allowance and separately reserve **600 credits**, with its unchanged
+540-credit operational soft limit. The old 600-credit hold is not released.
+Nominal reservations and soft limits do not bound actual billing.
+All allocation, configuration, absolute deadline and original evidence remain
+unchanged. This is another explicitly disclosed, unregistered mid-study source
+transition after observations, not continuation under one original freeze.
+
+After publishing and qualifying the exact corrected source, obtain a new
+genuine owner approval for this state/source/attempt. Use the existing
+`estimation-incident-approval/v1` fields, but set
+`unknown_reservation_nano` to **600000000000** and explicitly accept the
+unknown hold, fresh reservation, full fresh D feature time and source change.
+Earlier approvals do not authorize this incident.
+
+In the clean qualified target checkout, prepare the copy without model calls:
+
+```bash
+.venv/bin/python harness/prepare_estimation_recovery.py \
+  --source-root /path/to/stopped-2289-checkout \
+  --old-manifest /path/to/stopped-2289-owner-evidence.json \
+  --prior-source-root /path/to/original-651-checkout \
+  --prior-source-root /path/to/stopped-878-checkout \
+  --prior-source-root /path/to/stopped-1482-checkout \
+  --prior-source-root /path/to/stopped-2082-checkout \
+  --calibration-manifest /path/to/original-651-owner-evidence.json \
+  --new-manifest /path/to/new-owner-evidence.json \
+  --approval /path/to/new-private-recovery-approval.json
+```
+
+The new copy retains all five transitions and every original observation,
+attempt, calibration record, approval, audit and unknown-charge reservation.
+Earlier audit authorities keep their exact original scope/source/image/helper;
+they are not relabelled or rerun. Per-incident reservation validation preserves
+the 300-credit historical holds and this 600-credit D hold without shrinking
+either to a common default.
+
+For launch, supply five `--recovery-source-root` values: original 651, stopped
+878, stopped 1482, stopped 2082, then stopped 2289, in that order, and retain the
+original calibration manifest. All six paid-study roots are locked.
+Check `--dry-run` before a separately authorized researcher launch.
+Do not update/reset the stopped original checkout or manually clear
+`oracle_halt`, reservations or checkpoints.
+
 #### Exception attribution and intervention coverage
 
 A declared product exception raised by a candidate source-loaded view getter
