@@ -97,6 +97,10 @@ SERVICE_RECOVERY_STATE_SHA256 = "ec36955567ffc2424ce4a9a748f43a3e584c3c3d6756488
 SERVICE_RECOVERY_SOURCE = "fb1a90a0347609b1b1c33f4cd1147433a25cab96"
 SERVICE_RECOVERY_ATTEMPT = "pilot-estimation-gpt-6.1-sol-A-09-f02-feature-1"
 SERVICE_RECOVERY_JOURNAL_SHA256 = "e4b44c1f0145fe5d54422187dc4c21229a2db405e93aca0aacbc7fbc4c2834db"
+TRANSPORT_RECOVERY_STATE_SHA256 = "1c79a8eba989779464cd2757e65887fae727538fb74691e50228c27bde0db60f"
+TRANSPORT_RECOVERY_SOURCE = "355d33389441b325da72363a9c3028dbdefa2b4b"
+TRANSPORT_RECOVERY_ATTEMPT = "pilot-estimation-gpt-6.1-sol-D-10-f07-feature-1"
+TRANSPORT_RECOVERY_JOURNAL_SHA256 = "9057d6c157011ade7dbf9412d791d28c2667acc3a5f7f2182b130c43ebf8d8c4"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
@@ -549,15 +553,16 @@ def recovery_incident(state_sha256: str) -> dict:
     if state_sha256 == RECOVERY_STATE_SHA256:
         return {"source": RECOVERY_SOURCE, "attempt": RECOVERY_ATTEMPT,
                 "journal_sha256": RECOVERY_JOURNAL_SHA256, "steps": 651, "attempts": 652,
-                "known_nano": credits("7794.8031"), "kind": "missing_edit"}
+                "known_nano": credits("7794.8031"), "kind": "missing_edit", "reserved_nano": 300 * NANO}
     if state_sha256 == BACKEND_RECOVERY_STATE_SHA256:
         return {"source": BACKEND_RECOVERY_SOURCE, "attempt": BACKEND_RECOVERY_ATTEMPT,
                 "journal_sha256": BACKEND_RECOVERY_JOURNAL_SHA256, "steps": 878, "attempts": 880,
-                "known_nano": credits("10470.87094"), "kind": "backend_500"}
+                "known_nano": credits("10470.87094"), "kind": "backend_500", "reserved_nano": 300 * NANO}
     if state_sha256 == SANDBOX_RECOVERY_STATE_SHA256:
         return {"source": SANDBOX_RECOVERY_SOURCE, "attempt": SANDBOX_RECOVERY_ATTEMPT,
                 "journal_sha256": SANDBOX_RECOVERY_JOURNAL_SHA256, "steps": 1482, "attempts": 1485,
                 "known_nano": credits("16961.29357"), "kind": "state_links",
+                "reserved_nano": 300 * NANO,
                 "run_id": "pilot-estimation-gpt-6.1-sol-B-06",
                 "broker_metadata_sha256": SANDBOX_RECOVERY_BROKER_METADATA_SHA256,
                 "broker_state_sha256": SANDBOX_RECOVERY_BROKER_STATE_SHA256,
@@ -565,13 +570,19 @@ def recovery_incident(state_sha256: str) -> dict:
     if state_sha256 == SERVICE_RECOVERY_STATE_SHA256:
         return {"source": SERVICE_RECOVERY_SOURCE, "attempt": SERVICE_RECOVERY_ATTEMPT,
                 "journal_sha256": SERVICE_RECOVERY_JOURNAL_SHA256, "steps": 2082, "attempts": 2086,
-                "known_nano": credits("23969.42938"), "kind": "backend_503_same_turn"}
+                "known_nano": credits("23969.42938"), "kind": "backend_503_same_turn",
+                "reserved_nano": 300 * NANO}
+    if state_sha256 == TRANSPORT_RECOVERY_STATE_SHA256:
+        return {"source": TRANSPORT_RECOVERY_SOURCE, "attempt": TRANSPORT_RECOVERY_ATTEMPT,
+                "journal_sha256": TRANSPORT_RECOVERY_JOURNAL_SHA256, "steps": 2289, "attempts": 2294,
+                "known_nano": credits("26552.15674"), "kind": "websocket_reset",
+                "reserved_nano": 600 * NANO}
     raise StudyError("Recovery state is not one of the disclosed estimation interruptions")
 
 
 def recovery_state_hashes() -> tuple[str, ...]:
     return (RECOVERY_STATE_SHA256, BACKEND_RECOVERY_STATE_SHA256, SANDBOX_RECOVERY_STATE_SHA256,
-            SERVICE_RECOVERY_STATE_SHA256)
+            SERVICE_RECOVERY_STATE_SHA256, TRANSPORT_RECOVERY_STATE_SHA256)
 
 
 def recovery_records(state: dict) -> list[dict]:
@@ -600,13 +611,14 @@ def validate_recovery_state(state: dict) -> None:
         return
     attempts = [attempt for cell in state["cells"] for attempt in cell["attempts"]]
     ids = [attempt["id"] for attempt in attempts]
-    expected_holds = [recovery_incident(record["original_state_sha256"])["attempt"] for record in records]
+    incidents = [recovery_incident(record["original_state_sha256"]) for record in records]
+    expected_holds = {incident["attempt"]: incident["reserved_nano"] for incident in incidents}
     if (len(set(ids)) != len(ids) or set(ids) != set(entries) or set(holds) != set(expected_holds)
             or len(interrupted) != len(records)
             or {attempt["id"] for attempt in interrupted} != set(expected_holds)
             or any(attempt.get("usage") is not None for attempt in interrupted)
             or any(entries[key].get("actual_nano") is not None
-                   or entries[key].get("reserved_nano") != 300 * NANO for key in expected_holds)):
+                   or entries[key].get("reserved_nano") != reserved for key, reserved in expected_holds.items())):
         raise StudyError("Invalid source transition or recovered unknown-charge hold")
     previous_ids = set()
     for index, recovery in enumerate(records):
