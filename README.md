@@ -68,6 +68,12 @@ resource exhaustion/missingness remains possible under unchanged safeguards.
 [CONTRIBUTOR.md](CONTRIBUTOR.md) documents the separate complete source/setup
 bundle, offline checks, read-only user-budget audit and actual launch blockers.
 
+[Blind post-experiment judging](judging/README.md) is a separate supplementary
+tool for archived S1 trajectories. It evaluates anonymized workflow evidence,
+earlier-capability retention and AI-rated API usability without rerunning
+development agents or changing the experiment. The guide includes researcher
+commands and paper-ready methods; it does not claim judging has been performed.
+
 The controller schedules the model-aware allocation, preserves model/replicate
 identity on resume. The five-arm primary B-D contrast equally weights the three
 within-model coverage differences, with whole-trajectory stratified resampling;
