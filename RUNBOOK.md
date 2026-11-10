@@ -729,6 +729,56 @@ grows. Verify status, dry-run, raw-byte preservation and bounded result
 packaging before handing the new pinned launcher to the researcher.
 No automatic launch or historical outcome rerun is authorized.
 
+#### Specific 2691-step unaccounted-retry interruption
+
+The stopped state
+`4660d4b31bdd2bb8a8ac1c62c42dff8021d8cdbc87d24ed50e2c464c592b2d94`
+is source `03ac696b382e539cad5f8153b91d144bb4c1990b`: 2691 completed
+measurements, 2699 attempts and 155 completed trajectories of 315.
+The interrupted attempt is
+`pilot-estimation-gpt-6.1-sol-D-11-f06-feature-1`; its journal SHA-256 is
+`8714b88c50b506296309408b09161980b35ba6b8cefeadffbb9d8cc13fb7ec78`.
+
+The provider reset its WebSocket with ECONNRESET during logical turn 5.
+The native same-turn retry succeeded, and the session shut down routinely
+after nine successful calls. Their complete receipts total **14.87887 credits**,
+but none correlates with the failed physical request. Routine shutdown and a
+successful retry do not prove that the failed request was free. The transport
+correctly reported `provider_retry_usage_incomplete`, with unknown total usage.
+This is not another retry-history bug, and the accounting guard is unchanged.
+Stopped cells now print their retained safe reason, so the operator sees more
+than the final `oracle_halt` progress label.
+
+Normal resume remains blocked. The separately approved eighth copy must retain
+all **3000 nominal unknown study credits**, including the new **600-credit**
+D/F6 hold and all seven earlier holds. Known study consumption is 30927.78079
+credits. A fresh attempt at this same D/F6 step requires a separately reserved
+**600 credits** and the full **2700-second feature allowance**, under the
+unchanged **540-credit operational soft limit**. Preserve configuration,
+calibration, original start, absolute deadline, allocation and ceiling.
+
+Publish and qualify the exact new source before obtaining a genuine
+state/source/attempt-specific approval with
+`unknown_reservation_nano=600000000000`. The existing approval schema must
+explicitly accept the retained hold, fresh reservation and time allowance, and
+unregistered mid-study source change. No previous approval authorizes this
+transition. The verifier pins the exact journal, its mirrored reset, ordered
+error finish and successful same-turn retry, routine shutdown, missing
+failed-request charge and incomplete-accounting terminal receipt.
+
+Use the standard copy-only preparer in the new qualified checkout. Supply the
+stopped 2691 mixed-retry checkout as `--source-root`, its manifest as
+`--old-manifest`, and seven earlier `--prior-source-root` values in order:
+original 651, stopped 878, stopped 1482, stopped 2082, stopped 2289, stopped
+2402 and stopped 2526. Keep the original calibration manifest.
+For researcher launch, provide all eight original roots in order using
+`--recovery-source-root`; all nine paid-study roots remain locked.
+Verify raw journals and audit authorities byte-for-byte, exact accounting,
+status, dry-run and result packaging before handing off the pinned launcher.
+No automatic paid launch, original-state edit or historical-outcome rerun is
+authorized. Provider omissions may recur; this recovery cannot guarantee
+connectivity or complete future billing.
+
 #### Exception attribution and intervention coverage
 
 A declared product exception raised by a candidate source-loaded view getter

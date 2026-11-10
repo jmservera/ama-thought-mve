@@ -63,6 +63,12 @@ For the later 503/service-unavailable interruption, follow the
 [2082-step recovery procedure](RUNBOOK.md#specific-2082-step-service-interruption).
 Preserve all four unknown holds and original source roots; a generic restart
 does not authorize a fresh attempt or clear missing charges.
+For the later 2691-step interruption, follow the
+[unaccounted-retry recovery procedure](RUNBOOK.md#specific-2691-step-unaccounted-retry-interruption).
+The native retry succeeded, but its failed-request charge is missing.
+Routine shutdown does not certify zero cost: retain the new 600-credit D hold
+and all seven earlier holds. A separate copy needs exact new-source approval;
+normal resume and automatic paid replay remain blocked.
 
 ```bash
 ./run-experiment.sh --dry-run          # read-only readiness and schedule

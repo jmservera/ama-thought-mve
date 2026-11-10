@@ -69,6 +69,30 @@ def test_parallel_scheduler_really_overlaps_and_respects_limit(study, config, tm
     assert [entry["parallelism"] for entry in resumed.state["parallelism_history"]] == [4, 2]
 
 
+@pytest.mark.parametrize("error_kind", ["accounting", "infrastructure"])
+def test_stopped_cell_reports_safe_reason_without_raw_infrastructure_details(
+        study, config, tmp_path, monkeypatch, capsys, error_kind):
+    current = study.Controller(tmp_path, config, smoke=False, phase="calibration", study_id="diagnostic",
+                               short_calibration=True)
+    cell = current.state["cells"][0]
+    reason = ("SDK backend retry stopped (provider_retry_usage_incomplete); "
+              "final usage is unknown and the reservation is retained")
+
+    def run_cell(item):
+        if error_kind == "accounting":
+            raise study.StudyError(reason)
+        raise RuntimeError("private provider response")
+
+    monkeypatch.setattr(current, "run_cell", run_cell)
+    current.run_scheduled_cell(cell)
+
+    output = capsys.readouterr().err
+    assert cell["status"] == "partial"
+    assert f"Stopped: {cell['run_id']} | {cell['stop_reason']}" in output
+    assert "private provider response" not in output
+    assert (reason if error_kind == "accounting" else "inspect private attempt logs") in output
+
+
 def test_parallel_reservations_cannot_oversubscribe_exact_ceiling(study, config, tmp_path):
     current = study.Controller(tmp_path, config, smoke=False, phase="calibration", study_id="reservation",
                                short_calibration=True, parallelism=3)
