@@ -394,6 +394,106 @@ test('a matched transport reset does not certify a missing failed-request charge
   assert.equal(result.receipt.provider_failures[0].status_code, null);
 });
 
+test('mixed finished and unfinished same-turn retries preserve every charge and original limits', async () => {
+  const first = providerFailure();
+  const second = providerFailure({ retryAttempt: 1, apiCallId: 'second-api', serviceRequestId: 'second-service' });
+  const result = await runFake({
+    async action(config) {
+      failProvider(config, first, 6);
+      config.onEvent(usage(config.sessionId, { apiCallId: first.apiCallId,
+        serviceRequestId: first.serviceRequestId, copilotUsage: { totalNanoAiu: 17 } }));
+      config.onEvent(event('model.call_start', { model: 'test-model', turnId: '6' }));
+      config.onEvent(event('model.call_failure', second));
+      config.onEvent(event('model.model_call_failure', providerMirror(second, 6)));
+      config.onEvent(usage(config.sessionId, { apiCallId: second.apiCallId,
+        serviceRequestId: second.serviceRequestId, copilotUsage: { totalNanoAiu: 19 },
+        accounting: { sourceSessionId: config.sessionId, sequence: 2, usageId: 'second-failure' } }));
+      successfulRetry(config, 6);
+    },
+    usage: sid => ({ accounting: { sourceSessionId: sid, sequence: 3, usageId: 'success' } }),
+    shutdown: sid => event('session.shutdown', { shutdownType: 'routine', currentModel: 'test-model',
+      totalNanoAiu: 159, usageAccountingWatermarks: { [sid]: 3 },
+      modelMetrics: { 'test-model': { totalNanoAiu: 159, requests: { count: 3 } } } }),
+  });
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.receipt.usage.totalNanoAiu, 159);
+  assert.equal(result.receipt.provider_failures.length, 2);
+  assert.ok(result.receipt.provider_failures.every(failure => failure.accounting_complete));
+  assert.equal(result.state.sent, 1);
+  assert.equal(result.state.config.sessionLimits.maxAiCredits, 173.5);
+});
+
+test('mixed-boundary retry never treats omitted failed-request charges as zero', async () => {
+  for (const omitted of ['first', 'second', 'both']) {
+    let sequence = 0;
+    let charged = 0;
+    const first = providerFailure();
+    const second = providerFailure({ retryAttempt: 1, apiCallId: 'second-api', serviceRequestId: 'second-service' });
+    const result = await runFake({
+      async action(config) {
+        const charge = failure => {
+          sequence++; charged += 17;
+          config.onEvent(usage(config.sessionId, { apiCallId: failure.apiCallId,
+            serviceRequestId: failure.serviceRequestId, copilotUsage: { totalNanoAiu: 17 },
+            accounting: { sourceSessionId: config.sessionId, sequence, usageId: `charge-${sequence}` } }));
+        };
+        failProvider(config, first, 6);
+        if (omitted === 'second') charge(first);
+        config.onEvent(event('model.call_start', { model: 'test-model', turnId: '6' }));
+        config.onEvent(event('model.call_failure', second));
+        config.onEvent(event('model.model_call_failure', providerMirror(second, 6)));
+        if (omitted === 'first') charge(second);
+        successfulRetry(config, 6);
+      },
+      usage: sid => ({ accounting: { sourceSessionId: sid, sequence: sequence + 1, usageId: 'success' } }),
+      shutdown: sid => event('session.shutdown', { shutdownType: 'routine', currentModel: 'test-model',
+        totalNanoAiu: 123 + charged, usageAccountingWatermarks: { [sid]: sequence + 1 },
+        modelMetrics: { 'test-model': { totalNanoAiu: 123 + charged, requests: { count: sequence + 1 } } } }),
+    });
+    assert.equal(result.receipt.protocol_error, 'provider_retry_usage_incomplete');
+    assert.equal(result.receipt.usage.totalNanoAiu, null);
+    assert.equal(result.receipt.usage.credits_complete, false);
+  }
+});
+
+test('finished same-turn failures cannot reset the three-failure ceiling', async () => {
+  const result = await runFake({ async action(config) {
+    for (let retry = 0; retry < 4; retry++) {
+      failProvider(config, providerFailure({ retryAttempt: retry,
+        apiCallId: `api-${retry}`, serviceRequestId: `service-${retry}` }), 6);
+    }
+  } });
+  assert.equal(result.receipt.protocol_error, 'provider_retry_limit');
+  assert.equal(result.receipt.provider_failures.length, 3);
+  assert.equal(result.receipt.usage.credits_complete, false);
+});
+
+test('finished retry boundaries still require a fresh per-attempt accounting watermark', async () => {
+  const first = providerFailure();
+  const later = providerFailure({ retryAttempt: 1, apiCallId: 'later-api', serviceRequestId: 'later-service' });
+  const result = await runFake({
+    async action(config) {
+      failProvider(config, first, 6);
+      config.onEvent(usage(config.sessionId, { apiCallId: later.apiCallId,
+        serviceRequestId: later.serviceRequestId, copilotUsage: { totalNanoAiu: 17 } }));
+      config.onEvent(event('model.call_start', { model: 'test-model', turnId: '6' }));
+      config.onEvent(event('model.call_failure', later));
+      config.onEvent(event('model.model_call_failure', providerMirror(later, 6)));
+      config.onEvent(usage(config.sessionId, { apiCallId: first.apiCallId,
+        serviceRequestId: first.serviceRequestId, copilotUsage: { totalNanoAiu: 17 },
+        accounting: { sourceSessionId: config.sessionId, sequence: 2, usageId: 'first-charge' } }));
+      successfulRetry(config, 6);
+    },
+    usage: sid => ({ accounting: { sourceSessionId: sid, sequence: 3, usageId: 'success' } }),
+    shutdown: sid => event('session.shutdown', { shutdownType: 'routine', currentModel: 'test-model',
+      totalNanoAiu: 157, usageAccountingWatermarks: { [sid]: 3 },
+      modelMetrics: { 'test-model': { totalNanoAiu: 157, requests: { count: 3 } } } }),
+  });
+  assert.equal(result.receipt.protocol_error, 'provider_retry_usage_incomplete');
+  assert.equal(result.receipt.usage.credits_complete, false);
+  assert.equal(result.receipt.provider_failures[1].accounting_complete, false);
+});
+
 test('a transport reset needs the exact structured top-level signature, not a message alone', async () => {
   for (const change of [
     { failureKind: 'api' }, { transport: 'http' }, { source: 'subagent' },

@@ -31,7 +31,7 @@ EXPORTS = (
     "hypotheses.tex", "trajectories.tex", "provenance.json", "retention.csv", "episodes.csv",
 )
 LARGE_EXPORTS = {"summary.json", "runs.csv", "attempts.csv", "series.csv", "retention.csv",
-                 "episodes.csv", "trajectories.svg", "trajectories.tex"}
+                 "episodes.csv", "trajectories.svg", "trajectories.tex", "provenance.json"}
 SUMMARY_LIMIT = 128 * 1024 * 1024
 AGGREGATE_LIMIT = 192 * 1024 * 1024
 UNAVAILABLE = {
@@ -481,7 +481,7 @@ def validated_artifacts(directory: Path) -> list[Path]:
         limit = SUMMARY_LIMIT if path.name == "summary.json" else (
             16 * 1024 * 1024 if path.name in LARGE_EXPORTS else 512 * 1024)
         if path.is_symlink() or not path.is_file() or path.stat().st_size > limit:
-            raise StudyError(f"Result is linked, non-regular, or exceeds its {limit}-byte file cap")
+            raise StudyError(f"Result {path.name} is linked, non-regular, or exceeds its {limit}-byte file cap")
         payload = path.read_bytes()
         total += len(payload)
         text = payload.decode("utf-8")
