@@ -158,6 +158,49 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
                 or matches[0].get("error") != {"code": "failure", "message": "Tool 'edit' does not exist."}
                 or receipt.get("protocol_error") != "unexpected_tool"):
             raise StudyError("Failed attempt does not match the retained edit failure and unknown usage")
+    elif incident["kind"] == "backend_mixed_boundaries":
+        failures = [(index, event["data"]) for index, event in enumerate(events)
+                    if event["type"] == "model.call_failure"]
+        mirrors = [(index, event["data"]) for index, event in enumerate(events)
+                   if event["type"] == "model.model_call_failure"]
+        if len(failures) != 2 or len(mirrors) != 2:
+            raise StudyError("Mixed retry interruption lacks its two failure/mirror pairs")
+        turn = str(mirrors[0][1].get("turn"))
+        starts = [index for index, event in enumerate(events) if event["type"] == "model.call_start"
+                  and event["data"].get("turnId") == turn and event["data"].get("model") == "gpt-6.1-sol"]
+        finishes = [(index, event["data"]) for index, event in enumerate(events)
+                    if event["type"] == "model.call_finished" and event["data"].get("turnId") == turn]
+        for retry, ((_, failure), (_, mirror)) in enumerate(zip(failures, mirrors)):
+            call = mirror.get("modelCall", {})
+            if (failure.get("model") != "gpt-6.1-sol" or failure.get("reasoningEffort") != "medium"
+                    or failure.get("statusCode") != 500 or failure.get("failureKind") != "api"
+                    or failure.get("transport") != "websocket" or failure.get("errorCode") != "internal_error"
+                    or failure.get("errorType") != "websocket_error" or failure.get("retryAttempt") != retry
+                    or failure.get("isAuto") is not False or failure.get("isByok") is not False
+                    or any(not isinstance(failure.get(key), str) or not failure[key]
+                           for key in ("apiCallId", "serviceRequestId"))
+                    or str(mirror.get("turn")) != turn or mirror.get("reasoningEffort") != "medium"
+                    or not isinstance(call, dict) or call.get("model") != failure["model"]
+                    or call.get("api_id") != failure["apiCallId"]
+                    or call.get("service_request_id") != failure["serviceRequestId"]
+                    or call.get("status") != 500 or call.get("transport") != "websocket"
+                    or call.get("errorCode") != "internal_error" or call.get("errorType") != "websocket_error"
+                    or call.get("retry_attempt") != retry):
+                raise StudyError("Mixed retry interruption differs from its pinned correlated API failures")
+        if (len(starts) != 3 or len(finishes) != 1 or finishes[0][1].get("outcome") != "error"
+                or not starts[0] < failures[0][0] < mirrors[0][0] < finishes[0][0] < starts[1]
+                < failures[1][0] < mirrors[1][0] < starts[2]
+                or len({failure["apiCallId"] for _, failure in failures}) != 2
+                or len({failure["serviceRequestId"] for _, failure in failures}) != 2
+                or receipt.get("protocol_error") != "unexpected_runtime_activity"
+                or receipt.get("failure_stage") != "session_send"
+                or receipt.get("actual_models") != ["gpt-6.1-sol"]
+                or receipt.get("actual_reasoning_efforts") != ["medium"]
+                or receipt.get("routing_changes") != []
+                or receipt.get("provider_failures") != [{
+                    "status_code": 500, "error_code": "internal_error", "transport": "websocket",
+                    "retry_attempt": 0, "accounting_complete": False}]):
+            raise StudyError("Mixed retry interruption lacks its exact ordered boundaries and unknown usage")
     elif incident["kind"] == "websocket_closed_1001":
         failures = [event["data"] for event in events if event["type"] == "model.call_failure"]
         mirrors = [event["data"] for event in events if event["type"] == "model.model_call_failure"]

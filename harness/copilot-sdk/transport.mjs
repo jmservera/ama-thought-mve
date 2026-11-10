@@ -206,6 +206,7 @@ export class Evidence {
     this.activeTools = new Map();
     this.seenTools = new Set();
     this.modelCall = null;
+    this.finishedRetryCall = null;
     this.providerFailures = new Map();
     this.retryNeedsSuccess = false;
   }
@@ -253,8 +254,11 @@ export class Evidence {
         this.modelCall.attemptActive = true;
         this.modelCall.usageWatermark = this.usageWatermark;
       } else {
-        this.modelCall = { turnId: data.turnId, failures: [], attemptActive: true,
+        const failures = this.finishedRetryCall?.turnId === data.turnId ?
+          this.finishedRetryCall.failures : [];
+        this.modelCall = { turnId: data.turnId, failures, attemptActive: true,
           usageWatermark: this.usageWatermark };
+        this.finishedRetryCall = null;
       }
     } else if (event.type === 'model.call_failure') {
       this.identity(data.model, data.reasoningEffort);
@@ -309,6 +313,7 @@ export class Evidence {
       if (data.outcome === 'error' && !this.modelCall.failures.length)
         throw fault('unexpected_runtime_activity');
       this.retryNeedsSuccess = data.outcome === 'error';
+      this.finishedRetryCall = this.retryNeedsSuccess ? this.modelCall : null;
       this.modelCall = null;
     } else if (event.type === 'assistant.usage') {
       this.identity(data.model, data.reasoningEffort);

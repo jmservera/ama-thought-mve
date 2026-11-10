@@ -671,6 +671,64 @@ Verify `--dry-run`; leave paid collection to the researcher.
 Do not edit/reset an original study, clear its halt/hold, or rerun a historical
 outcome to obtain a better result.
 
+#### Specific 2526-step mixed-retry and export interruption
+
+The stopped state
+`2f331781c5dfb922cc3610a212a823f9a197da57f09c754c83c22f325e6fdca5`
+is source `958d75bc386964edfe6d211117ce53cf5fd53a82`: 2526 completed
+measurements, 2533 attempts and 144 completed trajectories of 315.
+The interrupted attempt is
+`pilot-estimation-gpt-6.1-sol-E-10-f10-feature-1`; its journal SHA-256 is
+`a1466ddc9276af0af0f549b523b5264e43ada48ed8e2d09210a7d9c10eb9b59d`.
+
+Two separate problems occurred. The provider returned two correlated HTTP 500
+`internal_error` failures in logical turn 6. The CLI emitted an error
+`model.call_finished` after the first physical attempt, then reused the same
+logical turn with `retryAttempt=1`; the next retry began without another finish
+marker. The guard incorrectly discarded the first failure history at the
+optional finish boundary. The correction carries failed logical-call history
+across both boundary forms, while resetting the accounting watermark at every
+new physical attempt. Success clears pending history; a different logical turn
+does not inherit its retry index. Overlap, unmatched mirrors, wrong identities,
+the shared three-failure ceiling and complete failed-request charges remain
+mandatory. No new harness prompt, backoff or budget extension is added.
+
+The subsequent result-export failure was independent. The generated regular
+`provenance.json` was 622058 bytes, above its former 512 KiB classification.
+It is now explicitly a bounded large structured export, capped at **16 MiB**,
+like the existing tabular/trajectory outputs. `attempts.csv` already had that
+larger cap and was not the cause. Small outputs retain 512 KiB limits,
+`summary.json` retains 128 MiB, and the aggregate remains 192 MiB. Fixed
+filename allowlisting, symlink/nonregular-file rejection and credential scans
+are unchanged. Errors name the offending allowed artifact.
+
+The exact stopped journal still lacks successful terminal usage and complete
+failed-request charges. Recognizing its retry sequence does not certify zero
+cost or authorize normal replay. The seventh approved copy retains all **2400
+nominal unknown study credits**, including the previous 600-credit D hold and
+latest 300-credit E/F10 hold. Known study consumption is 29220.13966 credits.
+The same E/F10 step needs a separately reserved **300-credit** retry and full
+**1800-second feature allowance**, under the unchanged 270-credit soft limit.
+Do not change allocation, configuration, calibration, original start, absolute
+deadline or budget ceiling.
+
+After publishing and qualifying the exact corrected source, obtain a genuine
+state/source/attempt-specific approval with
+`unknown_reservation_nano=300000000000`. Use the stopped 2526 checkout as
+`--source-root`, its manifest as `--old-manifest`, and six earlier
+`--prior-source-root` values: original 651, stopped 878, stopped 1482,
+stopped 2082, stopped 2289, stopped 2402. Preserve the original calibration
+manifest. For researcher launch, provide all seven original roots in order
+with `--recovery-source-root`; all eight paid-study roots stay locked.
+Historical raw data and audit authorities must remain unchanged.
+
+Source validation now records the earliest archival source for each attempt
+in a map instead of repeatedly scanning prior-ID lists. This preserves the
+same source-ownership rule while avoiding quadratic work as recovery history
+grows. Verify status, dry-run, raw-byte preservation and bounded result
+packaging before handing the new pinned launcher to the researcher.
+No automatic launch or historical outcome rerun is authorized.
+
 #### Exception attribution and intervention coverage
 
 A declared product exception raised by a candidate source-loaded view getter

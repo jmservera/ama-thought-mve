@@ -261,6 +261,42 @@ def test_21_replicate_attempt_exports_fit_bounded_publication(modules, reports, 
     with pytest.raises(report.StudyError, match="file cap"):
         report.validated_artifacts(reports)
 
+@pytest.mark.parametrize("replicates", [21, 33])
+def test_full_frame_structured_provenance_fits_its_explicit_large_cap(modules, reports, replicates):
+    _, report = modules
+    path = reports / "provenance.json"
+    provenance = json.loads(path.read_text())
+    provenance["intervention_coverage"] = {"status": "unavailable", "entries": [
+        {"attempt_id": f"pilot-estimation-claude-sonnet-5.5-B-{index:05d}-f10-consolidation-1",
+         "coverage": "unknown", "operator_attestation": None}
+        for index in range(255 * replicates)]}
+    path.write_text(json.dumps(provenance, indent=2))
+    assert path.stat().st_size > 512 * 1024
+    assert len(report.validated_artifacts(reports)) == len(report.EXPORTS)
+    assert report.package_results(reports, "export-test").is_file()
+    with path.open("wb") as stream:
+        stream.truncate(16 * 1024 * 1024 + 1)
+    with pytest.raises(report.StudyError, match=r"provenance.json.*16777216-byte file cap"):
+        report.validated_artifacts(reports)
+
+
+@pytest.mark.parametrize("attack", ["symlink", "token", "extra"])
+def test_large_provenance_does_not_weaken_publication_safety(modules, reports, tmp_path, attack):
+    _, report = modules
+    path = reports / "provenance.json"
+    if attack == "symlink":
+        path.unlink()
+        target = tmp_path / "non-result"
+        target.write_text("{}")
+        path.symlink_to(target)
+    elif attack == "token":
+        path.write_text(json.dumps({"registered_or_frozen_by_runner": False,
+                                   "value": "ghp_" + "syntheticcanary" * 2}))
+    else:
+        (reports / "unlisted.json").write_text("{}")
+    with pytest.raises(report.StudyError):
+        report.validated_artifacts(reports)
+
 
 @pytest.mark.parametrize("replicates", [21, 33])
 def test_full_frame_with_real_panel_and_completed_attempts_fits_publication(modules, tmp_path, replicates):
