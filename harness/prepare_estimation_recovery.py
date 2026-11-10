@@ -136,9 +136,10 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
     if len(complete) != 1:
         raise StudyError("Failed attempt lacks a unique terminal receipt")
     receipt = complete[0].get("receipt", {})
+    unaccounted_retry = incident["kind"] == "websocket_retry_unaccounted"
     if (not isinstance(receipt, dict) or not isinstance(receipt.get("usage"), dict)
             or complete[0].get("exit_code") != 1
-            or receipt.get("failure_stage") != "session_send"
+            or receipt.get("failure_stage") != (None if unaccounted_retry else "session_send")
             or receipt.get("usage", {}).get("credits_complete") is not False
             or receipt.get("usage", {}).get("totalNanoAiu") is not None):
         raise StudyError("Failed attempt does not retain its terminal failure and unknown usage")
@@ -242,7 +243,7 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
         mirror_index = next(index for index, event in enumerate(events) if event["type"] == "model.model_call_failure")
         if not starts[0] < failure_index < mirror_index:
             raise StudyError("Close interruption lacks ordered start, failure and mirror")
-    elif incident["kind"] == "websocket_reset":
+    elif incident["kind"] in ("websocket_reset", "websocket_retry_unaccounted"):
         failures = [event["data"] for event in events if event["type"] == "model.call_failure"]
         mirrors = [event["data"] for event in events if event["type"] == "model.model_call_failure"]
         if len(failures) != 1 or len(mirrors) != 1:
@@ -254,7 +255,8 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
         starts = [index for index, event in enumerate(events) if event["type"] == "model.call_start"
                   and event["data"].get("turnId") == turn and event["data"].get("model") == "gpt-6.1-sol"]
         finishes = [index for index, event in enumerate(events) if event["type"] == "model.call_finished"
-                    and event["data"].get("turnId") == turn and event["data"].get("outcome") == "error"]
+                    and event["data"].get("turnId") == turn
+                    and (unaccounted_retry or event["data"].get("outcome") == "error")]
         if (failure.get("model") != "gpt-6.1-sol" or failure.get("reasoningEffort") != "medium"
                 or failure.get("failureKind") != "transport" or failure.get("transport") != "websocket"
                 or failure.get("rte") is not True or failure.get("source") != "top_level"
@@ -272,17 +274,36 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
                 or call.get("service_request_id") != failure["serviceRequestId"]
                 or call.get("retry_attempt") != 0
                 or any(key in call for key in ("status", "errorCode", "errorType"))
-                or len(starts) != 1 or len(finishes) != 1
-                or receipt.get("protocol_error") != "unexpected_runtime_activity"
-                or receipt.get("failure_stage") != "session_send"
+                or len(starts) != (2 if unaccounted_retry else 1)
+                or len(finishes) != (2 if unaccounted_retry else 1)
+                or receipt.get("protocol_error") != (
+                    "provider_retry_usage_incomplete" if unaccounted_retry else "unexpected_runtime_activity")
                 or receipt.get("actual_models") != ["gpt-6.1-sol"]
                 or receipt.get("actual_reasoning_efforts") != ["medium"]
-                or receipt.get("provider_failures") != [] or receipt.get("routing_changes") != []):
+                or receipt.get("provider_failures") != ([{
+                    "status_code": None, "error_code": None, "failure_kind": "transport",
+                    "transport": "websocket", "retry_attempt": 0, "accounting_complete": False
+                }] if unaccounted_retry else []) or receipt.get("routing_changes") != []):
             raise StudyError("Reset interruption differs from its pinned transport/identity/unknown-usage signature")
         failure_index = next(index for index, event in enumerate(events) if event["type"] == "model.call_failure")
         mirror_index = next(index for index, event in enumerate(events) if event["type"] == "model.model_call_failure")
         if not starts[0] < failure_index < mirror_index < finishes[0]:
             raise StudyError("Reset interruption lacks ordered start, failure, mirror and terminal error")
+        if unaccounted_retry:
+            shutdowns = [(index, event["data"]) for index, event in enumerate(events)
+                         if event["type"] == "session.shutdown"]
+            idle = [index for index, event in enumerate(events) if event["type"] == "session.idle"]
+            usage = [event["data"] for event in events if event["type"] == "assistant.usage"]
+            if (events[finishes[0]]["data"].get("outcome") != "error"
+                    or events[finishes[1]]["data"].get("outcome") != "success"
+                    or not finishes[0] < starts[1] < finishes[1]
+                    or len(shutdowns) != 1 or shutdowns[0][1].get("shutdownType") != "routine"
+                    or len(idle) != 1 or not finishes[1] < idle[0] < shutdowns[0][0]
+                    or not usage
+                    or any(item.get("apiCallId") == failure["apiCallId"]
+                           and item.get("serviceRequestId") == failure["serviceRequestId"]
+                           for item in usage)):
+                raise StudyError("Unaccounted retry lacks its successful finish and missing failed-request charge")
     else:
         same_turn_retry = incident["kind"] == "backend_503_same_turn"
         status_code = 503 if same_turn_retry else 500

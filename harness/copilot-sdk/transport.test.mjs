@@ -394,6 +394,34 @@ test('a matched transport reset does not certify a missing failed-request charge
   assert.equal(result.receipt.provider_failures[0].status_code, null);
 });
 
+test('routine shutdown after nine successful calls cannot waive an earlier reset charge', async () => {
+  const result = await runFake({
+    async action(config) {
+      for (let turn = 0; turn < 9; turn++) {
+        if (turn === 5) failProvider(config, resetFailure(), turn);
+        successfulRetry(config, turn);
+        if (turn < 8) config.onEvent(usage(config.sessionId, {
+          apiCallId: `successful-api-${turn}`, serviceRequestId: `successful-service-${turn}`,
+          accounting: { sourceSessionId: config.sessionId, sequence: turn + 1, usageId: `success-${turn}` },
+        }));
+      }
+    },
+    usage: sid => ({ apiCallId: 'successful-api-8', serviceRequestId: 'successful-service-8',
+      accounting: { sourceSessionId: sid, sequence: 9, usageId: 'success-8' } }),
+    shutdown: sid => event('session.shutdown', { shutdownType: 'routine', currentModel: 'test-model',
+      totalNanoAiu: 1107, usageAccountingWatermarks: { [sid]: 9 },
+      modelMetrics: { 'test-model': { totalNanoAiu: 1107, requests: { count: 9 } } } }),
+  });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.receipt.protocol_error, 'provider_retry_usage_incomplete');
+  assert.equal(result.receipt.failure_stage, null);
+  assert.equal(result.receipt.model_calls.length, 9);
+  assert.equal(result.receipt.provider_failures[0].accounting_complete, false);
+  assert.equal(result.receipt.usage.credits_complete, false);
+  assert.equal(result.receipt.usage.totalNanoAiu, null);
+  assert.equal(result.state.sent, 1);
+});
+
 test('mixed finished and unfinished same-turn retries preserve every charge and original limits', async () => {
   const first = providerFailure();
   const second = providerFailure({ retryAttempt: 1, apiCallId: 'second-api', serviceRequestId: 'second-service' });

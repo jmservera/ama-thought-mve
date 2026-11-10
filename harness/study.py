@@ -109,6 +109,10 @@ MIXED_RECOVERY_STATE_SHA256 = "2f331781c5dfb922cc3610a212a823f9a197da57f09c754c8
 MIXED_RECOVERY_SOURCE = "958d75bc386964edfe6d211117ce53cf5fd53a82"
 MIXED_RECOVERY_ATTEMPT = "pilot-estimation-gpt-6.1-sol-E-10-f10-feature-1"
 MIXED_RECOVERY_JOURNAL_SHA256 = "a1466ddc9276af0af0f549b523b5264e43ada48ed8e2d09210a7d9c10eb9b59d"
+UNACCOUNTED_RECOVERY_STATE_SHA256 = "4660d4b31bdd2bb8a8ac1c62c42dff8021d8cdbc87d24ed50e2c464c592b2d94"
+UNACCOUNTED_RECOVERY_SOURCE = "03ac696b382e539cad5f8153b91d144bb4c1990b"
+UNACCOUNTED_RECOVERY_ATTEMPT = "pilot-estimation-gpt-6.1-sol-D-11-f06-feature-1"
+UNACCOUNTED_RECOVERY_JOURNAL_SHA256 = "8714b88c50b506296309408b09161980b35ba6b8cefeadffbb9d8cc13fb7ec78"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
@@ -595,13 +599,18 @@ def recovery_incident(state_sha256: str) -> dict:
                 "journal_sha256": MIXED_RECOVERY_JOURNAL_SHA256, "steps": 2526, "attempts": 2533,
                 "known_nano": credits("29220.13966"), "kind": "backend_mixed_boundaries",
                 "reserved_nano": 300 * NANO}
+    if state_sha256 == UNACCOUNTED_RECOVERY_STATE_SHA256:
+        return {"source": UNACCOUNTED_RECOVERY_SOURCE, "attempt": UNACCOUNTED_RECOVERY_ATTEMPT,
+                "journal_sha256": UNACCOUNTED_RECOVERY_JOURNAL_SHA256, "steps": 2691, "attempts": 2699,
+                "known_nano": credits("30927.78079"), "kind": "websocket_retry_unaccounted",
+                "reserved_nano": 600 * NANO}
     raise StudyError("Recovery state is not one of the disclosed estimation interruptions")
 
 
 def recovery_state_hashes() -> tuple[str, ...]:
     return (RECOVERY_STATE_SHA256, BACKEND_RECOVERY_STATE_SHA256, SANDBOX_RECOVERY_STATE_SHA256,
             SERVICE_RECOVERY_STATE_SHA256, TRANSPORT_RECOVERY_STATE_SHA256, CLOSE_RECOVERY_STATE_SHA256,
-            MIXED_RECOVERY_STATE_SHA256)
+            MIXED_RECOVERY_STATE_SHA256, UNACCOUNTED_RECOVERY_STATE_SHA256)
 
 
 def recovery_records(state: dict) -> list[dict]:
@@ -1487,6 +1496,7 @@ class Controller:
                                 stop_reason=(str(error) if isinstance(error, (StudyError, RetryableError))
                                              else "Infrastructure failure; inspect private attempt logs"))
                     self.save()
+                    print(f"Stopped: {cell['run_id']} | {cell['stop_reason']}", file=sys.stderr, flush=True)
                     step = (cell.get("checkpoint") or {}).get("step")
                     attempts = [attempt for attempt in cell["attempts"] if attempt["step"] == step]
                 if (not self.smoke or not attempts or len(attempts) >= self.cfg["max_attempts"]
