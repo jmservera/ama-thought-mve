@@ -249,6 +249,50 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
                 or receipt.get("routing_changes") != [] or receipt.get("provider_failures") != []
                 or receipt.get("usage_lower_bound") is not None):
             raise StudyError("HTTP interruption differs from its pinned correlated 503 and unknown-usage signature")
+    elif incident["kind"] == "http_stream_timeout":
+        failures = [(index, event["data"]) for index, event in enumerate(events)
+                    if event["type"] == "model.call_failure"]
+        mirrors = [(index, event["data"]) for index, event in enumerate(events)
+                   if event["type"] == "model.model_call_failure"]
+        if len(failures) != 1 or len(mirrors) != 1:
+            raise StudyError("HTTP timeout lacks a unique failure and mirror")
+        (failure_index, failure), (mirror_index, mirror) = failures[0], mirrors[0]
+        call = mirror.get("modelCall")
+        turn = str(mirror.get("turn"))
+        starts = [index for index, event in enumerate(events) if event["type"] == "model.call_start"
+                  and event["data"].get("turnId") == turn
+                  and event["data"].get("model") == "gemini-4-argon"]
+        finishes = [(index, event["data"]) for index, event in enumerate(events)
+                    if event["type"] == "model.call_finished" and event["data"].get("turnId") == turn]
+        if (failure.get("model") != "gemini-4-argon" or failure.get("reasoningEffort") != "medium"
+                or failure.get("failureKind") != "transport" or failure.get("transport") != "http"
+                or failure.get("apiEndpoint") != "/chat/completions" or failure.get("source") != "top_level"
+                or failure.get("errorMessage") != '"Native model HTTP stream timed out"'
+                or failure.get("durationMs") != 600000 or failure.get("retryAttempt") != 0
+                or failure.get("rte") is not False or failure.get("isAuto") is not False
+                or failure.get("isByok") is not False or failure.get("fusion")
+                or any(key in failure for key in ("providerCallId", "apiCallId", "serviceRequestId",
+                                                  "statusCode", "errorCode", "errorType"))
+                or mirror.get("kind") != "model_call_failure" or mirror.get("reasoningEffort") != "medium"
+                or mirror.get("rte") is not False or mirror.get("modelCallDurationMs") != 600000
+                or not isinstance(call, dict) or call.get("model") != failure["model"]
+                or call.get("request_id") != "" or call.get("api_endpoint") != failure["apiEndpoint"]
+                or call.get("transport") != "http" or call.get("failure_kind") != "transport"
+                or call.get("error") != failure["errorMessage"]
+                or call.get("rte") is not False or call.get("retry_attempt") != 0
+                or any(key in call for key in ("api_id", "service_request_id", "status", "errorCode", "errorType"))
+                or len(starts) != 1 or len(finishes) != 1 or finishes[0][1].get("outcome") != "error"
+                or not starts[0] < failure_index < mirror_index < finishes[0][0]
+                or finishes[0][0] != len(events) - 1
+                or any(event["type"] in ("session.idle", "session.shutdown") for event in events)
+                or receipt.get("sdk_version") != "1.0.28" or receipt.get("cli_version") != "1.0.105"
+                or receipt.get("protocol_version") != 3
+                or receipt.get("protocol_error") != "unexpected_runtime_activity"
+                or receipt.get("actual_models") != ["gemini-4-argon"]
+                or receipt.get("actual_reasoning_efforts") != ["medium"]
+                or receipt.get("routing_changes") != [] or receipt.get("provider_failures") != []
+                or receipt.get("usage_lower_bound") is not None):
+            raise StudyError("HTTP timeout differs from its pinned uncorrelated timeout and unknown-usage signature")
     elif incident["kind"] == "websocket_closed_1001":
         failures = [event["data"] for event in events if event["type"] == "model.call_failure"]
         mirrors = [event["data"] for event in events if event["type"] == "model.model_call_failure"]

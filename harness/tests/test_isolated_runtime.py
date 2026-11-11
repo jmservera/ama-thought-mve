@@ -139,7 +139,7 @@ print(json.dumps({"type":"complete","receipt":{"session_id":"owned","usage":{"cr
                                  "provider_retry_limit", "transient_provider_failure",
                                  "websocket_closed_usage_unknown", "unexpected_runtime_activity",
                                  "complete_usage_evidence_unavailable", "provider_failure_correlation_unavailable",
-                                 "provider_call_correlation_unavailable"])
+                                 "provider_call_correlation_unavailable", "http_stream_timeout_usage_unknown"])
 def test_bridge_reports_usage_unknown_stops_without_echoing_provider_details(runtime, tmp_path, monkeypatch, code):
     fake_bridge(runtime, monkeypatch, f"""
 import json, sys
@@ -153,6 +153,7 @@ print(json.dumps({{"type":"complete","exit_code":1,"receipt":{{
 sys.exit(1)
 """)
     expected = ("WebSocket closed" if code == "websocket_closed_usage_unknown" else
+                "HTTP stream timed out" if code == "http_stream_timeout_usage_unknown" else
                 "transport stopped" if code in ("unexpected_runtime_activity", "complete_usage_evidence_unavailable",
                                                 "provider_failure_correlation_unavailable",
                                                 "provider_call_correlation_unavailable") else "backend retry stopped")
@@ -162,6 +163,25 @@ sys.exit(1)
     assert "reservation is retained" in str(failure.value)
     assert "provider details" not in str(failure.value)
     assert len((tmp_path / "events.jsonl").read_bytes().splitlines()) == 2
+
+
+def test_bridge_http_timeout_cannot_use_unaccounted_retry_policy(runtime, tmp_path, monkeypatch):
+    fake_bridge(runtime, monkeypatch, """
+import json, sys
+json.loads(sys.stdin.readline())
+print(json.dumps({"type":"event","sessionId":"owned"}), flush=True)
+print(json.dumps({"type":"complete","exit_code":1,"receipt":{
+ "session_id":"owned","protocol_error":"http_stream_timeout_usage_unknown",
+ "usage_lower_bound":{"totalNanoAiu":123,"unaccounted_failed_requests":1},
+ "usage":{"credits_complete":False,"totalNanoAiu":None}
+}}), flush=True)
+sys.exit(1)
+""")
+    with pytest.raises(runtime.StudyError, match="HTTP stream timed out") as failure:
+        runtime.run_bridge({"remainingSeconds": 5}, tmp_path,
+                           lambda *args: pytest.fail("No tool expected"), accept_unaccounted_retry=True)
+    assert "reservation is retained" in str(failure.value)
+    assert "source-bound recovery is required" in str(failure.value)
 
 
 def test_bridge_evidence_cap_and_bad_correlation_never_yield_receipts(runtime, tmp_path, monkeypatch):

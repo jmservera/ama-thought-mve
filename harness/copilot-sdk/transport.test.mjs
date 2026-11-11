@@ -444,6 +444,58 @@ test('Gemini HTTP 503 same-turn retry keeps its failed charge unknown', () => {
   assert.equal(receipt.provider_failures[0].accounting_complete, false);
 });
 
+const geminiHttpTimeout = (extra = {}) => ({
+  model: 'gemini-4-argon', reasoningEffort: 'medium', failureKind: 'transport',
+  transport: 'http', apiEndpoint: '/chat/completions', durationMs: 600000,
+  errorMessage: '"Native model HTTP stream timed out"', retryAttempt: 0,
+  isAuto: false, isByok: false, rte: false, source: 'top_level', ...extra,
+});
+
+test('Gemini HTTP stream timeout stops with unknown usage and no retry identity', () => {
+  const evidence = geminiHttpEvidence();
+  const failure = geminiHttpTimeout();
+  evidence.observe(event('model.call_start', { model: failure.model, turnId: '0' }));
+  assert.throws(() => evidence.observe(event('model.call_failure', failure)),
+    /http_stream_timeout_usage_unknown/);
+  const receipt = evidence.receipt('http_stream_timeout_usage_unknown');
+  assert.equal(receipt.usage.credits_complete, false);
+  assert.equal(receipt.usage.totalNanoAiu, null);
+  assert.equal(receipt.usage_lower_bound, null);
+  assert.deepEqual(receipt.provider_failures, []);
+});
+
+test('Gemini HTTP stream timeout requires the exact structured signature and assigned identity', () => {
+  for (const change of [
+    { model: 'another-model' }, { reasoningEffort: 'high' }, { durationMs: 599999 },
+    { transport: 'websocket' }, { failureKind: 'api' }, { apiEndpoint: '/another-endpoint' },
+    { source: 'nested' }, { rte: true }, { isAuto: true }, { isByok: true },
+    { providerCallId: 'unverified-request' }, { statusCode: 503 },
+    { errorMessage: 'another timeout' },
+  ]) {
+    const evidence = geminiHttpEvidence();
+    evidence.observe(event('model.call_start', { model: 'gemini-4-argon', turnId: '0' }));
+    assert.throws(() => evidence.observe(event('model.call_failure', geminiHttpTimeout(change))),
+      change.model || change.reasoningEffort ? /actual_identity_unavailable_or_mismatched/ : /unexpected_runtime_activity/);
+    assert.equal(evidence.receipt('unexpected_runtime_activity').usage_lower_bound, null);
+  }
+});
+
+test('Gemini HTTP stream timeout preserves earlier billed calls without certifying a total', () => {
+  const evidence = geminiHttpEvidence();
+  const failure = geminiHttpTimeout();
+  evidence.observe(event('model.call_start', { model: failure.model, turnId: '0' }));
+  evidence.observe(usage('http-session', { model: failure.model }));
+  evidence.observe(event('model.call_finished', { turnId: '0', outcome: 'success' }));
+  evidence.observe(event('model.call_start', { model: failure.model, turnId: '1' }));
+  assert.throws(() => evidence.observe(event('model.call_failure', failure)), /http_stream_timeout_usage_unknown/);
+  const receipt = evidence.receipt('http_stream_timeout_usage_unknown');
+  assert.equal(receipt.model_calls.length, 1);
+  assert.equal(receipt.model_calls[0].totalNanoAiu, 123);
+  assert.equal(receipt.usage.credits_complete, false);
+  assert.equal(receipt.usage.totalNanoAiu, null);
+  assert.equal(receipt.usage_lower_bound, null);
+});
+
 test('Gemini HTTP 503 rejects changed identity, client failures, routing and missing request IDs', () => {
   for (const change of [
     { model: 'another-model' }, { statusCode: 401 }, { statusCode: 500 },
