@@ -137,7 +137,9 @@ print(json.dumps({"type":"complete","receipt":{"session_id":"owned","usage":{"cr
 
 @pytest.mark.parametrize("code", ["provider_retry_usage_incomplete", "incomplete_provider_retry",
                                  "provider_retry_limit", "transient_provider_failure",
-                                 "websocket_closed_usage_unknown"])
+                                 "websocket_closed_usage_unknown", "unexpected_runtime_activity",
+                                 "complete_usage_evidence_unavailable", "provider_failure_correlation_unavailable",
+                                 "provider_call_correlation_unavailable"])
 def test_bridge_reports_usage_unknown_stops_without_echoing_provider_details(runtime, tmp_path, monkeypatch, code):
     fake_bridge(runtime, monkeypatch, f"""
 import json, sys
@@ -150,7 +152,10 @@ print(json.dumps({{"type":"complete","exit_code":1,"receipt":{{
 }}}}), flush=True)
 sys.exit(1)
 """)
-    expected = "WebSocket closed" if code == "websocket_closed_usage_unknown" else "backend retry stopped"
+    expected = ("WebSocket closed" if code == "websocket_closed_usage_unknown" else
+                "transport stopped" if code in ("unexpected_runtime_activity", "complete_usage_evidence_unavailable",
+                                                "provider_failure_correlation_unavailable",
+                                                "provider_call_correlation_unavailable") else "backend retry stopped")
     with pytest.raises(runtime.StudyError, match=expected) as failure:
         runtime.run_bridge({"remainingSeconds": 5}, tmp_path, lambda *args: pytest.fail("No tool expected"))
     assert code in str(failure.value)

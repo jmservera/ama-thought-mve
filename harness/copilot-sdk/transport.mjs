@@ -186,6 +186,14 @@ export class OutputRecords {
   }
 }
 
+const isGeminiHttpUnavailable = failure => object(failure) &&
+  failure.model === 'gemini-4-argon' && failure.statusCode === 503 &&
+  failure.failureKind === 'api' && failure.transport === 'http' &&
+  failure.apiEndpoint === '/chat/completions' && failure.source === 'top_level' &&
+  failure.rte === false && failure.errorMessage === '"503 Service Unavailable"' &&
+  text(failure.providerCallId) && failure.providerCallId.length <= 200 &&
+  ['apiCallId', 'serviceRequestId', 'errorCode', 'errorType'].every(key => !Object.hasOwn(failure, key));
+
 export class Evidence {
   constructor(request, sessionId) {
     this.request = request;
@@ -269,32 +277,43 @@ export class Evidence {
         (data.statusCode === 503 && data.errorCode === 'service_unavailable');
       const transientApi = [500, 502, 503, 504].includes(data.statusCode) &&
         data.failureKind === 'api' && transientCode && data.errorType === 'websocket_error';
+      const websocketFailure = (transientApi || isWebSocketReset(data)) && data.transport === 'websocket' &&
+        text(data.apiCallId) && data.apiCallId.length <= 200 &&
+        text(data.serviceRequestId) && data.serviceRequestId.length <= 200;
+      const httpFailure = isGeminiHttpUnavailable(data);
+      const failureKey = httpFailure ? `http:${data.providerCallId}` : data.serviceRequestId;
       if (!this.started || !this.toolCatalogVerified || !this.modelCall?.attemptActive ||
-        (!transientApi && !isWebSocketReset(data)) ||
-        data.transport !== 'websocket' || data.isAuto !== false || data.isByok !== false ||
-        data.fusion || !text(data.apiCallId) || data.apiCallId.length > 200 ||
-        !text(data.serviceRequestId) || data.serviceRequestId.length > 200 ||
+        (!websocketFailure && !httpFailure) || data.isAuto !== false || data.isByok !== false ||
+        data.fusion ||
         data.retryAttempt !== this.modelCall.failures.length)
         throw fault('unexpected_runtime_activity');
-      if (this.providerFailures.has(data.serviceRequestId))
+      if (this.providerFailures.has(failureKey))
         throw fault('provider_failure_correlation_unavailable');
       if (this.providerFailures.size >= MAX_TRANSIENT_FAILURES)
         throw fault('provider_retry_limit');
-      this.providerFailures.set(data.serviceRequestId,
+      this.providerFailures.set(failureKey,
         { ...data, usageWatermark: this.modelCall.usageWatermark, mirrored: false });
-      this.modelCall.failures.push(data.serviceRequestId);
+      this.modelCall.failures.push(failureKey);
       this.modelCall.attemptActive = false;
     } else if (event.type === 'model.model_call_failure') {
       const call = data.modelCall;
-      const failure = this.providerFailures.get(call?.service_request_id);
+      const httpFailure = call?.transport === 'http';
+      const failureKey = httpFailure ? `http:${call.request_id}` : call?.service_request_id;
+      const failure = this.providerFailures.get(failureKey);
       const transportMirror = isWebSocketReset(failure) &&
         call?.failure_kind === 'transport' &&
         call.api_endpoint === failure.apiEndpoint && call.error === failure.errorMessage &&
         ['status', 'errorCode', 'errorType'].every(key => !Object.hasOwn(call, key));
+      const httpMirror = isGeminiHttpUnavailable(failure) &&
+        call?.request_id === failure.providerCallId && call.failure_kind === 'api' &&
+        call.api_endpoint === failure.apiEndpoint && call.error === failure.errorMessage &&
+        call.rte === false && data.rte === false &&
+        ['api_id', 'service_request_id', 'errorCode', 'errorType'].every(key => !Object.hasOwn(call, key));
       if (!failure || failure.mirrored || this.modelCall?.attemptActive ||
         this.modelCall?.turnId !== String(data.turn) ||
-        this.modelCall.failures.at(-1) !== call.service_request_id ||
+        this.modelCall.failures.at(-1) !== failureKey ||
         call.model !== failure.model || data.reasoningEffort !== failure.reasoningEffort ||
+        (httpFailure && !httpMirror) ||
         call.api_id !== failure.apiCallId ||
         call.transport !== failure.transport || call.errorCode !== failure.errorCode ||
         call.errorType !== failure.errorType || call.retry_attempt !== failure.retryAttempt ||
@@ -405,7 +424,7 @@ export class Evidence {
     const sequences = [...this.calls.keys()].sort((a, b) => a - b);
     const calls = [...this.calls.values()];
     const providerFailures = [...this.providerFailures.values()];
-    const accountedFailure = failure => failure.mirrored && calls.filter(call =>
+    const accountedFailure = failure => failure.mirrored && failure.transport === 'websocket' && calls.filter(call =>
       call.apiCallId === failure.apiCallId && call.serviceRequestId === failure.serviceRequestId &&
       call.accounting.sequence > failure.usageWatermark &&
       call.aiCreditsStatus === 'complete' && nano(call.copilotUsage?.totalNanoAiu)).length === 1;
@@ -452,7 +471,8 @@ export class Evidence {
       })),
       provider_failures: providerFailures.map(failure => ({
         status_code: failure.statusCode ?? null, error_code: failure.errorCode ?? null,
-        ...(failure.failureKind === 'transport' ? { failure_kind: 'transport' } : {}),
+        ...(failure.failureKind === 'transport' || failure.transport === 'http' ?
+          { failure_kind: failure.failureKind } : {}),
         transport: failure.transport, retry_attempt: failure.retryAttempt,
         accounting_complete: accountedFailure(failure),
       })),
