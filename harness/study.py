@@ -121,6 +121,18 @@ PAIRED_RECOVERY_HOLDS = {
     "pilot-estimation-gpt-6.1-sol-E-11-f01-repair-1":
         "adf74655c4b4ae14678a43e3bc34dcff6173d9472e0f90dc132d04331825cbe2",
 }
+HTTP_RECOVERY_STATE_SHA256 = "ae55cc6ae2fb758956105e738622a2a2b9ea87c6802c039346b32e254c655397"
+HTTP_RECOVERY_SOURCE = "fc8dd5995cde046b4c2de1f2eb25a0df32ff39eb"
+HTTP_RECOVERY_HOLDS = {
+    "pilot-estimation-gemini-4-argon-B-12-f04-feature-1": {
+        "journal_sha256": "28b39857a766019a020b803181cf3778e3a6346680e0c1caec6d0912c7176e89",
+        "reserved_nano": 300 * NANO,
+    },
+    "pilot-estimation-gemini-4-argon-D-12-f06-feature-1": {
+        "journal_sha256": "d6d8a3c81e94f1780560fb11f75bbc1103f6962cdfefae75adbe6e067a60b84a",
+        "reserved_nano": 600 * NANO,
+    },
+}
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
@@ -691,6 +703,14 @@ def recovery_incident(state_sha256: str) -> dict:
                 "steps": 2722, "attempts": 2732, "known_nano": credits("31374.66179"),
                 "kind": "websocket_retry_unaccounted",
                 "reserved_nano": sum(hold["reserved_nano"] for hold in holds.values())}
+    if state_sha256 == HTTP_RECOVERY_STATE_SHA256:
+        holds = {identity: dict(hold) for identity, hold in HTTP_RECOVERY_HOLDS.items()}
+        return {"source": HTTP_RECOVERY_SOURCE, "holds": holds,
+                "journal_sha256": holds_digest({identity: hold["journal_sha256"]
+                                                for identity, hold in holds.items()}),
+                "steps": 2865, "attempts": 2877, "known_nano": credits("33565.68218"),
+                "kind": "http_service_unavailable",
+                "reserved_nano": sum(hold["reserved_nano"] for hold in holds.values())}
     raise StudyError("Recovery state is not one of the disclosed estimation interruptions")
 
 
@@ -720,7 +740,8 @@ def incident_journal_digest(incident: dict, verified: dict[str, str]) -> str:
 def recovery_state_hashes() -> tuple[str, ...]:
     return (RECOVERY_STATE_SHA256, BACKEND_RECOVERY_STATE_SHA256, SANDBOX_RECOVERY_STATE_SHA256,
             SERVICE_RECOVERY_STATE_SHA256, TRANSPORT_RECOVERY_STATE_SHA256, CLOSE_RECOVERY_STATE_SHA256,
-            MIXED_RECOVERY_STATE_SHA256, UNACCOUNTED_RECOVERY_STATE_SHA256, PAIRED_RECOVERY_STATE_SHA256)
+            MIXED_RECOVERY_STATE_SHA256, UNACCOUNTED_RECOVERY_STATE_SHA256, PAIRED_RECOVERY_STATE_SHA256,
+            HTTP_RECOVERY_STATE_SHA256)
 
 
 def recovery_records(state: dict) -> list[dict]:

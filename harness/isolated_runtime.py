@@ -606,6 +606,10 @@ def run_bridge(request: dict, directory: Path, tool, *, on_start=None, on_stop=N
                             "provider_retry_limit", "transient_provider_failure"):
                     raise StudyError(f"SDK backend retry stopped ({code}); "
                                      "final usage is unknown and the reservation is retained")
+                if code in ("unexpected_runtime_activity", "complete_usage_evidence_unavailable",
+                        "provider_failure_correlation_unavailable", "provider_call_correlation_unavailable"):
+                    raise StudyError(f"SDK transport stopped ({code}); "
+                             "final usage is unknown and the reservation is retained")
                 raise StudyError("SDK session lacks complete correlated terminal evidence")
         return receipt
     except UnicodeError as error:

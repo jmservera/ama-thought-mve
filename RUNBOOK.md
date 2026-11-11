@@ -816,6 +816,16 @@ unbilled; the model, effort and routing are exactly as assigned; and fewer than
 * New work is not blocked. Reaching `max_holds`, removing the policy, or a floor
   above its reservation stops new paid work with an explicit reason.
 
+The exact Gemini HTTP 503 shape at `/chat/completions` is also recognized when
+its top-level `providerCallId` matches the legacy `request_id`, with assigned
+Gemini/medium identity, HTTP/API status 503, `rte=false` and no auto/BYOK routing.
+The existing three-failure ceiling and original session limits remain in force;
+the transport never resends the prompt. HTTP provider IDs are not API/service
+billing IDs, so a failed HTTP request is never certified by matching absent
+identifiers. The policy can keep work only after a successful native retry,
+normal shutdown and fully certified successful-call charges. A failed or
+unfinished session still needs separately approved recovery.
+
 Any other missing-charge condition, such as a 1001 close, a fault during the
 session, or a mismatched receipt, still ends as unknown usage and needs the
 separately approved copy-only recovery. Provider omissions can still recur and
@@ -852,6 +862,55 @@ every held attempt as a sorted `attempt_id` list and states the combined
 2289, 2402, 2526 and 2691. Keep the original calibration manifest. For launch,
 supply all nine original roots in order. No original state, journal, audit or
 calibration byte may change, and no paid launch is authorized by the copy.
+
+#### Specific 2865-step Gemini HTTP 503 interruption
+
+The stopped state
+`ae55cc6ae2fb758956105e738622a2a2b9ea87c6802c039346b32e254c655397`
+is source `fc8dd5995cde046b4c2de1f2eb25a0df32ff39eb`: 2865 completed
+measurements, 2877 attempts and 165 completed trajectories of 315. Two Gemini
+attempts halted on HTTP 503 from `/chat/completions`:
+
+* `pilot-estimation-gemini-4-argon-B-12-f04-feature-1`, journal
+  `28b39857a766019a020b803181cf3778e3a6346680e0c1caec6d0912c7176e89`,
+  retains its 300-credit reservation.
+* `pilot-estimation-gemini-4-argon-D-12-f06-feature-1`, journal
+  `d6d8a3c81e94f1780560fb11f75bbc1103f6962cdfefae75adbe6e067a60b84a`,
+  retains its 600-credit reservation.
+
+The old WebSocket-only classifier rejected the correlated HTTP provider
+failure as `unexpected_runtime_activity`. Both journals retain an ordered
+matching `providerCallId`/`request_id`, model/medium effort, top-level HTTP/API
+503, `rte=false` and terminal error finish, but no successful retry, idle or
+routine shutdown. Their failed-request charges remain unknown. Recognizing the
+HTTP signature does not make these interrupted sessions qualify for the
+completed-session hold policy, and it does not guarantee a future native retry.
+
+Keep the earlier 3600 nominal recovery-held credits and the existing GPT
+E11/F9-repair 300-credit `retry_hold` as well. After recovery, the two new holds
+bring `recovery_hold` provisions to 4500 credits; the separate retry hold makes
+4800 nominal held study credits in total. Fully accounted ledger usage is
+33543.74832 credits. The existing retry-held step adds a certified 21.93386-credit
+floor, not a complete charge; the registry's complete-plus-floor inventory is
+33565.68218 credits. Never report that inventory as complete study billing.
+
+Publish and qualify the exact new source before obtaining a genuine approval
+bound to this state, both sorted attempt IDs and combined
+`unknown_reservation_nano=900000000000`. Fresh B/F4 work separately reserves
+300 credits and the full 1800-second allowance under the unchanged 270-credit
+soft limit. Fresh D/F6 work separately reserves 600 credits and the full
+2700-second allowance under the unchanged 540-credit soft limit. Preserve
+configuration, allocation, original calibration, ceiling, absolute deadline,
+all raw results and every earlier source/approval/audit authority.
+
+Use the stopped 2865 paired-recovery checkout as `--source-root`, its manifest
+as `--old-manifest`, and nine earlier `--prior-source-root` values in order:
+original 651, stopped 878, 1482, 2082, 2289, 2402, 2526, 2691 and 2722.
+Keep the first original calibration manifest. For researcher launch, supply all
+ten original roots in order. Neither the old 2722 approval nor the existing
+200-hold policy authorizes this new copy or a paid launch. Keep the stopped
+checkout unchanged and validate the new copy's accounting, raw bytes, status,
+dry-run and private result packaging before a separately authorized restart.
 
 #### Exception attribution and intervention coverage
 

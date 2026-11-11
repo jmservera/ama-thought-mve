@@ -397,6 +397,122 @@ test('a matched transport reset does not certify a missing failed-request charge
   assert.deepEqual(result.receipt.usage_lower_bound, { totalNanoAiu: 123, unaccounted_failed_requests: 1 });
 });
 
+const geminiHttpFailure = (extra = {}) => ({
+  model: 'gemini-4-argon', reasoningEffort: 'medium', statusCode: 503, failureKind: 'api',
+  transport: 'http', apiEndpoint: '/chat/completions', providerCallId: 'http-request',
+  errorMessage: '"503 Service Unavailable"', retryAttempt: 0,
+  isAuto: false, isByok: false, rte: false, source: 'top_level', ...extra,
+});
+const geminiHttpMirror = (failure, extra = {}) => ({
+  kind: 'model_call_failure', turn: 0, reasoningEffort: 'medium', rte: false,
+  modelCall: { model: failure.model, status: failure.statusCode, error: failure.errorMessage,
+    request_id: failure.providerCallId, api_endpoint: failure.apiEndpoint, transport: 'http',
+    failure_kind: 'api', rte: false, retry_attempt: failure.retryAttempt, ...extra },
+});
+function geminiHttpEvidence() {
+  const requestData = request({ model: 'gemini-4-argon' });
+  const evidence = new Evidence(requestData, 'http-session');
+  evidence.observe(start('http-session', requestData));
+  evidence.verifyToolCatalog({ tools: [{ name: 'isolated_exec' }] });
+  return evidence;
+}
+
+test('Gemini HTTP 503 same-turn retry keeps its failed charge unknown', () => {
+  const model = 'gemini-4-argon';
+  const sessionId = 'http-session';
+  const evidence = geminiHttpEvidence();
+  const failure = geminiHttpFailure();
+  for (const record of [
+    event('model.call_start', { model, turnId: '0' }),
+    event('model.call_failure', failure),
+    event('model.model_call_failure', geminiHttpMirror(failure)),
+    event('model.call_finished', { turnId: '0', outcome: 'error' }),
+    event('model.call_start', { model, turnId: '0' }),
+    usage(sessionId, { model }),
+    event('model.call_finished', { turnId: '0', outcome: 'success' }),
+    event('session.idle', {}),
+    event('session.shutdown', { shutdownType: 'routine', currentModel: model, totalNanoAiu: 123,
+      usageAccountingWatermarks: { [sessionId]: 1 },
+      modelMetrics: { [model]: { totalNanoAiu: 123, requests: { count: 1 } } } }),
+  ]) evidence.observe(record);
+  const receipt = evidence.receipt();
+  assert.equal(receipt.protocol_error, 'provider_retry_usage_incomplete');
+  assert.equal(receipt.usage.credits_complete, false);
+  assert.equal(receipt.usage.totalNanoAiu, null);
+  assert.deepEqual(receipt.usage_lower_bound, { totalNanoAiu: 123, unaccounted_failed_requests: 1 });
+  assert.equal(receipt.provider_failures[0].transport, 'http');
+  assert.equal(receipt.provider_failures[0].accounting_complete, false);
+});
+
+test('Gemini HTTP 503 rejects changed identity, client failures, routing and missing request IDs', () => {
+  for (const change of [
+    { model: 'another-model' }, { statusCode: 401 }, { statusCode: 500 },
+    { transport: 'websocket' }, { apiEndpoint: '/another-endpoint' },
+    { isAuto: true }, { isByok: true }, { providerCallId: undefined }, { source: 'nested' },
+  ]) {
+    const evidence = geminiHttpEvidence();
+    evidence.observe(event('model.call_start', { model: 'gemini-4-argon', turnId: '0' }));
+    assert.throws(() => evidence.observe(event('model.call_failure', geminiHttpFailure(change))),
+      change.model ? /actual_identity_unavailable_or_mismatched/ : /unexpected_runtime_activity/);
+    assert.equal(evidence.receipt('unexpected_runtime_activity').usage_lower_bound, null);
+  }
+});
+
+test('Gemini HTTP 503 requires its exact HTTP request mirror without synthetic billing IDs', () => {
+  for (const change of [
+    { request_id: 'another-request' }, { error: 'another-error' },
+    { rte: true }, { api_id: 'invented-billing-identity' },
+  ]) {
+    const evidence = geminiHttpEvidence();
+    const failure = geminiHttpFailure();
+    evidence.observe(event('model.call_start', { model: failure.model, turnId: '0' }));
+    evidence.observe(event('model.call_failure', failure));
+    assert.throws(() => evidence.observe(event('model.model_call_failure', geminiHttpMirror(failure, change))),
+      /provider_failure_correlation_unavailable/);
+  }
+});
+
+test('Gemini HTTP 503 retains the original three-failure ceiling', () => {
+  const evidence = geminiHttpEvidence();
+  for (let retry = 0; retry < 4; retry++) {
+    const failure = geminiHttpFailure({ retryAttempt: retry, providerCallId: `http-request-${retry}` });
+    evidence.observe(event('model.call_start', { model: failure.model, turnId: '0' }));
+    if (retry === 3) {
+      assert.throws(() => evidence.observe(event('model.call_failure', failure)), /provider_retry_limit/);
+    } else {
+      evidence.observe(event('model.call_failure', failure));
+      evidence.observe(event('model.model_call_failure', geminiHttpMirror(failure)));
+      evidence.observe(event('model.call_finished', { turnId: '0', outcome: 'error' }));
+    }
+  }
+});
+
+test('Gemini HTTP 503 cannot reuse a provider request identity for another failed attempt', () => {
+  const evidence = geminiHttpEvidence();
+  const failure = geminiHttpFailure();
+  evidence.observe(event('model.call_start', { model: failure.model, turnId: '0' }));
+  evidence.observe(event('model.call_failure', failure));
+  evidence.observe(event('model.model_call_failure', geminiHttpMirror(failure)));
+  evidence.observe(event('model.call_finished', { turnId: '0', outcome: 'error' }));
+  evidence.observe(event('model.call_start', { model: failure.model, turnId: '0' }));
+  assert.throws(() => evidence.observe(event('model.call_failure', { ...failure, retryAttempt: 1 })),
+    /provider_failure_correlation_unavailable/);
+});
+
+test('Gemini HTTP 503 session failure never offers an incomplete-session usage floor', () => {
+  const evidence = geminiHttpEvidence();
+  const failure = geminiHttpFailure();
+  evidence.observe(event('model.call_start', { model: failure.model, turnId: '0' }));
+  evidence.observe(event('model.call_failure', failure));
+  evidence.observe(event('model.model_call_failure', geminiHttpMirror(failure)));
+  evidence.observe(event('model.call_finished', { turnId: '0', outcome: 'error' }));
+  assert.throws(() => evidence.observe(event('session.error', {})), /transient_provider_failure/);
+  const receipt = evidence.receipt('transient_provider_failure');
+  assert.equal(receipt.usage_lower_bound, null);
+  assert.equal(receipt.usage.totalNanoAiu, null);
+  assert.equal(receipt.usage.credits_complete, false);
+});
+
 test('routine shutdown after nine successful calls cannot waive an earlier reset charge', async () => {
   const result = await runFake({
     async action(config) {

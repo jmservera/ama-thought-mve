@@ -1746,3 +1746,189 @@ def test_paired_recovery_requires_every_exact_hold_journal_approval_and_ledger_e
     with pytest.raises(study.StudyError):
         prepare_paired_incident(case)
     assert not (case["target_root"] / ".study/pilot-estimation").exists()
+
+
+@pytest.fixture
+def http_incident(paired_incident, tmp_path, monkeypatch):
+    case = paired_incident
+    study = case["study"]
+    recovery = case["recovery"]
+    case["new"]["unaccounted_retry_hold_policy"] = {
+        "max_holds": 200, "approval": "fixture owner approval", "approved_at": "2026-01-20T00:00:00Z"}
+    source = prepare_paired_incident(case)
+    source_root = case["target_root"]
+    state = study.read_json(source / "state.json")
+    floor = study.credits("21.93386")
+    extra = study.credits("33565.68218") - study.credits("31374.66179") - floor
+    quotient, remainder = divmod(extra, 142)
+    for index in range(142):
+        cell = state["cells"][index % len(state["cells"])]
+        identity = f"http-complete-{index}"
+        amount = quotient + (index < remainder)
+        cell["completed_steps"] = cell.get("completed_steps", 0) + 1
+        cell["attempts"].append({"id": identity, "step": f"http-step-{index}", "status": "agent_returned",
+                                 "seconds": 1, "source_commit": case["new"]["commit"],
+                                 "usage": {"credits_complete": True, "totalNanoAiu": amount}})
+        state["ledger"]["entries"][identity] = {
+            "status": "complete", "reserved_nano": 300 * study.NANO, "actual_nano": amount}
+    cell = next(cell for cell in state["cells"] if cell["assigned_model"] == "gpt-6.1-sol"
+                and cell["arm"] == "E" and cell["replicate"] == 11)
+    retry_id = "pilot-estimation-gpt-6.1-sol-E-11-f09-repair-1"
+    cell["completed_steps"] = cell.get("completed_steps", 0) + 1
+    cell["attempts"].append({"id": retry_id, "step": "f09-repair", "status": "agent_returned",
+                             "seconds": 1, "source_commit": case["new"]["commit"],
+                             "usage": {"credits_complete": False, "totalNanoAiu": None,
+                                       "lowerBoundNanoAiu": floor, "unaccountedFailedRequests": 1}})
+    state["ledger"]["entries"][retry_id] = {
+        "status": "retry_hold", "reserved_nano": 300 * study.NANO, "actual_nano": None,
+        "lower_bound_nano": floor, "unaccounted_failed_requests": 1}
+    held, journals = {}, {}
+    for arm, step, multiplier in (("B", "f04-feature", 1), ("D", "f06-feature", 2)):
+        identity = next(key for key in study.HTTP_RECOVERY_HOLDS if f"-{arm}-12-" in key)
+        cell = next(cell for cell in state["cells"] if cell["assigned_model"] == "gemini-4-argon"
+                    and cell["arm"] == arm and cell["replicate"] == 12)
+        directory = f"runs/{cell['run_id']}/attempts/{identity}"
+        attempt = {"id": identity, "step": step, "status": "interrupted", "usage": None,
+                   "source_commit": case["new"]["commit"], "started": 1769040000, "seconds": 110,
+                   "seconds_limit": 2700 if multiplier == 2 else 1800,
+                   "credit_limit_nano": 270 * multiplier * study.NANO, "directory": directory}
+        cell["attempts"].append(attempt)
+        cell["checkpoint"] = {"step": step, "head": "checkpoint"}
+        state["ledger"]["entries"][identity] = {
+            "status": "unknown", "reserved_nano": 300 * multiplier * study.NANO, "actual_nano": None}
+        failure = {"model": "gemini-4-argon", "reasoningEffort": "medium", "statusCode": 503,
+                   "failureKind": "api", "transport": "http", "apiEndpoint": "/chat/completions",
+                   "providerCallId": f"http-request-{arm}", "errorMessage": '"503 Service Unavailable"',
+                   "retryAttempt": 0, "isAuto": False, "isByok": False, "rte": False, "source": "top_level"}
+        records = [
+            {"event": {"type": "model.call_start", "data": {"model": failure["model"], "turnId": "3"}}},
+            {"event": {"type": "model.call_failure", "data": failure}},
+            {"event": {"type": "model.model_call_failure", "data": {
+                "kind": "model_call_failure", "turn": 3, "reasoningEffort": "medium", "rte": False,
+                "modelCall": {"model": failure["model"], "status": 503, "error": failure["errorMessage"],
+                    "request_id": failure["providerCallId"], "api_endpoint": "/chat/completions",
+                    "transport": "http", "failure_kind": "api", "rte": False, "retry_attempt": 0}}}},
+            {"event": {"type": "model.call_finished", "data": {"turnId": "3", "outcome": "error"}}},
+            {"type": "complete", "exit_code": 1, "receipt": {
+                "session_id": "http-fixture", "sdk_version": "1.0.28", "cli_version": "1.0.105",
+                "protocol_version": 3, "protocol_error": "unexpected_runtime_activity", "failure_stage": "session_send",
+                "actual_models": [failure["model"]], "actual_reasoning_efforts": ["medium"],
+                "provider_failures": [], "routing_changes": [], "usage_lower_bound": None,
+                "usage": {"credits_complete": False, "totalNanoAiu": None}}},
+        ]
+        journal = source / directory / "transport/events.jsonl"
+        journal.parent.mkdir(parents=True)
+        journal.write_text("".join(json.dumps(record) + "\n" for record in records))
+        held[identity], journals[identity] = attempt, journal
+    state.update(status="oracle_halt", oracle_halt=True, stop_requested=False)
+    study.atomic_json(source / "state.json", state)
+    original = (source / "state.json").read_bytes()
+    target_root = tmp_path / "http-new"
+    target_root.mkdir()
+    shutil.copytree(source_root / "protocol", target_root / "protocol")
+    shutil.copytree(source_root / "harness", target_root / "harness")
+    new_commit = "cd" * 20
+    new = {**case["new"], "commit": new_commit, "inputs_sha256": "de" * 32,
+           "public_disclosure_url": f"https://github.com/jmservera/ama-thought-mve/commit/{new_commit}",
+           "disclosed_at": "2026-01-22T00:00:00Z"}
+    monkeypatch.setattr(study, "HTTP_RECOVERY_SOURCE", case["new"]["commit"])
+    monkeypatch.setattr(study, "HTTP_RECOVERY_STATE_SHA256", hashlib.sha256(original).hexdigest())
+    monkeypatch.setattr(study, "HTTP_RECOVERY_HOLDS", {
+        identity: {"journal_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                   "reserved_nano": state["ledger"]["entries"][identity]["reserved_nano"]}
+        for identity, path in journals.items()})
+    monkeypatch.setattr(study, "ROOT", target_root)
+    monkeypatch.setattr(recovery, "ROOT", target_root)
+    monkeypatch.setattr(study, "fingerprint", lambda *args: new["inputs_sha256"])
+    prior_roots = [*case["prior_roots"], case["source_root"]]
+    commits = {root: study.read_json(root / ".study/pilot-estimation/state.json")["identity"]["commit"]
+               for root in [*prior_roots, source_root]}
+    monkeypatch.setattr(study, "command", lambda args, **kwargs: commits.get(kwargs.get("cwd"), new_commit))
+    approval = {**case["approval"], "original_state_sha256": study.HTTP_RECOVERY_STATE_SHA256,
+                "original_commit": case["new"]["commit"], "target_commit": new_commit,
+                "attempt_id": sorted(held), "unknown_reservation_nano": 900 * study.NANO,
+                "approved_at": "2026-01-23T00:00:00Z", "disclosure_url": new["public_disclosure_url"]}
+    return {**case, "source_root": source_root, "source": source, "target_root": target_root,
+            "old": case["new"], "new": new, "approval": approval, "original": original,
+            "journals": journals, "held": held, "prior_roots": prior_roots, "retry_id": retry_id}
+
+
+def prepare_http_incident(case):
+    return case["recovery"].prepare(case["source_root"], case["old"], case["new"], case["approval"],
+                                    prior_source_root=case["prior_roots"],
+                                    calibration_manifest=case["calibration_manifest"])
+
+
+def test_http_copy_preserves_mixed_reservations_and_the_existing_incomplete_retry_step(http_incident):
+    case, study = http_incident, http_incident["study"]
+    before = study.read_json(case["source"] / "state.json")
+    target = prepare_http_incident(case)
+    state = study.read_json(target / "state.json")
+    entries = state["ledger"]["entries"]
+    assert len(study.recovery_records(state)) == 10 and len(entries) == 2877
+    assert sum(cell.get("completed_steps", 0) for cell in state["cells"]) == 2865
+    assert sum(entry["reserved_nano"] for entry in entries.values()
+               if entry["status"] == "recovery_hold") == 4500 * study.NANO
+    assert entries[case["retry_id"]] == before["ledger"]["entries"][case["retry_id"]]
+    assert entries[case["retry_id"]]["actual_nano"] is None
+    assert state["identity"]["config"] == before["identity"]["config"]
+    assert state["deadline"] == before["deadline"]
+    assert (case["source"] / "state.json").read_bytes() == case["original"]
+    assert (target / "state.before-recovery-09.json").is_file()
+    controller = study.Controller(target, case["config"], smoke=False, phase="pilot-estimation",
+                                  study_id="pilot-estimation", replicates=21,
+                                  unregistered=case["new"], handoff=case["handoff"])
+    for identity, attempt in case["held"].items():
+        cell = next(cell for cell in controller.state["cells"] if any(item["id"] == identity for item in cell["attempts"]))
+        run = object.__new__(study.StudyRun)
+        run.controller, run.cell, run.arm, run.current_step = controller, cell, cell["arm"], attempt["step"]
+        seconds = 2700 if cell["arm"] == "D" else 1800
+        multiplier = 2 if cell["arm"] == "D" else 1
+        assert run.remaining_allowance(seconds) == (seconds, 270 * multiplier * study.NANO)
+        retry = controller.new_attempt(cell, attempt["step"])
+        assert controller.state["ledger"]["entries"][retry["id"]]["reserved_nano"] == 300 * multiplier * study.NANO
+    study.validate_recovery_evidence(target, controller.state, case["new"])
+    assert study.retry_hold_policy(case["new"])["max_holds"] == 200
+    assert len(study.recovery_source_locks(state, [*case["prior_roots"], case["source_root"]])) == 20
+
+
+@pytest.mark.parametrize("damage", [
+    "single_attempt", "unsorted_attempts", "smaller_hold", "journal_b", "journal_d", "http_identity",
+    "mirror_id", "terminal", "entry", "extra_unknown", "retry_hold", "policy"])
+def test_http_recovery_rejects_changed_approval_http_signature_holds_and_policy(http_incident, damage):
+    case, study = http_incident, http_incident["study"]
+    identities = sorted(case["held"])
+    if damage == "single_attempt":
+        case["approval"]["attempt_id"] = identities[0]
+    elif damage == "unsorted_attempts":
+        case["approval"]["attempt_id"] = identities[::-1]
+    elif damage == "smaller_hold":
+        case["approval"]["unknown_reservation_nano"] = 600 * study.NANO
+    elif damage == "policy":
+        case["old"].pop("unaccounted_retry_hold_policy")
+    elif damage in ("journal_b", "journal_d", "http_identity", "mirror_id", "terminal"):
+        path = case["journals"][identities[1 if damage == "journal_d" else 0]]
+        records = [json.loads(line) for line in path.read_bytes().splitlines()]
+        if damage in ("journal_b", "journal_d"):
+            records[-1]["receipt"]["usage_lower_bound"] = {"totalNanoAiu": 0}
+        elif damage == "http_identity":
+            records[1]["event"]["data"]["statusCode"] = 401
+        elif damage == "mirror_id":
+            records[2]["event"]["data"]["modelCall"]["request_id"] = "another-request"
+        else:
+            records[3]["event"]["data"]["outcome"] = "success"
+        path.write_text("".join(json.dumps(record) + "\n" for record in records))
+    else:
+        state = study.read_json(case["source"] / "state.json")
+        entries = state["ledger"]["entries"]
+        if damage == "entry":
+            entries[identities[1]]["reserved_nano"] -= study.NANO
+        elif damage == "extra_unknown":
+            extra = next(identity for identity, entry in entries.items() if entry["status"] == "complete")
+            entries[extra] = {"status": "unknown", "actual_nano": None, "reserved_nano": 300 * study.NANO}
+        else:
+            entries[case["retry_id"]]["actual_nano"] = 0
+        study.atomic_json(case["source"] / "state.json", state)
+    with pytest.raises(study.StudyError):
+        prepare_http_incident(case)
+    assert not (case["target_root"] / ".study/pilot-estimation").exists()
