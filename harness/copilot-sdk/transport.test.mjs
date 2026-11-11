@@ -377,6 +377,7 @@ test('real same-turn provider retry preserves limits and accounts for the failed
     assert.equal(result.exitCode, 0, `status ${failure.statusCode}`);
     assert.equal(result.receipt.usage.totalNanoAiu, 140);
     assert.equal(result.receipt.provider_failures[0].accounting_complete, true);
+    assert.equal(result.receipt.usage_lower_bound, null);
     assert.equal(result.state.sent, 1);
     assert.equal(result.state.config.sessionLimits.maxAiCredits, 173.5);
   }
@@ -392,6 +393,8 @@ test('a matched transport reset does not certify a missing failed-request charge
   assert.equal(result.receipt.usage.totalNanoAiu, null);
   assert.equal(result.receipt.provider_failures[0].failure_kind, 'transport');
   assert.equal(result.receipt.provider_failures[0].status_code, null);
+  // The one billed call is a floor only; the reset request stays unaccounted and the total stays unknown.
+  assert.deepEqual(result.receipt.usage_lower_bound, { totalNanoAiu: 123, unaccounted_failed_requests: 1 });
 });
 
 test('routine shutdown after nine successful calls cannot waive an earlier reset charge', async () => {
@@ -419,7 +422,33 @@ test('routine shutdown after nine successful calls cannot waive an earlier reset
   assert.equal(result.receipt.provider_failures[0].accounting_complete, false);
   assert.equal(result.receipt.usage.credits_complete, false);
   assert.equal(result.receipt.usage.totalNanoAiu, null);
+  assert.deepEqual(result.receipt.usage_lower_bound, { totalNanoAiu: 1107, unaccounted_failed_requests: 1 });
   assert.equal(result.state.sent, 1);
+});
+
+test('a protocol fault after an unaccounted reset never offers a usage floor', async () => {
+  const result = await runFake({
+    async action(config) {
+      failProvider(config, resetFailure(), 0);
+      successfulRetry(config, 0);
+      config.onEvent(event('skill.invoked', {}));
+    },
+  });
+  assert.equal(result.receipt.protocol_error, 'unexpected_runtime_activity');
+  assert.equal(result.receipt.usage_lower_bound, null);
+  assert.equal(result.receipt.usage.credits_complete, false);
+});
+
+test('a missing successful-call charge never offers a usage floor', async () => {
+  const result = await runFake({
+    async action(config) {
+      failProvider(config, resetFailure(), 0);
+      successfulRetry(config, 0);
+    },
+    usage: sid => ({ aiCreditsStatus: 'partial', accounting: { sourceSessionId: sid, sequence: 1, usageId: 'partial' } }),
+  });
+  assert.equal(result.receipt.usage_lower_bound, null);
+  assert.equal(result.receipt.usage.credits_complete, false);
 });
 
 test('mixed finished and unfinished same-turn retries preserve every charge and original limits', async () => {

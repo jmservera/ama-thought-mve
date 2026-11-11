@@ -32,7 +32,7 @@ def verify_approval(approval: dict, new_manifest: dict) -> None:
             or approval["original_commit"] != incident["source"]
             or approval["target_commit"] != new_manifest.get("commit")
             or approval["target_commit"] == incident["source"]
-            or approval["attempt_id"] != incident["attempt"]
+            or approval["attempt_id"] != study.incident_attempt_ref(incident)
             or type(approval["unknown_reservation_nano"]) is not int
             or approval["unknown_reservation_nano"] != incident["reserved_nano"]
             or any(approval[key] is not True for key in ("accept_unknown_hold",
@@ -71,9 +71,10 @@ def require_regular_tree(root: Path) -> None:
 
 def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = False) -> str:
     incidents = [study.recovery_incident(value) for value in study.recovery_state_hashes()]
-    incident = next((item for item in incidents if item["attempt"] == attempt.get("id")), None)
+    incident = next((item for item in incidents if attempt.get("id") in study.incident_holds(item)), None)
     if incident is None:
         raise StudyError("Failed attempt is not one of the disclosed estimation interruptions")
+    expected_journal = study.incident_holds(incident)[attempt["id"]]["journal_sha256"]
     relative = attempt.get("directory")
     if (not isinstance(relative, str) or not relative or Path(relative).is_absolute()
             or ".." in Path(relative).parts):
@@ -130,7 +131,7 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
                        for name in ("container.json", "container.cid"))):
             raise StudyError("Sandbox rejection lacks a preserved state and confirmed cleanup")
         value = hashlib.sha256(payload).hexdigest()
-        if value != incident["journal_sha256"]:
+        if value != expected_journal:
             raise StudyError("Failed attempt journal differs from the disclosed incident")
         return value
     if len(complete) != 1:
@@ -257,6 +258,10 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
         finishes = [index for index, event in enumerate(events) if event["type"] == "model.call_finished"
                     and event["data"].get("turnId") == turn
                     and (unaccounted_retry or event["data"].get("outcome") == "error")]
+        # The CLI may or may not emit an error finish between a reset and its same-turn retry.
+        outcomes = [events[index]["data"].get("outcome") for index in finishes]
+        bounded_finishes = (outcomes in (["error", "success"], ["success"]) if unaccounted_retry
+                            else len(finishes) == 1)
         if (failure.get("model") != "gpt-6.1-sol" or failure.get("reasoningEffort") != "medium"
                 or failure.get("failureKind") != "transport" or failure.get("transport") != "websocket"
                 or failure.get("rte") is not True or failure.get("source") != "top_level"
@@ -274,8 +279,7 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
                 or call.get("service_request_id") != failure["serviceRequestId"]
                 or call.get("retry_attempt") != 0
                 or any(key in call for key in ("status", "errorCode", "errorType"))
-                or len(starts) != (2 if unaccounted_retry else 1)
-                or len(finishes) != (2 if unaccounted_retry else 1)
+                or len(starts) != (2 if unaccounted_retry else 1) or not bounded_finishes
                 or receipt.get("protocol_error") != (
                     "provider_retry_usage_incomplete" if unaccounted_retry else "unexpected_runtime_activity")
                 or receipt.get("actual_models") != ["gpt-6.1-sol"]
@@ -287,18 +291,18 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
             raise StudyError("Reset interruption differs from its pinned transport/identity/unknown-usage signature")
         failure_index = next(index for index, event in enumerate(events) if event["type"] == "model.call_failure")
         mirror_index = next(index for index, event in enumerate(events) if event["type"] == "model.model_call_failure")
-        if not starts[0] < failure_index < mirror_index < finishes[0]:
+        if not unaccounted_retry and not starts[0] < failure_index < mirror_index < finishes[0]:
             raise StudyError("Reset interruption lacks ordered start, failure, mirror and terminal error")
         if unaccounted_retry:
             shutdowns = [(index, event["data"]) for index, event in enumerate(events)
                          if event["type"] == "session.shutdown"]
             idle = [index for index, event in enumerate(events) if event["type"] == "session.idle"]
             usage = [event["data"] for event in events if event["type"] == "assistant.usage"]
-            if (events[finishes[0]]["data"].get("outcome") != "error"
-                    or events[finishes[1]]["data"].get("outcome") != "success"
-                    or not finishes[0] < starts[1] < finishes[1]
+            error_finish = finishes[:-1]
+            if (not starts[0] < failure_index < mirror_index < starts[1] < finishes[-1]
+                    or any(not mirror_index < index < starts[1] for index in error_finish)
                     or len(shutdowns) != 1 or shutdowns[0][1].get("shutdownType") != "routine"
-                    or len(idle) != 1 or not finishes[1] < idle[0] < shutdowns[0][0]
+                    or len(idle) != 1 or not finishes[-1] < idle[0] < shutdowns[0][0]
                     or not usage
                     or any(item.get("apiCallId") == failure["apiCallId"]
                            and item.get("serviceRequestId") == failure["serviceRequestId"]
@@ -352,7 +356,7 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
                     or receipt.get("routing_changes") != []):
                 raise StudyError("Service interruption lacks the exact correlated same-turn retry and pinned identity")
     value = hashlib.sha256(payload).hexdigest()
-    if value != incident["journal_sha256"]:
+    if value != expected_journal:
         raise StudyError("Failed attempt journal differs from the disclosed incident")
     return value
 
@@ -362,6 +366,7 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
     """Copy the stopped study; never alter its original state or release its hold."""
     verify_approval(approval, new_manifest)
     incident = study.recovery_incident(approval["original_state_sha256"])
+    holds = study.incident_holds(incident)
     original_paid_lock, source = study.recovery_source_paths(
         source_root, expected_state_sha256=approval["original_state_sha256"])
     prior_roots = ([] if prior_source_root is None else [prior_source_root]
@@ -423,6 +428,8 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
         cfg = identity["config"]
         study.validate_recovery_state(state)
         previous = study.recovery_records(state)
+        previous_holds = sum(len(study.incident_holds(study.recovery_incident(item["original_state_sha256"])))
+                             for item in previous)
         if index:
             if len(previous) != index:
                 raise StudyError("Later recovery must preserve every earlier approved recovery")
@@ -444,23 +451,28 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
                 or len(attempts) != incident["attempts"]
                 or len({item["id"] for item in attempts}) != incident["attempts"]
                 or set(entries) != {item["id"] for item in attempts}
-                or sum(item["status"] == "complete" for item in entries.values()) != incident["steps"]
-                or sum(item["status"] == "unknown" for item in entries.values()) != 1
-                or sum(item["status"] == "recovery_hold" for item in entries.values()) != len(previous)
-                or sum(item["actual_nano"] for item in entries.values()
-                       if item["status"] == "complete") != incident["known_nano"]):
+                or sum(item["status"] in ("complete", study.RETRY_HOLD) for item in entries.values())
+                != incident["steps"]
+                or sum(item["status"] == "unknown" for item in entries.values()) != len(holds)
+                or sum(item["status"] == "recovery_hold" for item in entries.values()) != previous_holds
+                or sum(item["actual_nano"] if item["status"] == "complete" else item.get("lower_bound_nano", 0)
+                       for item in entries.values()
+                       if item["status"] in ("complete", study.RETRY_HOLD)) != incident["known_nano"]):
             raise StudyError("Original attempt inventory differs from the disclosed interruption")
-        attempt = next(item for item in attempts if item["id"] == incident["attempt"])
-        cell = next(cell for cell in cells if attempt in cell["attempts"])
-        entry = entries[incident["attempt"]]
-        if (attempt.get("status") != "interrupted" or attempt.get("usage") is not None
-                or attempt.get("measurement") or entry != {
-                    "status": "unknown", "actual_nano": None, "reserved_nano": incident["reserved_nano"]}
-                or (cell.get("checkpoint") or {}).get("step") != attempt["step"]
-                or any(item["status"] == "running" for item in attempts)):
-            raise StudyError("Failed attempt or held reservation is not recoverable")
-        verify_approval_after_attempt(approval, attempt)
-        journal_sha = verify_journal(source, attempt)
+        held_attempts = {}
+        for held_id, hold in holds.items():
+            attempt = next(item for item in attempts if item["id"] == held_id)
+            cell = next(cell for cell in cells if attempt in cell["attempts"])
+            if (attempt.get("status") != "interrupted" or attempt.get("usage") is not None
+                    or attempt.get("measurement") or entries[held_id] != {
+                        "status": "unknown", "actual_nano": None, "reserved_nano": hold["reserved_nano"]}
+                    or (cell.get("checkpoint") or {}).get("step") != attempt["step"]
+                    or any(item["status"] == "running" for item in attempts)):
+                raise StudyError("Failed attempt or held reservation is not recoverable")
+            verify_approval_after_attempt(approval, attempt)
+            held_attempts[held_id] = attempt
+        verified = {held_id: verify_journal(source, held) for held_id, held in held_attempts.items()}
+        journal_sha = study.incident_journal_digest(incident, verified)
         require_regular_tree(source)
         require_regular_tree(calibration)
         shutil.copytree(source, target, symlinks=True)
@@ -472,6 +484,7 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
         if (target / "state.json").read_bytes() != original:
             raise StudyError("Copied state differs from the original; retain the partial recovery copy")
         if incident["kind"] == "state_links":
+            attempt = held_attempts[incident["attempt"]]
             archive = target / attempt["directory"] / "recovery-broker"
             if archive.exists() or archive.is_symlink():
                 raise StudyError("Recovery must not overwrite retained sandbox evidence")
@@ -500,8 +513,9 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
         prior_ids = [item["id"] for item in attempts]
         for item in attempts:
             item.setdefault("source_commit", incident["source"])
-        attempt["status"] = "recovery_interrupted"
-        entry["status"] = "recovery_hold"
+        for held_id in holds:
+            held_attempts[held_id]["status"] = "recovery_interrupted"
+            entries[held_id]["status"] = "recovery_hold"
         identity["commit"] = new_manifest["commit"]
         identity["inputs_sha256"] = new_manifest["inputs_sha256"]
         identity["source_provenance"] = study.source_provenance(new_manifest)

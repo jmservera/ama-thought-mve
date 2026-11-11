@@ -413,8 +413,8 @@ export class Evidence {
     const sum = calls.reduce((total, call) => total + (call.copilotUsage?.totalNanoAiu ?? 0), 0);
     const watermarks = shutdown?.usageAccountingWatermarks;
     const metric = shutdown?.modelMetrics?.[this.request.model];
-    const complete = !errorCode && this.started && this.idle && shutdown && !this.activeTools.size &&
-      !this.modelCall && !this.retryNeedsSuccess && failuresComplete &&
+    const successfulUsageCertified = !errorCode && this.started && this.idle && shutdown && !this.activeTools.size &&
+      !this.modelCall && !this.retryNeedsSuccess &&
       this.status === 'complete' && sequences.length > 0 &&
       sequences.every((sequence, index) => sequence === index + 1) &&
       new Set(calls.map(call => call.accounting.usageId)).size === calls.length &&
@@ -427,7 +427,12 @@ export class Evidence {
     const checkpointsConsistent = this.checkpoints.every(checkpoint =>
       checkpoint.totalNanoAiu <= sum &&
       checkpoint.usageAccountingWatermarks[this.sessionId] <= sequences.length);
-    const certified = complete && checkpointsConsistent;
+    const certified = successfulUsageCertified && failuresComplete && checkpointsConsistent;
+    // Every successful call is certified, but a failed request lacks its own charge. This is a floor,
+    // never a total: the controller must retain a hold for each unaccounted failure.
+    const unaccounted = providerFailures.filter(failure => !accountedFailure(failure)).length;
+    const lowerBound = successfulUsageCertified && checkpointsConsistent && unaccounted > 0 ?
+      { totalNanoAiu: sum, unaccounted_failed_requests: unaccounted } : null;
     return {
       session_id: this.sessionId,
       sdk_version: SDK_VERSION, cli_version: CLI_VERSION, protocol_version: PROTOCOL_VERSION,
@@ -438,6 +443,7 @@ export class Evidence {
       },
       actual_models: [...this.models],
       actual_reasoning_efforts: [...this.efforts],
+      usage_lower_bound: lowerBound,
       model_calls: calls.map(call => ({
         accounting: call.accounting, model: call.model,
         reasoningEffort: call.reasoningEffort ?? null,

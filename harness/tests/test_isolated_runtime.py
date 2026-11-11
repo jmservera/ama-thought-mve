@@ -553,6 +553,79 @@ def test_live_attempt_reserves_before_transport_and_preserves_charge_on_failure(
     assert current.state["writer_pid"] is None and not current.state["writer_pending"]
 
 
+@pytest.mark.parametrize("case", ["accepted", "no_policy", "at_limit", "mismatched_calls", "failed_midway"])
+def test_unaccounted_retry_keeps_delivered_work_only_under_bounded_owner_policy(
+    runtime, tmp_path, monkeypatch, case,
+):
+    study = importlib.import_module("study")
+    config = study.read_json(study.ROOT / "harness/study-config.json")
+    current = study.Controller(tmp_path / "private", config,
+                               smoke=False, phase="first", study_id="offline-retry-hold-fixture")
+    cell = next(cell for cell in current.state["cells"] if cell["arm"] == "A")
+    policy = {"max_holds": 1, "approval": "owner decision", "approved_at": "2026-11-11T00:00:00+00:00"}
+    if case != "no_policy":
+        current.unregistered = {"unaccounted_retry_hold_policy": policy}
+    if case == "at_limit":
+        current.state["ledger"]["entries"]["earlier-hold"] = {
+            "status": "retry_hold", "reserved_nano": 300 * runtime.NANO, "actual_nano": None,
+            "lower_bound_nano": 1, "unaccounted_failed_requests": 1}
+    repo = trusted_repo(runtime, tmp_path)
+    live = object.__new__(runtime.LiveRuntime)
+    live.run = SimpleNamespace(
+        controller=current, cell=cell, current_step="f01-feature", repo=repo,
+        dir=str(current.directory / "fixture"), assigned_model=cell["assigned_model"],
+        credit_multiplier=lambda: 1, remaining_allowance=lambda budget: (budget, 270 * runtime.NANO))
+    live.receipt = {"image": "sha256:" + "0" * 64}
+    live.last_checkpoint = None
+    monkeypatch.setattr(runtime, "runtime_errors", lambda cfg, **kwargs: [])
+    live.broker = SimpleNamespace(
+        seed=lambda files, *, git_bundle: "opaque-fixture-state",
+        export=lambda *args, **kwargs: {"head_changed": True, "files": [file_record("src/code.py", "VALUE = 2\n")]})
+    billed = 2 * runtime.NANO
+    receipt = {"sdk_version": "1.0.28", "cli_version": "1.0.105", "protocol_version": 3,
+               "protocol_error": "provider_retry_usage_incomplete",
+               "failure_stage": "session_send" if case == "failed_midway" else None,
+               "actual_models": [cell["assigned_model"]], "actual_reasoning_efforts": ["medium"],
+               "routing_changes": [],
+               "provider_failures": [{"status_code": None, "error_code": None, "failure_kind": "transport",
+                                      "transport": "websocket", "retry_attempt": 0,
+                                      "accounting_complete": False}],
+               "model_calls": [{"aiCreditsStatus": "complete",
+                                "totalNanoAiu": billed + (1 if case == "mismatched_calls" else 0)}],
+               "usage_lower_bound": {"totalNanoAiu": billed, "unaccounted_failed_requests": 1},
+               "usage": {"credits_complete": False, "totalNanoAiu": None, "aiCreditsStatus": "partial"}}
+
+    def bridge(request, directory, tool, *, accept_unaccounted_retry=False, **callbacks):
+        callbacks["on_start"](123)
+        callbacks["on_stop"]()
+        if not accept_unaccounted_retry:
+            raise runtime.StudyError("SDK backend retry stopped (provider_retry_usage_incomplete); "
+                                     "final usage is unknown and the reservation is retained")
+        return {"exit_code": 1, "receipt": receipt}
+
+    monkeypatch.setattr(runtime, "run_bridge", bridge)
+    if case == "accepted":
+        result = live.run_agent("offline fixture prompt", str(tmp_path / "steps"), 900)
+        assert result["usage"]["credits_complete"] is False and result["usage"]["totalNanoAiu"] is None
+        assert (repo / "src/code.py").read_text() == "VALUE = 2\n"
+        entry = current.state["ledger"]["entries"][cell["attempts"][-1]["id"]]
+        assert entry == {"reserved_nano": 300 * runtime.NANO, "actual_nano": None, "status": "retry_hold",
+                         "lower_bound_nano": billed, "unaccounted_failed_requests": 1}
+        assert not current.admission_stopped()
+        assert current.new_attempt(cell, "f02-feature")["id"].endswith("-1")
+        current.unregistered = None
+        with pytest.raises(runtime.StudyError, match="owner-approved limit"):
+            current.new_attempt(cell, "f03-feature")
+    else:
+        with pytest.raises(runtime.StudyError):
+            live.run_agent("offline fixture prompt", str(tmp_path / "steps"), 900)
+        assert (repo / "src/code.py").read_text() == "VALUE = 1\n"
+        entry = current.state["ledger"]["entries"][cell["attempts"][-1]["id"]]
+        assert entry["status"] == "unknown" and entry["actual_nano"] is None
+        with pytest.raises(runtime.StudyError, match="Unknown usage"):
+            current.new_attempt(cell, "f02-feature")
+
+
 @pytest.mark.skipif(not os.environ.get("MVE_TEST_ISOLATED_IMAGE"), reason="explicit offline Docker image required")
 @pytest.mark.parametrize("stage,k,cr", [("f01", 1, False), ("f10", 10, False), ("cr1", 10, True)])
 @pytest.mark.parametrize("mask", [0o022, 0o077])

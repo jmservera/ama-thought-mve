@@ -779,6 +779,80 @@ No automatic paid launch, original-state edit or historical-outcome rerun is
 authorized. Provider omissions may recur; this recovery cannot guarantee
 connectivity or complete future billing.
 
+#### Owner-authorized retry holds (keeps a study running through provider resets)
+
+A single provider reset that the CLI retries successfully used to stop the whole
+study: the successful calls were fully billed, but the reset request never
+reported a charge, so every such session ended `provider_retry_usage_incomplete`
+and the controller froze all cells. This happened three times in two days. The
+transport guard is unchanged and still fail-closed: a missing charge is never
+zero. A study may instead opt in to a bounded, conservative accounting mode.
+
+The owner evidence manifest may carry an optional field. Without it, behavior
+is exactly the earlier, strict one.
+
+```json
+"unaccounted_retry_hold_policy": {
+  "max_holds": 40,
+  "approval": "owner decision reference",
+  "approved_at": "2026-11-11T00:00:00+00:00"
+}
+```
+
+When present, a session is kept only if all of the following hold: it ended
+normally with a routine shutdown; every successful call has a complete charge
+and their sum equals the shutdown total; at most three failed requests remain
+unbilled; the model, effort and routing are exactly as assigned; and fewer than
+`max_holds` holds exist. The transport reports the certified successful sum as
+`usage_lower_bound`, a floor and never a total. Then:
+
+* The delivered work and its measurement are kept; nothing is replayed.
+* The ledger entry becomes `retry_hold`. Its **entire reservation** (300 credits,
+  600 for a D-arm feature) stays charged against the ceiling, and the verified
+  floor is stored as `lower_bound_nano`. `actual_nano` stays empty.
+* The step cost is recorded as **incomplete** in analysis, never as the floor.
+  `attempts.csv` and `summary.json` show `credits_status=retry_hold` with
+  `lower_bound_nano`.
+* New work is not blocked. Reaching `max_holds`, removing the policy, or a floor
+  above its reservation stops new paid work with an explicit reason.
+
+Any other missing-charge condition, such as a 1001 close, a fault during the
+session, or a mismatched receipt, still ends as unknown usage and needs the
+separately approved copy-only recovery. Provider omissions can still recur and
+no provider-side billing guarantee exists.
+
+#### Specific 2722-step paired unaccounted-retry interruption
+
+The stopped state
+`42a75a6285d3fac59112ec7c7e0b684b18de16239d9f33f20961dfdc6aaed282`
+is source `732c4896da7c0a5b0db0f60c02348743a5b2c54e`: 2722 completed
+measurements, 2732 attempts and 157 completed trajectories of 315.
+Two attempts halted together, each with the same signature as the 2691-step
+incident (one correlated ECONNRESET, a successful same-turn retry, a routine
+shutdown, and no charge for the reset request):
+
+* `pilot-estimation-gpt-6.1-sol-B-11-f05-feature-1`, journal
+  `a1a780066151b7d7d85bb720b22ba1ef0ae5d3c9df9bd58da5f485946bfbec6c`,
+  with an error finish between the reset and the retry.
+* `pilot-estimation-gpt-6.1-sol-E-11-f01-repair-1`, journal
+  `adf74655c4b4ae14678a43e3bc34dcff6173d9472e0f90dc132d04331825cbe2`,
+  retried without an intervening error finish.
+
+Their nine successful calls total 14.23347 and 10.18283 credits and equal each
+shutdown total, but those are floors. Known study consumption is 31374.66179
+credits; the unknown holds are all eight earlier recoveries plus these two,
+3600 nominal credits. A fresh attempt at each of these steps needs its own
+separately reserved 300 credits and the full original allowance.
+
+One recovery transition can now hold several attempts. The approval names
+every held attempt as a sorted `attempt_id` list and states the combined
+`unknown_reservation_nano=600000000000`. Use the stopped 2722 checkout as
+`--source-root`, its manifest as `--old-manifest`, and eight earlier
+`--prior-source-root` values in order: original 651, stopped 878, 1482, 2082,
+2289, 2402, 2526 and 2691. Keep the original calibration manifest. For launch,
+supply all nine original roots in order. No original state, journal, audit or
+calibration byte may change, and no paid launch is authorized by the copy.
+
 #### Exception attribution and intervention coverage
 
 A declared product exception raised by a candidate source-loaded view getter

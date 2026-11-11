@@ -69,6 +69,12 @@ The native retry succeeded, but its failed-request charge is missing.
 Routine shutdown does not certify zero cost: retain the new 600-credit D hold
 and all seven earlier holds. A separate copy needs exact new-source approval;
 normal resume and automatic paid replay remain blocked.
+The 2722-step interruption held two attempts at once; follow its
+[paired recovery procedure](RUNBOOK.md#specific-2722-step-paired-unaccounted-retry-interruption).
+To stop such resets from halting a study at all, the owner evidence can opt in to
+a bounded [retry hold policy](RUNBOOK.md#owner-authorized-retry-holds-keeps-a-study-running-through-provider-resets):
+the whole reservation stays held, the step cost stays incomplete and the run
+continues up to a stated limit. It is off unless the owner evidence enables it.
 
 ```bash
 ./run-experiment.sh --dry-run          # read-only readiness and schedule

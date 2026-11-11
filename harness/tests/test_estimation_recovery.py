@@ -1572,3 +1572,177 @@ def test_eighth_copy_preserves_original_analysis_audit_authority(unaccounted_inc
     analysis.validate_trust_anchors(target, manifest, case["study"].read_json(target / "state.json"))
     assert (target / "analysis-adjudications.json").read_bytes() == before
     assert path.read_bytes() == before
+
+
+def retry_records(tag, turn="5"):
+    message = '"WebSocket receive failed: WebSocket protocol error: Connection reset without closing handshake [ECONNRESET]"'
+    failure = {"model": "gpt-6.1-sol", "reasoningEffort": "medium", "failureKind": "transport",
+               "transport": "websocket", "rte": True, "source": "top_level", "apiEndpoint": "ws:/responses",
+               "errorMessage": message, "retryAttempt": 0, "isAuto": False, "isByok": False,
+               "apiCallId": f"failed-api-{tag}", "serviceRequestId": f"failed-service-{tag}"}
+    return [
+        {"event": {"type": "model.call_start", "data": {"model": failure["model"], "turnId": turn}}},
+        {"event": {"type": "model.call_failure", "data": failure}},
+        {"event": {"type": "model.model_call_failure", "data": {
+            "turn": int(turn), "reasoningEffort": "medium", "modelCall": {
+                "model": failure["model"], "api_id": failure["apiCallId"],
+                "service_request_id": failure["serviceRequestId"], "transport": "websocket",
+                "failure_kind": "transport", "rte": True, "api_endpoint": "ws:/responses",
+                "error": message, "retry_attempt": 0}}}},
+        {"event": {"type": "model.call_finished", "data": {"turnId": turn, "outcome": "error"}}},
+        {"event": {"type": "model.call_start", "data": {"model": failure["model"], "turnId": turn}}},
+        {"event": {"type": "assistant.usage", "data": {
+            "apiCallId": f"successful-api-{tag}", "serviceRequestId": f"successful-service-{tag}",
+            "aiCreditsStatus": "complete", "copilotUsage": {"totalNanoAiu": 123}}}},
+        {"event": {"type": "model.call_finished", "data": {"turnId": turn, "outcome": "success"}}},
+        {"event": {"type": "session.idle", "data": {}}},
+        {"event": {"type": "session.shutdown", "data": {"shutdownType": "routine", "totalNanoAiu": 123}}},
+        {"type": "complete", "exit_code": 1, "receipt": {
+            "failure_stage": None, "protocol_error": "provider_retry_usage_incomplete",
+            "actual_models": [failure["model"]], "actual_reasoning_efforts": ["medium"],
+            "routing_changes": [], "provider_failures": [{
+                "status_code": None, "error_code": None, "failure_kind": "transport",
+                "transport": "websocket", "retry_attempt": 0, "accounting_complete": False}],
+            "usage": {"credits_complete": False, "totalNanoAiu": None}}},
+    ]
+
+
+@pytest.fixture
+def paired_incident(unaccounted_incident, tmp_path, monkeypatch):
+    """Two attempts halt together, as when two simultaneous cells each lose a failed-request charge."""
+    case = unaccounted_incident
+    study = case["study"]
+    recovery = case["recovery"]
+    source = prepare_unaccounted_incident(case)
+    source_root = case["target_root"]
+    state = study.read_json(source / "state.json")
+    extra = study.credits("31374.66179") - study.credits("30927.78079")
+    quotient, remainder = divmod(extra, 31)
+    for index in range(31):
+        cell = state["cells"][index % len(state["cells"])]
+        identity = f"paired-complete-{index}"
+        amount = quotient + (index < remainder)
+        cell["completed_steps"] = cell.get("completed_steps", 0) + 1
+        cell["attempts"].append({"id": identity, "step": f"paired-step-{index}", "status": "agent_returned",
+                                 "seconds": 1, "source_commit": case["new"]["commit"],
+                                 "usage": {"credits_complete": True, "totalNanoAiu": amount}})
+        state["ledger"]["entries"][identity] = {
+            "status": "complete", "reserved_nano": 300 * study.NANO, "actual_nano": amount}
+    held, journals = {}, {}
+    for (identity, step, arm), tag in zip(
+            ((next(iter(study.PAIRED_RECOVERY_HOLDS)), "f05-feature", "B"),
+             (list(study.PAIRED_RECOVERY_HOLDS)[1], "f01-repair", "E")), ("one", "two")):
+        cell = next(cell for cell in state["cells"] if cell["assigned_model"] == "gpt-6.1-sol"
+                    and cell["arm"] == arm and cell["replicate"] == 11)
+        directory = f"runs/{cell['run_id']}/attempts/{identity}"
+        attempt = {"id": identity, "step": step, "status": "interrupted",
+                   "source_commit": case["new"]["commit"], "usage": None, "started": 1768780800,
+                   "seconds": 169.6112, "seconds_limit": 1800, "credit_limit_nano": 270 * study.NANO,
+                   "directory": directory}
+        cell["attempts"].append(attempt)
+        cell["checkpoint"] = {"step": step, "head": "checkpoint"}
+        state["ledger"]["entries"][identity] = {
+            "status": "unknown", "reserved_nano": 300 * study.NANO, "actual_nano": None}
+        journal = source / directory / "transport/events.jsonl"
+        journal.parent.mkdir(parents=True)
+        records = retry_records(tag)
+        if tag == "two":
+            # Observed variant: the CLI retried the reset request without an intervening error finish.
+            del records[3]
+        journal.write_text("".join(json.dumps(record) + "\n" for record in records))
+        held[identity], journals[identity] = attempt, journal
+    state.update(status="oracle_halt", oracle_halt=True, stop_requested=False)
+    study.atomic_json(source / "state.json", state)
+    original = (source / "state.json").read_bytes()
+    target_root = tmp_path / "paired-new"
+    target_root.mkdir()
+    shutil.copytree(source_root / "protocol", target_root / "protocol")
+    shutil.copytree(source_root / "harness", target_root / "harness")
+    new_commit = "ab" * 20
+    new = {**case["new"], "commit": new_commit, "inputs_sha256": "bc" * 32,
+           "public_disclosure_url": f"https://github.com/jmservera/ama-thought-mve/commit/{new_commit}",
+           "disclosed_at": "2026-01-20T00:00:00Z"}
+    monkeypatch.setattr(study, "PAIRED_RECOVERY_SOURCE", case["new"]["commit"])
+    monkeypatch.setattr(study, "PAIRED_RECOVERY_STATE_SHA256", hashlib.sha256(original).hexdigest())
+    monkeypatch.setattr(study, "PAIRED_RECOVERY_HOLDS", {
+        identity: hashlib.sha256(path.read_bytes()).hexdigest() for identity, path in journals.items()})
+    monkeypatch.setattr(study, "ROOT", target_root)
+    monkeypatch.setattr(recovery, "ROOT", target_root)
+    monkeypatch.setattr(study, "fingerprint", lambda *args: new["inputs_sha256"])
+    prior_roots = [*case["prior_roots"], case["source_root"]]
+    commits = {root: study.read_json(root / ".study/pilot-estimation/state.json")["identity"]["commit"]
+               for root in [*prior_roots, source_root]}
+    monkeypatch.setattr(study, "command", lambda args, **kwargs: commits.get(kwargs.get("cwd"), new_commit))
+    approval = {**case["approval"], "original_state_sha256": study.PAIRED_RECOVERY_STATE_SHA256,
+                "original_commit": case["new"]["commit"], "target_commit": new_commit,
+                "attempt_id": sorted(held), "unknown_reservation_nano": 600 * study.NANO,
+                "approved_at": "2026-01-21T00:00:00Z", "disclosure_url": new["public_disclosure_url"]}
+    return {**case, "source_root": source_root, "source": source, "target_root": target_root,
+            "old": case["new"], "new": new, "approval": approval, "original": original,
+            "journals": journals, "held": held, "prior_roots": prior_roots}
+
+
+def prepare_paired_incident(case):
+    return case["recovery"].prepare(case["source_root"], case["old"], case["new"], case["approval"],
+                                    prior_source_root=case["prior_roots"],
+                                    calibration_manifest=case["calibration_manifest"])
+
+
+def test_paired_copy_holds_both_attempts_and_lets_each_step_retry_with_a_fresh_reservation(paired_incident):
+    case, study = paired_incident, paired_incident["study"]
+    target = prepare_paired_incident(case)
+    state = study.read_json(target / "state.json")
+    assert len(study.recovery_records(state)) == 9 and len(state["ledger"]["entries"]) == 2732
+    assert sum(cell.get("completed_steps", 0) for cell in state["cells"]) == 2722
+    entries = state["ledger"]["entries"]
+    assert all(entries[identity] == {"status": "recovery_hold", "actual_nano": None,
+                                     "reserved_nano": 300 * study.NANO} for identity in case["held"])
+    assert sum(entry["reserved_nano"] for entry in entries.values()
+               if entry["status"] == "recovery_hold") == 3600 * study.NANO
+    assert (case["source"] / "state.json").read_bytes() == case["original"]
+    assert (target / "state.before-recovery-08.json").is_file()
+    controller = study.Controller(target, case["config"], smoke=False, phase="pilot-estimation",
+                                  study_id="pilot-estimation", replicates=21,
+                                  unregistered=case["new"], handoff=case["handoff"])
+    for identity, attempt in case["held"].items():
+        cell = next(c for c in controller.state["cells"] if any(a["id"] == identity for a in c["attempts"]))
+        run = object.__new__(study.StudyRun)
+        run.controller, run.cell, run.arm, run.current_step = controller, cell, cell["arm"], attempt["step"]
+        assert run.remaining_allowance(1800) == (1800, 270 * study.NANO)
+        retry = controller.new_attempt(cell, attempt["step"])
+        assert controller.state["ledger"]["entries"][retry["id"]]["reserved_nano"] == 300 * study.NANO
+    study.validate_recovery_evidence(target, controller.state, case["new"])
+    assert len(study.recovery_source_locks(state, [*case["prior_roots"], case["source_root"]])) == 18
+
+
+@pytest.mark.parametrize("damage", [
+    "single_attempt", "unsorted_attempts", "smaller_hold", "journal_one", "journal_two", "entry", "extra_unknown"])
+def test_paired_recovery_requires_every_exact_hold_journal_approval_and_ledger_entry(
+        paired_incident, damage):
+    case, study = paired_incident, paired_incident["study"]
+    identities = sorted(case["held"])
+    if damage == "single_attempt":
+        case["approval"]["attempt_id"] = identities[0]
+    elif damage == "unsorted_attempts":
+        case["approval"]["attempt_id"] = identities[::-1]
+    elif damage == "smaller_hold":
+        case["approval"]["unknown_reservation_nano"] = 300 * study.NANO
+    elif damage in ("journal_one", "journal_two"):
+        path = case["journals"][identities[0 if damage == "journal_one" else 1]]
+        records = [json.loads(line) for line in path.read_bytes().splitlines()]
+        last = max(index for index, record in enumerate(records)
+                   if record.get("event", {}).get("type") == "model.call_finished")
+        records[last]["event"]["data"]["outcome"] = "error"
+        path.write_text("".join(json.dumps(record) + "\n" for record in records))
+    else:
+        state = study.read_json(case["source"] / "state.json")
+        entries = state["ledger"]["entries"]
+        if damage == "entry":
+            entries[identities[1]]["reserved_nano"] = 299 * study.NANO
+        else:
+            extra = next(key for key, value in entries.items() if value["status"] == "complete")
+            entries[extra] = {"status": "unknown", "reserved_nano": 300 * study.NANO, "actual_nano": None}
+        study.atomic_json(case["source"] / "state.json", state)
+    with pytest.raises(study.StudyError):
+        prepare_paired_incident(case)
+    assert not (case["target_root"] / ".study/pilot-estimation").exists()

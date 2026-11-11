@@ -113,6 +113,14 @@ UNACCOUNTED_RECOVERY_STATE_SHA256 = "4660d4b31bdd2bb8a8ac1c62c42dff8021d8cdbc87d
 UNACCOUNTED_RECOVERY_SOURCE = "03ac696b382e539cad5f8153b91d144bb4c1990b"
 UNACCOUNTED_RECOVERY_ATTEMPT = "pilot-estimation-gpt-6.1-sol-D-11-f06-feature-1"
 UNACCOUNTED_RECOVERY_JOURNAL_SHA256 = "8714b88c50b506296309408b09161980b35ba6b8cefeadffbb9d8cc13fb7ec78"
+PAIRED_RECOVERY_STATE_SHA256 = "42a75a6285d3fac59112ec7c7e0b684b18de16239d9f33f20961dfdc6aaed282"
+PAIRED_RECOVERY_SOURCE = "732c4896da7c0a5b0db0f60c02348743a5b2c54e"
+PAIRED_RECOVERY_HOLDS = {
+    "pilot-estimation-gpt-6.1-sol-B-11-f05-feature-1":
+        "a1a780066151b7d7d85bb720b22ba1ef0ae5d3c9df9bd58da5f485946bfbec6c",
+    "pilot-estimation-gpt-6.1-sol-E-11-f01-repair-1":
+        "adf74655c4b4ae14678a43e3bc34dcff6173d9472e0f90dc132d04331825cbe2",
+}
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
@@ -310,12 +318,82 @@ def accounted_nano(usage: dict | None) -> int | None:
     return nano
 
 
+RETRY_HOLD = "retry_hold"
+MAX_UNACCOUNTED_FAILURES = 3
+
+
+def retry_hold_policy(manifest: dict | None) -> dict | None:
+    """Return the owner-authorized bound for sessions that finish with an unbilled failed request."""
+    policy = (manifest or {}).get("unaccounted_retry_hold_policy")
+    if policy is None:
+        return None
+    if (not isinstance(policy, dict) or set(policy) != {"max_holds", "approval", "approved_at"}
+            or type(policy["max_holds"]) is not int or not 1 <= policy["max_holds"] <= 200
+            or not isinstance(policy["approval"], str) or not policy["approval"].strip()):
+        raise StudyError("Invalid unaccounted retry hold policy")
+    try:
+        approved = datetime.fromisoformat(policy["approved_at"])
+    except (TypeError, ValueError) as error:
+        raise StudyError("Retry hold approval requires an ISO 8601 timestamp") from error
+    if approved.utcoffset() is None:
+        raise StudyError("Retry hold approval timestamp must include a timezone")
+    return policy
+
+
+def retry_hold_lower_bound(usage: dict | None) -> tuple[int, int] | None:
+    """Read only a verified usage floor; it is never a total and never a zero-cost claim."""
+    if (not isinstance(usage, dict) or usage.get("credits_complete") is not False
+            or usage.get("totalNanoAiu") is not None):
+        return None
+    nano, count = usage.get("lowerBoundNanoAiu"), usage.get("unaccountedFailedRequests")
+    if (type(nano) is not int or nano < 0 or type(count) is not int
+            or not 1 <= count <= MAX_UNACCOUNTED_FAILURES):
+        return None
+    return nano, count
+
+
+def retry_hold_usage(receipt: dict, exit_code: object, model: str) -> dict | None:
+    """Recognize only a session that ended normally with every successful call fully billed."""
+    bound = receipt.get("usage_lower_bound")
+    usage = receipt.get("usage")
+    failures = receipt.get("provider_failures")
+    calls = receipt.get("model_calls")
+    if (receipt.get("protocol_error") != "provider_retry_usage_incomplete" or exit_code != 1
+            or receipt.get("failure_stage") is not None
+            or not isinstance(usage, dict) or usage.get("credits_complete") is not False
+            or usage.get("totalNanoAiu") is not None
+            or not isinstance(bound, dict) or set(bound) != {"totalNanoAiu", "unaccounted_failed_requests"}
+            or type(bound["totalNanoAiu"]) is not int or bound["totalNanoAiu"] < 0
+            or type(bound["unaccounted_failed_requests"]) is not int
+            or not isinstance(failures, list) or not isinstance(calls, list) or not calls
+            or len(failures) > MAX_UNACCOUNTED_FAILURES
+            or sum(item.get("accounting_complete") is False for item in failures)
+            != bound["unaccounted_failed_requests"] > 0
+            or receipt.get("actual_models") != [model] or receipt.get("actual_reasoning_efforts") != ["medium"]
+            or receipt.get("routing_changes") != []
+            or any(item.get("aiCreditsStatus") != "complete" or type(item.get("totalNanoAiu")) is not int
+                   for item in calls)
+            or sum(item["totalNanoAiu"] for item in calls) != bound["totalNanoAiu"]):
+        return None
+    return {"credits_complete": False, "totalNanoAiu": None, "aiCreditsStatus": "partial",
+            "lowerBoundNanoAiu": bound["totalNanoAiu"],
+            "unaccountedFailedRequests": bound["unaccounted_failed_requests"]}
+
+
 def reconcile(ledger: dict, attempt: str, usage: dict | None) -> None:
     """Keep missing accounting unknown; record and stop on reservation overruns."""
     entry = ledger["entries"][attempt]
     nano = accounted_nano(usage)
     if nano is None:
-        entry["status"] = "unknown"
+        bound = retry_hold_lower_bound(usage)
+        if bound is None:
+            entry["status"] = "unknown"
+            return
+        # The whole reservation stays charged against the ceiling; only the successful floor is known.
+        entry.update(status=RETRY_HOLD, actual_nano=None, lower_bound_nano=bound[0],
+                     unaccounted_failed_requests=bound[1])
+        if bound[0] > entry["reserved_nano"]:
+            raise StudyError("Actual credits exceeded reservation; billing bound is not enforced")
         return
     entry.update(actual_nano=nano, status="complete")
     if nano > entry["reserved_nano"]:
@@ -604,13 +682,45 @@ def recovery_incident(state_sha256: str) -> dict:
                 "journal_sha256": UNACCOUNTED_RECOVERY_JOURNAL_SHA256, "steps": 2691, "attempts": 2699,
                 "known_nano": credits("30927.78079"), "kind": "websocket_retry_unaccounted",
                 "reserved_nano": 600 * NANO}
+    if state_sha256 == PAIRED_RECOVERY_STATE_SHA256:
+        holds = {identity: {"journal_sha256": journal, "reserved_nano": 300 * NANO}
+                 for identity, journal in PAIRED_RECOVERY_HOLDS.items()}
+        return {"source": PAIRED_RECOVERY_SOURCE, "holds": holds,
+                "journal_sha256": holds_digest({identity: hold["journal_sha256"]
+                                                for identity, hold in holds.items()}),
+                "steps": 2722, "attempts": 2732, "known_nano": credits("31374.66179"),
+                "kind": "websocket_retry_unaccounted",
+                "reserved_nano": sum(hold["reserved_nano"] for hold in holds.values())}
     raise StudyError("Recovery state is not one of the disclosed estimation interruptions")
+
+
+def holds_digest(journals: dict[str, str]) -> str:
+    """Bind several preserved journals with one stable digest."""
+    return hashlib.sha256(json.dumps(journals, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def incident_holds(incident: dict) -> dict[str, dict]:
+    """Every attempt one disclosed interruption leaves held, with its journal and reservation."""
+    if "holds" in incident:
+        return incident["holds"]
+    return {incident["attempt"]: {"journal_sha256": incident["journal_sha256"],
+                                  "reserved_nano": incident["reserved_nano"]}}
+
+
+def incident_attempt_ref(incident: dict) -> str | list[str]:
+    """The approval names one attempt, or every held attempt in order."""
+    holds = incident_holds(incident)
+    return next(iter(holds)) if "holds" not in incident else sorted(holds)
+
+
+def incident_journal_digest(incident: dict, verified: dict[str, str]) -> str:
+    return holds_digest(verified) if "holds" in incident else next(iter(verified.values()))
 
 
 def recovery_state_hashes() -> tuple[str, ...]:
     return (RECOVERY_STATE_SHA256, BACKEND_RECOVERY_STATE_SHA256, SANDBOX_RECOVERY_STATE_SHA256,
             SERVICE_RECOVERY_STATE_SHA256, TRANSPORT_RECOVERY_STATE_SHA256, CLOSE_RECOVERY_STATE_SHA256,
-            MIXED_RECOVERY_STATE_SHA256, UNACCOUNTED_RECOVERY_STATE_SHA256)
+            MIXED_RECOVERY_STATE_SHA256, UNACCOUNTED_RECOVERY_STATE_SHA256, PAIRED_RECOVERY_STATE_SHA256)
 
 
 def recovery_records(state: dict) -> list[dict]:
@@ -640,9 +750,10 @@ def validate_recovery_state(state: dict) -> None:
     attempts = [attempt for cell in state["cells"] for attempt in cell["attempts"]]
     ids = [attempt["id"] for attempt in attempts]
     incidents = [recovery_incident(record["original_state_sha256"]) for record in records]
-    expected_holds = {incident["attempt"]: incident["reserved_nano"] for incident in incidents}
+    expected_holds = {identity: hold["reserved_nano"] for incident in incidents
+                      for identity, hold in incident_holds(incident).items()}
     if (len(set(ids)) != len(ids) or set(ids) != set(entries) or set(holds) != set(expected_holds)
-            or len(interrupted) != len(records)
+            or len(interrupted) != len(expected_holds)
             or {attempt["id"] for attempt in interrupted} != set(expected_holds)
             or any(attempt.get("usage") is not None for attempt in interrupted)
             or any(entries[key].get("actual_nano") is not None
@@ -750,6 +861,7 @@ def validate_recovery_evidence(directory: Path, state: dict, unregistered: dict 
     for index, (original, approval, manifest) in enumerate(preserved):
         recovery = records[index]
         incident = recovery_incident(recovery["original_state_sha256"])
+        holds = incident_holds(incident)
         current_state = preserved[index + 1][0] if index + 1 < len(records) else state
         verify_approval(approval, manifest)
         if (recovery_records(original) != records[:index]
@@ -791,21 +903,23 @@ def validate_recovery_evidence(directory: Path, state: dict, unregistered: dict 
                 new_included = after.pop("cost_included_in_step", False)
                 if old_included and not new_included:
                     raise StudyError("Recovery removed a previously included attempt cost")
-                if old_attempt["id"] == incident["attempt"]:
+                if old_attempt["id"] in holds:
                     after["status"] = "interrupted"
                 old_entry = dict(original["ledger"]["entries"][old_attempt["id"]])
                 new_entry = dict(current_state["ledger"]["entries"][old_attempt["id"]])
-                if old_attempt["id"] == incident["attempt"]:
+                if old_attempt["id"] in holds:
                     new_entry["status"] = "unknown"
                 if before != after or old_entry != new_entry:
                     raise StudyError("Recovery changed an original attempt or ledger entry")
         if prior_ids != recovery["prior_attempt_ids"]:
             raise StudyError("Recovery changed the original attempt inventory")
-        attempt = next((item for cell in original["cells"] for item in cell["attempts"]
-                        if item["id"] == incident["attempt"]), None)
-        if attempt is None or verify_journal(directory, attempt, preserved_broker=True) != incident["journal_sha256"]:
-            raise StudyError("Preserved interrupted attempt differs from the original journal")
-        verify_approval_after_attempt(approval, attempt)
+        for identity, hold in holds.items():
+            attempt = next((item for cell in original["cells"] for item in cell["attempts"]
+                            if item["id"] == identity), None)
+            if (attempt is None
+                    or verify_journal(directory, attempt, preserved_broker=True) != hold["journal_sha256"]):
+                raise StudyError("Preserved interrupted attempt differs from the original journal")
+            verify_approval_after_attempt(approval, attempt)
 
 
 def ensure_no_terminal_receipt(directory: Path, attempt: dict) -> None:
@@ -1353,11 +1467,22 @@ class Controller:
         self.state["boot_id"] = self.boot_id
         self.save()
 
+    def retry_holds(self) -> int:
+        with self.lock:
+            return sum(entry["status"] == RETRY_HOLD for entry in self.state["ledger"]["entries"].values())
+
+    def retry_hold_limit_exceeded(self) -> bool:
+        """Holds are allowed only while the owner-approved policy covers every one of them."""
+        policy = retry_hold_policy(self.unregistered)
+        return self.retry_holds() > (policy["max_holds"] if policy else 0)
+
     def new_attempt(self, cell: dict, step: str, allowance_nano: int | None = None) -> dict:
         """Reserve before launch, counting every infrastructure retry."""
         with self.lock:
             if any(entry["status"] == "unknown" for entry in self.state["ledger"]["entries"].values()):
                 raise StudyError("Unknown usage holds its reservation and blocks new work")
+            if self.retry_hold_limit_exceeded():
+                raise StudyError("Unaccounted retry holds exceed the owner-approved limit")
             if self.state.get("oracle_halt") or self.state.get("stop_requested"):
                 raise StudyError("Controller halted; no new session admitted")
             previous = [attempt for attempt in cell["attempts"] if attempt["step"] == step]
@@ -1512,9 +1637,14 @@ class Controller:
                 self.state["stop_reason"] = "Unknown usage blocks new paid work"
                 self.save()
                 return True
-            if any(entry["status"] == "complete" and entry["actual_nano"] > entry["reserved_nano"]
+            if any((entry["status"] == "complete" and entry["actual_nano"] > entry["reserved_nano"])
+                   or (entry["status"] == RETRY_HOLD and entry["lower_bound_nano"] > entry["reserved_nano"])
                    for entry in entries):
                 self.state["stop_reason"] = "A reservation overrun blocks new paid work"
+                self.save()
+                return True
+            if self.retry_hold_limit_exceeded():
+                self.state["stop_reason"] = "Unaccounted retry holds exceed the owner-approved limit"
                 self.save()
                 return True
             if time.time() >= self.state["deadline"]:

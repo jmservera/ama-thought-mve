@@ -248,6 +248,8 @@ class LiveRuntime:
             raise StudyError("Isolated runtime failed; reconcile exact owned resources before resuming") from error
 
     def run_agent(self, prompt: str, step_dir: str, budget: int) -> dict:
+        from study import retry_hold_policy, retry_hold_usage
+
         run = self.run
         controller = run.controller
         errors = (runtime_errors(controller.cfg, manifest=controller.unregistered)
@@ -297,18 +299,27 @@ class LiveRuntime:
             controller.update(attempt, request_sha256=hashlib.sha256(
                 (directory / "request.json").read_bytes()).hexdigest())
             controller.writer_pending(run.cell)
-            result = run_bridge(request, directory / "transport", tool,
-                                on_start=writer_started, on_stop=writer_stopped)
+            policy = retry_hold_policy(controller.unregistered)
+            holds_allowed = bool(policy) and controller.retry_holds() < policy["max_holds"]
+            result = run_bridge(request, directory / "transport", tool, on_start=writer_started,
+                                on_stop=writer_stopped, accept_unaccounted_retry=holds_allowed)
             receipt = result.get("receipt")
             if not isinstance(receipt, dict):
                 raise StudyError("SDK did not produce a usage receipt")
             usage = receipt.get("usage")
-            if (not isinstance(usage, dict) or usage.get("credits_complete") is not True
+            held = (retry_hold_usage(receipt, result.get("exit_code"), run.assigned_model)
+                    if holds_allowed else None)
+            if held is not None:
+                # A fully billed successful session whose reset request lacks a charge keeps its work;
+                # the entire reservation stays held and the step cost is recorded as incomplete.
+                usage = held
+            elif (not isinstance(usage, dict) or usage.get("credits_complete") is not True
                     or type(usage.get("totalNanoAiu")) is not int or usage["totalNanoAiu"] < 0):
                 raise StudyError("SDK usage is incomplete; reservation retained")
             if (receipt.get("sdk_version") != "1.0.28" or receipt.get("cli_version") != "1.0.105"
-                    or receipt.get("protocol_version") != 3 or receipt.get("protocol_error") is not None
-                    or result.get("exit_code") != 0
+                    or receipt.get("protocol_version") != 3
+                    or (held is None and (receipt.get("protocol_error") is not None
+                                          or result.get("exit_code") != 0))
                     or receipt.get("actual_models") != [run.assigned_model]
                     or receipt.get("actual_reasoning_efforts") != ["medium"]):
                 controller.update(controller.state, oracle_halt=True)
@@ -484,7 +495,8 @@ class LiveRuntime:
         return result
 
 
-def run_bridge(request: dict, directory: Path, tool, *, on_start=None, on_stop=None) -> dict:
+def run_bridge(request: dict, directory: Path, tool, *, on_start=None, on_stop=None,
+               accept_unaccounted_retry: bool = False) -> dict:
     """Drive the trusted bridge with bounded durable events and owned cleanup."""
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     deadline = time.monotonic() + request["remainingSeconds"]
@@ -587,6 +599,9 @@ def run_bridge(request: dict, directory: Path, tool, *, on_start=None, on_stop=N
                 if code == "websocket_closed_usage_unknown":
                     raise StudyError(f"SDK WebSocket closed (1001, {code}); final usage is unknown and "
                                      "the reservation is retained; source-bound recovery is required")
+                if code == "provider_retry_usage_incomplete" and accept_unaccounted_retry:
+                    # The caller still verifies the exact usage floor and holds the whole reservation.
+                    return receipt
                 if code in ("provider_retry_usage_incomplete", "incomplete_provider_retry",
                             "provider_retry_limit", "transient_provider_failure"):
                     raise StudyError(f"SDK backend retry stopped ({code}); "
