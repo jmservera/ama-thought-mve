@@ -826,6 +826,14 @@ identifiers. The policy can keep work only after a successful native retry,
 normal shutdown and fully certified successful-call charges. A failed or
 unfinished session still needs separately approved recovery.
 
+An unidentified Gemini HTTP stream timeout is not a correlated 503. The exact
+top-level `/chat/completions` transport timeout after 600000 milliseconds,
+without a provider/API/service request ID, stops with
+`http_stream_timeout_usage_unknown`. No request identity, failed charge or safe
+retry is inferred from its message. The full reservation stays held, and the
+normal-ended retry-hold policy cannot accept the interrupted session. This
+diagnostic does not prevent the upstream provider timeout or resend the prompt.
+
 Any other missing-charge condition, such as a 1001 close, a fault during the
 session, or a mismatched receipt, still ends as unknown usage and needs the
 separately approved copy-only recovery. Provider omissions can still recur and
@@ -911,6 +919,51 @@ ten original roots in order. Neither the old 2722 approval nor the existing
 200-hold policy authorizes this new copy or a paid launch. Keep the stopped
 checkout unchanged and validate the new copy's accounting, raw bytes, status,
 dry-run and private result packaging before a separately authorized restart.
+
+#### Specific 3473-step Gemini HTTP stream timeout
+
+The stopped state
+`a1759e095bed45164905610c73efcfa671aa6dcd9dedcbf2ee07250c548d3745`
+is source `29e5f0834717b3c8a58a248858782174e775b6b8`: 3473 completed
+measurements, 3486 attempts and 201 completed trajectories of 315. The exact
+attempt is `pilot-estimation-gemini-4-argon-D-14-f06-feature-1`, journal
+`44ef3324c6aa47d8945cd2dcdff87ad4928f8c2043fb449684b3bbe3e528805c`.
+
+The provider's native HTTP stream timed out after 600000 milliseconds. The
+structured top-level failure and mirror retain Gemini/medium, HTTP transport,
+`/chat/completions`, `failureKind=transport`, `rte=false`, no auto/BYOK routing
+and an ordered terminal error finish. The modern event has no provider/API/
+service request ID, and the mirror has an empty `request_id`. There is no
+successful retry, idle or routine shutdown. The old source reports
+`unexpected_runtime_activity`; the new explicit timeout reason is still a
+usage-unknown hard stop, not permission to retry this uncorrelated request.
+
+Keep the current D/F6 **600-credit** unknown reservation, all **4500** earlier
+recovery-held credits and all ten existing `retry_hold` entries totaling
+**3600** reserved credits. Recovery brings `recovery_hold` provisions to 5100
+credits; together with the retry holds, all **8700 nominal held study credits**
+remain counted. Fully accounted ledger usage is 39889.35262 credits. Existing
+retry-held steps contribute a 217.54597-credit certified floor, not complete
+charges. The registry's complete-plus-floor inventory is 40106.89859 credits;
+never report that as complete study billing or turn any held cost into zero.
+
+After publishing and freshly qualifying the exact new source, obtain genuine
+state/source/attempt-specific approval with
+`unknown_reservation_nano=600000000000`. A fresh D/F6 attempt separately reserves
+600 credits and the full original 2700-second allowance under the unchanged
+540-credit operational soft limit. Preserve every raw result, existing
+`max_holds=200`, source/approval/audit history, calibration, allocation, ceiling
+and original absolute deadline. An earlier source or recovery approval does
+not authorize this transition or a paid launch.
+
+Use the stopped 3473 HTTP-recovery checkout as `--source-root`, its manifest
+as `--old-manifest`, and ten earlier `--prior-source-root` values in order:
+original 651, stopped 878, 1482, 2082, 2289, 2402, 2526, 2691, 2722 and 2865.
+Keep the first original calibration manifest. For researcher launch, supply all
+eleven original roots in order. Never edit or overwrite the stopped checkout;
+validate exact accounting, every preserved raw/calibration byte, status,
+dry-run and private packaging in the new approved copy before a separately
+authorized restart. Provider connectivity and final billing are not guaranteed.
 
 #### Exception attribution and intervention coverage
 

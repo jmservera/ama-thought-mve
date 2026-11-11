@@ -194,6 +194,14 @@ const isGeminiHttpUnavailable = failure => object(failure) &&
   text(failure.providerCallId) && failure.providerCallId.length <= 200 &&
   ['apiCallId', 'serviceRequestId', 'errorCode', 'errorType'].every(key => !Object.hasOwn(failure, key));
 
+const isGeminiHttpStreamTimeout = failure => object(failure) &&
+  failure.model === 'gemini-4-argon' && failure.failureKind === 'transport' &&
+  failure.transport === 'http' && failure.apiEndpoint === '/chat/completions' &&
+  failure.source === 'top_level' && failure.rte === false && failure.durationMs === 600000 &&
+  failure.retryAttempt === 0 && failure.errorMessage === '"Native model HTTP stream timed out"' &&
+  ['providerCallId', 'apiCallId', 'serviceRequestId', 'statusCode', 'errorCode', 'errorType']
+    .every(key => !Object.hasOwn(failure, key));
+
 export class Evidence {
   constructor(request, sessionId) {
     this.request = request;
@@ -271,8 +279,10 @@ export class Evidence {
     } else if (event.type === 'model.call_failure') {
       this.identity(data.model, data.reasoningEffort);
       if (this.started && this.toolCatalogVerified && this.modelCall?.attemptActive &&
-        data.isAuto === false && data.isByok === false && !data.fusion &&
-        isWebSocketGoingAway(data)) throw fault('websocket_closed_usage_unknown');
+        data.isAuto === false && data.isByok === false && !data.fusion) {
+        if (isWebSocketGoingAway(data)) throw fault('websocket_closed_usage_unknown');
+        if (isGeminiHttpStreamTimeout(data)) throw fault('http_stream_timeout_usage_unknown');
+      }
       const transientCode = data.errorCode === 'internal_error' ||
         (data.statusCode === 503 && data.errorCode === 'service_unavailable');
       const transientApi = [500, 502, 503, 504].includes(data.statusCode) &&
