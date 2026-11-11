@@ -93,6 +93,120 @@ def test_stopped_cell_reports_safe_reason_without_raw_infrastructure_details(
     assert (reason if error_kind == "accounting" else "inspect private attempt logs") in output
 
 
+def benign_retry_receipt(nano=2_000_000_000, model="gpt-6.1-sol"):
+    return {"protocol_error": "provider_retry_usage_incomplete", "failure_stage": None,
+            "actual_models": [model], "actual_reasoning_efforts": ["medium"], "routing_changes": [],
+            "provider_failures": [{"status_code": None, "error_code": None, "failure_kind": "transport",
+                                   "transport": "websocket", "retry_attempt": 0, "accounting_complete": False}],
+            "model_calls": [{"aiCreditsStatus": "complete", "totalNanoAiu": nano}],
+            "usage_lower_bound": {"totalNanoAiu": nano, "unaccounted_failed_requests": 1},
+            "usage": {"credits_complete": False, "totalNanoAiu": None, "aiCreditsStatus": "partial"}}
+
+
+def test_unaccounted_retry_usage_is_a_floor_with_the_failed_request_still_unbilled(study):
+    usage = study.retry_hold_usage(benign_retry_receipt(), 1, "gpt-6.1-sol")
+    assert usage == {"credits_complete": False, "totalNanoAiu": None, "aiCreditsStatus": "partial",
+                     "lowerBoundNanoAiu": 2_000_000_000, "unaccountedFailedRequests": 1}
+    assert study.accounted_nano(usage) is None
+    assert study.aggregate_usage([{"usage": usage}])["credits_complete"] is False
+
+
+@pytest.mark.parametrize("damage", [
+    "stage", "protocol", "exit", "models", "effort", "routing", "calls_sum", "partial_call", "count",
+    "too_many_failures", "nothing_unaccounted", "claims_complete", "no_calls"])
+def test_unaccounted_retry_usage_is_recognized_only_for_the_exact_benign_receipt(study, damage):
+    receipt, code = benign_retry_receipt(), 1
+    if damage == "stage":
+        receipt["failure_stage"] = "session_send"
+    elif damage == "protocol":
+        receipt["protocol_error"] = "unexpected_runtime_activity"
+    elif damage == "exit":
+        code = 0
+    elif damage == "models":
+        receipt["actual_models"] = ["other"]
+    elif damage == "effort":
+        receipt["actual_reasoning_efforts"] = ["high"]
+    elif damage == "routing":
+        receipt["routing_changes"] = [{"source": "automatic"}]
+    elif damage == "calls_sum":
+        receipt["model_calls"][0]["totalNanoAiu"] += 1
+    elif damage == "partial_call":
+        receipt["model_calls"][0]["aiCreditsStatus"] = "partial"
+    elif damage == "count":
+        receipt["usage_lower_bound"]["unaccounted_failed_requests"] = 2
+    elif damage == "too_many_failures":
+        receipt["provider_failures"] *= 4
+        receipt["usage_lower_bound"]["unaccounted_failed_requests"] = 4
+    elif damage == "nothing_unaccounted":
+        receipt["provider_failures"][0]["accounting_complete"] = True
+    elif damage == "claims_complete":
+        receipt["usage"] = {"credits_complete": True, "totalNanoAiu": 2_000_000_000}
+    else:
+        receipt["model_calls"] = []
+    assert study.retry_hold_usage(receipt, code, "gpt-6.1-sol") is None
+
+
+@pytest.mark.parametrize("policy,valid", [
+    ({"max_holds": 5, "approval": "owner decision", "approved_at": "2026-11-11T00:00:00+00:00"}, True),
+    ({"max_holds": 0, "approval": "owner decision", "approved_at": "2026-11-11T00:00:00+00:00"}, False),
+    ({"max_holds": 201, "approval": "owner decision", "approved_at": "2026-11-11T00:00:00+00:00"}, False),
+    ({"max_holds": True, "approval": "owner decision", "approved_at": "2026-11-11T00:00:00+00:00"}, False),
+    ({"max_holds": 5, "approval": " ", "approved_at": "2026-11-11T00:00:00+00:00"}, False),
+    ({"max_holds": 5, "approval": "owner decision", "approved_at": "2026-11-11T00:00:00"}, False),
+    ({"max_holds": 5, "approval": "owner decision", "approved_at": "2026-11-11T00:00:00+00:00", "x": 1}, False),
+])
+def test_retry_hold_policy_needs_exact_bounded_owner_authorization(study, policy, valid):
+    manifest = {"unaccounted_retry_hold_policy": policy}
+    if valid:
+        assert study.retry_hold_policy(manifest) == policy
+    else:
+        with pytest.raises(study.StudyError):
+            study.retry_hold_policy(manifest)
+    assert study.retry_hold_policy({}) is None and study.retry_hold_policy(None) is None
+
+
+def test_retry_hold_stays_charged_against_the_ceiling_without_blocking_new_work(study, config, tmp_path):
+    current = study.Controller(tmp_path, config, smoke=False, phase="calibration", study_id="holds",
+                               short_calibration=True)
+    current.unregistered = {"unaccounted_retry_hold_policy": {
+        "max_holds": 2, "approval": "owner decision", "approved_at": "2026-11-11T00:00:00+00:00"}}
+    cells = [cell for cell in current.state["cells"] if cell["arm"] == "A"]
+    first = current.new_attempt(cells[0], "f01-feature")
+    current.settle_attempt(first["id"], {"credits_complete": False, "totalNanoAiu": None,
+                                         "lowerBoundNanoAiu": 5 * study.NANO, "unaccountedFailedRequests": 1})
+    entry = current.state["ledger"]["entries"][first["id"]]
+    assert entry == {"reserved_nano": 300 * study.NANO, "actual_nano": None, "status": "retry_hold",
+                     "lower_bound_nano": 5 * study.NANO, "unaccounted_failed_requests": 1}
+    assert not current.admission_stopped() and current.retry_holds() == 1
+    second = current.new_attempt(cells[1], "f01-feature")
+    ledger = current.state["ledger"]
+    ledger["ceiling_nano"] = ledger["prior_nano"] + 600 * study.NANO + 300 * study.NANO - 1
+    with pytest.raises(study.StudyError, match="ceiling"):
+        current.new_attempt(cells[2], "f01-feature")
+    assert second["id"] in ledger["entries"]
+
+
+def test_retry_hold_without_current_owner_policy_or_beyond_its_limit_stops_new_work(study, config, tmp_path):
+    current = study.Controller(tmp_path, config, smoke=False, phase="calibration", study_id="limit",
+                               short_calibration=True)
+    cells = [cell for cell in current.state["cells"] if cell["arm"] == "A"]
+    first = current.new_attempt(cells[0], "f01-feature")
+    current.settle_attempt(first["id"], {"credits_complete": False, "totalNanoAiu": None,
+                                         "lowerBoundNanoAiu": 1, "unaccountedFailedRequests": 1})
+    assert current.admission_stopped() and "owner-approved limit" in current.state["stop_reason"]
+    with pytest.raises(study.StudyError, match="owner-approved limit"):
+        current.new_attempt(cells[1], "f01-feature")
+    current.unregistered = {"unaccounted_retry_hold_policy": {
+        "max_holds": 1, "approval": "owner decision", "approved_at": "2026-11-11T00:00:00+00:00"}}
+    assert not current.admission_stopped()
+    current.settle_attempt(first["id"], {"credits_complete": False, "totalNanoAiu": None,
+                                         "lowerBoundNanoAiu": 301 * study.NANO, "unaccountedFailedRequests": 1}
+                           ) if False else None
+    entry = current.state["ledger"]["entries"][first["id"]]
+    entry["lower_bound_nano"] = 301 * study.NANO
+    assert current.admission_stopped() and "overrun" in current.state["stop_reason"]
+
+
 def test_parallel_reservations_cannot_oversubscribe_exact_ceiling(study, config, tmp_path):
     current = study.Controller(tmp_path, config, smoke=False, phase="calibration", study_id="reservation",
                                short_calibration=True, parallelism=3)

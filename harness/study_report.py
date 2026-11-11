@@ -218,7 +218,8 @@ def legacy_export(directory: Path, state: dict, study_id: str) -> None:
                                  "attempt_id": attempt["id"], "status": attempt["status"],
                                  "seconds": attempt.get("seconds"), "credits_status": entry["status"],
                                  "cost_included_in_step": attempt.get("cost_included_in_step", False),
-                                 "actual_nano": entry["actual_nano"], "reserved_nano": entry["reserved_nano"]})
+                                 "actual_nano": entry["actual_nano"], "reserved_nano": entry["reserved_nano"],
+                                 "lower_bound_nano": entry.get("lower_bound_nano")})
     atomic_json(out / "summary.json", {"provenance": provenance, "hypotheses": hypotheses,
                                       "cost_unit": "credits", "runs": runs,
                                       "dispositions": dispositions, "attempts": attempt_rows,
@@ -226,7 +227,7 @@ def legacy_export(directory: Path, state: dict, study_id: str) -> None:
     write_csv(out / "runs.csv", list(dispositions[0]), dispositions)
     write_csv(out / "attempts.csv",
               ["run_id", "step", "attempt_id", "status", "seconds", "credits_status",
-               "cost_included_in_step", "actual_nano", "reserved_nano"],
+               "cost_included_in_step", "actual_nano", "reserved_nano", "lower_bound_nano"],
               attempt_rows)
     heading = "STUB DIAGNOSTIC: NOT STUDY RESULTS" if diagnostic else "Exploratory study report"
     lines = [f"# {heading}", "", f"Study `{study_id}`; scheduled cells: {len(runs)}; status: {state['status']}.",
@@ -328,7 +329,7 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
     write_csv(out / "runs.csv", list(dispositions[0]) if dispositions else ["run_id"], dispositions)
     write_csv(out / "attempts.csv", list(attempts[0]) if attempts else ["run_id", "step", "attempt_id",
               "status", "seconds", "credits_status", "parallelism", "cost_included_in_step",
-              "actual_nano", "reserved_nano"], attempts)
+              "actual_nano", "reserved_nano", "lower_bound_nano"], attempts)
     series = [dict(run_id=run["run_id"], arm=run["arm"], model=run.get("assigned_model"),
                   replicate=run.get("replicate"), **row) for run in runs for row in run["series"]]
     write_csv(out / "series.csv", ["run_id", "arm", "model", "replicate", "k", "kind", "pass_rate",
@@ -432,7 +433,8 @@ def export(directory: Path, state: dict, study_id: str) -> None:
                              "seconds": attempt.get("seconds"), "credits_status": entry["status"],
                              "parallelism": attempt.get("parallelism"),
                              "cost_included_in_step": attempt.get("cost_included_in_step", False),
-                             "actual_nano": entry["actual_nano"], "reserved_nano": entry["reserved_nano"]}
+                             "actual_nano": entry["actual_nano"], "reserved_nano": entry["reserved_nano"],
+                             "lower_bound_nano": entry.get("lower_bound_nano")}
             if state.get("recovery"):
                 row["source_commit"] = attempt["source_commit"]
             attempts.append(row)
