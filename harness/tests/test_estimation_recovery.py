@@ -1932,3 +1932,183 @@ def test_http_recovery_rejects_changed_approval_http_signature_holds_and_policy(
     with pytest.raises(study.StudyError):
         prepare_http_incident(case)
     assert not (case["target_root"] / ".study/pilot-estimation").exists()
+
+
+@pytest.fixture
+def http_timeout_incident(http_incident, tmp_path, monkeypatch):
+    case = http_incident
+    study = case["study"]
+    recovery = case["recovery"]
+    source = prepare_http_incident(case)
+    source_root = case["target_root"]
+    state = study.read_json(source / "state.json")
+    complete = sum(entry["actual_nano"] for entry in state["ledger"]["entries"].values()
+                   if entry["status"] == "complete")
+    quotient, remainder = divmod(study.credits("39889.35262") - complete, 599)
+    for index in range(599):
+        cell = state["cells"][index % len(state["cells"])]
+        identity = f"timeout-complete-{index}"
+        amount = quotient + (index < remainder)
+        cell["completed_steps"] = cell.get("completed_steps", 0) + 1
+        cell["attempts"].append({"id": identity, "step": f"timeout-step-{index}", "status": "agent_returned",
+                                 "seconds": 1, "source_commit": case["new"]["commit"],
+                                 "usage": {"credits_complete": True, "totalNanoAiu": amount}})
+        state["ledger"]["entries"][identity] = {
+            "status": "complete", "reserved_nano": 300 * study.NANO, "actual_nano": amount}
+    for arm, replicate, step, floor, multiplier in (
+            ("E", 11, "cr1-change", "48.02103", 1), ("A", 12, "cr1-change", "30.54636", 1),
+            ("C", 12, "f09-feature", "15.63283", 1), ("E", 12, "f10-feature", "24.06759", 1),
+            ("D", 13, "f04-feature", "10.86271", 2), ("D", 13, "f07-feature", "16.63197", 2),
+            ("A", 13, "f07-feature", "16.60929", 1), ("C", 13, "f05-feature", "14.96204", 1),
+            ("B", 13, "f08-feature", "18.27829", 1)):
+        cell = next(cell for cell in state["cells"] if cell["assigned_model"] == "gpt-6.1-sol"
+                    and cell["arm"] == arm and cell["replicate"] == replicate)
+        identity = f"{cell['run_id']}-{step}-1"
+        cell["completed_steps"] = cell.get("completed_steps", 0) + 1
+        cell["attempts"].append({"id": identity, "step": step, "status": "agent_returned", "seconds": 1,
+                                 "source_commit": case["new"]["commit"],
+                                 "usage": {"credits_complete": False, "totalNanoAiu": None,
+                                           "lowerBoundNanoAiu": study.credits(floor), "unaccountedFailedRequests": 1}})
+        state["ledger"]["entries"][identity] = {
+            "status": "retry_hold", "reserved_nano": 300 * multiplier * study.NANO, "actual_nano": None,
+            "lower_bound_nano": study.credits(floor), "unaccounted_failed_requests": 1}
+    identity = study.HTTP_TIMEOUT_RECOVERY_ATTEMPT
+    cell = next(cell for cell in state["cells"] if cell["assigned_model"] == "gemini-4-argon"
+                and cell["arm"] == "D" and cell["replicate"] == 14)
+    directory = f"runs/{cell['run_id']}/attempts/{identity}"
+    attempt = {"id": identity, "step": "f06-feature", "status": "interrupted", "usage": None,
+               "source_commit": case["new"]["commit"], "started": 1769385600, "seconds": 710.7005,
+               "seconds_limit": 2700, "credit_limit_nano": 540 * study.NANO, "directory": directory}
+    cell["attempts"].append(attempt)
+    cell["checkpoint"] = {"step": "f06-feature", "head": "checkpoint"}
+    state["ledger"]["entries"][identity] = {
+        "status": "unknown", "reserved_nano": 600 * study.NANO, "actual_nano": None}
+    failure = {"model": "gemini-4-argon", "reasoningEffort": "medium", "failureKind": "transport",
+               "transport": "http", "apiEndpoint": "/chat/completions", "durationMs": 600000,
+               "errorMessage": '"Native model HTTP stream timed out"', "retryAttempt": 0,
+               "isAuto": False, "isByok": False, "rte": False, "source": "top_level"}
+    records = [
+        {"event": {"type": "model.call_start", "data": {"model": failure["model"], "turnId": "4"}}},
+        {"event": {"type": "model.call_failure", "data": failure}},
+        {"event": {"type": "model.model_call_failure", "data": {
+            "kind": "model_call_failure", "turn": 4, "reasoningEffort": "medium", "rte": False,
+            "modelCallDurationMs": 600000,
+            "modelCall": {"model": failure["model"], "error": failure["errorMessage"], "request_id": "",
+                "api_endpoint": "/chat/completions", "transport": "http", "failure_kind": "transport",
+                "rte": False, "retry_attempt": 0}}}},
+        {"event": {"type": "model.call_finished", "data": {"turnId": "4", "outcome": "error"}}},
+        {"type": "complete", "exit_code": 1, "receipt": {
+            "session_id": "timeout-fixture", "sdk_version": "1.0.28", "cli_version": "1.0.105",
+            "protocol_version": 3, "protocol_error": "unexpected_runtime_activity", "failure_stage": "session_send",
+            "actual_models": [failure["model"]], "actual_reasoning_efforts": ["medium"],
+            "provider_failures": [], "routing_changes": [], "usage_lower_bound": None,
+            "usage": {"credits_complete": False, "totalNanoAiu": None}}},
+    ]
+    journal = source / directory / "transport/events.jsonl"
+    journal.parent.mkdir(parents=True)
+    journal.write_text("".join(json.dumps(record) + "\n" for record in records))
+    state.update(status="oracle_halt", oracle_halt=True, stop_requested=False)
+    study.atomic_json(source / "state.json", state)
+    original = (source / "state.json").read_bytes()
+    target_root = tmp_path / "http-timeout-new"
+    target_root.mkdir()
+    shutil.copytree(source_root / "protocol", target_root / "protocol")
+    shutil.copytree(source_root / "harness", target_root / "harness")
+    new_commit = "ef" * 20
+    new = {**case["new"], "commit": new_commit, "inputs_sha256": "f0" * 32,
+           "public_disclosure_url": f"https://github.com/jmservera/ama-thought-mve/commit/{new_commit}",
+           "disclosed_at": "2026-01-26T00:00:00Z"}
+    monkeypatch.setattr(study, "HTTP_TIMEOUT_RECOVERY_SOURCE", case["new"]["commit"])
+    monkeypatch.setattr(study, "HTTP_TIMEOUT_RECOVERY_STATE_SHA256", hashlib.sha256(original).hexdigest())
+    monkeypatch.setattr(study, "HTTP_TIMEOUT_RECOVERY_JOURNAL_SHA256", hashlib.sha256(journal.read_bytes()).hexdigest())
+    monkeypatch.setattr(study, "ROOT", target_root)
+    monkeypatch.setattr(recovery, "ROOT", target_root)
+    monkeypatch.setattr(study, "fingerprint", lambda *args: new["inputs_sha256"])
+    prior_roots = [*case["prior_roots"], case["source_root"]]
+    commits = {root: study.read_json(root / ".study/pilot-estimation/state.json")["identity"]["commit"]
+               for root in [*prior_roots, source_root]}
+    monkeypatch.setattr(study, "command", lambda args, **kwargs: commits.get(kwargs.get("cwd"), new_commit))
+    approval = {**case["approval"], "original_state_sha256": study.HTTP_TIMEOUT_RECOVERY_STATE_SHA256,
+                "original_commit": case["new"]["commit"], "target_commit": new_commit,
+                "attempt_id": identity, "unknown_reservation_nano": 600 * study.NANO,
+                "approved_at": "2026-01-27T00:00:00Z", "disclosure_url": new["public_disclosure_url"]}
+    return {**case, "source_root": source_root, "source": source, "target_root": target_root,
+            "old": case["new"], "new": new, "approval": approval, "original": original,
+            "journal": journal, "attempt": attempt, "prior_roots": prior_roots}
+
+
+def prepare_http_timeout_incident(case):
+    return case["recovery"].prepare(case["source_root"], case["old"], case["new"], case["approval"],
+                                    prior_source_root=case["prior_roots"],
+                                    calibration_manifest=case["calibration_manifest"])
+
+
+def test_http_timeout_copy_preserves_all_existing_retry_holds_and_fresh_d_allowance(http_timeout_incident):
+    case, study = http_timeout_incident, http_timeout_incident["study"]
+    before = study.read_json(case["source"] / "state.json")
+    prior_retry = {identity: entry for identity, entry in before["ledger"]["entries"].items()
+                   if entry["status"] == "retry_hold"}
+    target = prepare_http_timeout_incident(case)
+    state = study.read_json(target / "state.json")
+    entries = state["ledger"]["entries"]
+    assert len(study.recovery_records(state)) == 11 and len(entries) == 3486
+    assert sum(cell.get("completed_steps", 0) for cell in state["cells"]) == 3473
+    assert sum(entry["reserved_nano"] for entry in entries.values()
+               if entry["status"] == "recovery_hold") == 5100 * study.NANO
+    assert {identity: entry for identity, entry in entries.items() if entry["status"] == "retry_hold"} == prior_retry
+    assert len(prior_retry) == 10 and sum(entry["reserved_nano"] for entry in prior_retry.values()) == 3600 * study.NANO
+    assert all(entry["actual_nano"] is None for entry in prior_retry.values())
+    assert state["identity"]["config"] == before["identity"]["config"] and state["deadline"] == before["deadline"]
+    assert (case["source"] / "state.json").read_bytes() == case["original"]
+    assert (target / "state.before-recovery-10.json").is_file()
+    controller = study.Controller(target, case["config"], smoke=False, phase="pilot-estimation",
+                                  study_id="pilot-estimation", replicates=21,
+                                  unregistered=case["new"], handoff=case["handoff"])
+    cell = next(cell for cell in controller.state["cells"] if any(
+        attempt["id"] == study.HTTP_TIMEOUT_RECOVERY_ATTEMPT for attempt in cell["attempts"]))
+    run = object.__new__(study.StudyRun)
+    run.controller, run.cell, run.arm, run.current_step = controller, cell, cell["arm"], "f06-feature"
+    assert run.remaining_allowance(2700) == (2700, 540 * study.NANO)
+    retry = controller.new_attempt(cell, "f06-feature")
+    assert controller.state["ledger"]["entries"][retry["id"]]["reserved_nano"] == 600 * study.NANO
+    study.validate_recovery_evidence(target, controller.state, case["new"])
+    assert study.retry_hold_policy(case["new"])["max_holds"] == 200
+    assert len(study.recovery_source_locks(state, [*case["prior_roots"], case["source_root"]])) == 22
+
+
+@pytest.mark.parametrize("damage", [
+    "approval_attempt", "approval_hold", "failure_identity", "duration", "mirror_id", "mirror_duration",
+    "terminal_finish", "terminal_usage", "reservation", "retry_hold"])
+def test_http_timeout_recovery_rejects_changed_identity_approval_usage_and_holds(http_timeout_incident, damage):
+    case, study = http_timeout_incident, http_timeout_incident["study"]
+    if damage == "approval_attempt":
+        case["approval"]["attempt_id"] = [study.HTTP_TIMEOUT_RECOVERY_ATTEMPT]
+    elif damage == "approval_hold":
+        case["approval"]["unknown_reservation_nano"] = 300 * study.NANO
+    elif damage in ("reservation", "retry_hold"):
+        state = study.read_json(case["source"] / "state.json")
+        entries = state["ledger"]["entries"]
+        if damage == "reservation":
+            entries[study.HTTP_TIMEOUT_RECOVERY_ATTEMPT]["reserved_nano"] = 599 * study.NANO
+        else:
+            identity = next(identity for identity, entry in entries.items() if entry["status"] == "retry_hold")
+            entries[identity]["actual_nano"] = 0
+        study.atomic_json(case["source"] / "state.json", state)
+    else:
+        records = [json.loads(line) for line in case["journal"].read_bytes().splitlines()]
+        if damage == "failure_identity":
+            records[1]["event"]["data"]["providerCallId"] = "invented-request"
+        elif damage == "duration":
+            records[1]["event"]["data"]["durationMs"] = 599999
+        elif damage == "mirror_id":
+            records[2]["event"]["data"]["modelCall"]["request_id"] = "invented-request"
+        elif damage == "mirror_duration":
+            records[2]["event"]["data"]["modelCallDurationMs"] = 599999
+        elif damage == "terminal_finish":
+            records[3]["event"]["data"]["outcome"] = "success"
+        else:
+            records[-1]["receipt"]["usage_lower_bound"] = {"totalNanoAiu": 0}
+        case["journal"].write_text("".join(json.dumps(record) + "\n" for record in records))
+    with pytest.raises(study.StudyError):
+        prepare_http_timeout_incident(case)
+    assert not (case["target_root"] / ".study/pilot-estimation").exists()

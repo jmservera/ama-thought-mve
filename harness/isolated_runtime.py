@@ -652,6 +652,9 @@ def run_bridge(request: dict, directory: Path, tool, *, on_start=None, on_stop=N
                 if code == "websocket_closed_usage_unknown":
                     raise StudyError(f"SDK WebSocket closed (1001, {code}); final usage is unknown and "
                                      "the reservation is retained; source-bound recovery is required")
+                if code == "http_stream_timeout_usage_unknown":
+                    raise StudyError(f"SDK HTTP stream timed out ({code}); final usage is unknown and "
+                                     "the reservation is retained; source-bound recovery is required")
                 if code == "provider_retry_usage_incomplete" and accept_unaccounted_retry:
                     # The caller still verifies the exact usage floor and holds the whole reservation.
                     return receipt

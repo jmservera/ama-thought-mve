@@ -133,6 +133,10 @@ HTTP_RECOVERY_HOLDS = {
         "reserved_nano": 600 * NANO,
     },
 }
+HTTP_TIMEOUT_RECOVERY_STATE_SHA256 = "a1759e095bed45164905610c73efcfa671aa6dcd9dedcbf2ee07250c548d3745"
+HTTP_TIMEOUT_RECOVERY_SOURCE = "29e5f0834717b3c8a58a248858782174e775b6b8"
+HTTP_TIMEOUT_RECOVERY_ATTEMPT = "pilot-estimation-gemini-4-argon-D-14-f06-feature-1"
+HTTP_TIMEOUT_RECOVERY_JOURNAL_SHA256 = "44ef3324c6aa47d8945cd2dcdff87ad4928f8c2043fb449684b3bbe3e528805c"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
@@ -982,6 +986,11 @@ def recovery_incident(state_sha256: str) -> dict:
                 "steps": 2865, "attempts": 2877, "known_nano": credits("33565.68218"),
                 "kind": "http_service_unavailable",
                 "reserved_nano": sum(hold["reserved_nano"] for hold in holds.values())}
+    if state_sha256 == HTTP_TIMEOUT_RECOVERY_STATE_SHA256:
+        return {"source": HTTP_TIMEOUT_RECOVERY_SOURCE, "attempt": HTTP_TIMEOUT_RECOVERY_ATTEMPT,
+                "journal_sha256": HTTP_TIMEOUT_RECOVERY_JOURNAL_SHA256,
+                "steps": 3473, "attempts": 3486, "known_nano": credits("40106.89859"),
+                "kind": "http_stream_timeout", "reserved_nano": 600 * NANO}
     raise StudyError("Recovery state is not one of the disclosed estimation interruptions")
 
 
@@ -1012,7 +1021,7 @@ def recovery_state_hashes() -> tuple[str, ...]:
     return (RECOVERY_STATE_SHA256, BACKEND_RECOVERY_STATE_SHA256, SANDBOX_RECOVERY_STATE_SHA256,
             SERVICE_RECOVERY_STATE_SHA256, TRANSPORT_RECOVERY_STATE_SHA256, CLOSE_RECOVERY_STATE_SHA256,
             MIXED_RECOVERY_STATE_SHA256, UNACCOUNTED_RECOVERY_STATE_SHA256, PAIRED_RECOVERY_STATE_SHA256,
-            HTTP_RECOVERY_STATE_SHA256)
+            HTTP_RECOVERY_STATE_SHA256, HTTP_TIMEOUT_RECOVERY_STATE_SHA256)
 
 
 def recovery_records(state: dict) -> list[dict]:
