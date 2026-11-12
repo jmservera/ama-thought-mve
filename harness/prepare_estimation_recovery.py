@@ -249,7 +249,9 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
                 or receipt.get("routing_changes") != [] or receipt.get("provider_failures") != []
                 or receipt.get("usage_lower_bound") is not None):
             raise StudyError("HTTP interruption differs from its pinned correlated 503 and unknown-usage signature")
-    elif incident["kind"] == "http_stream_timeout":
+    elif incident["kind"] in ("http_stream_timeout", "resilience_bootstrap"):
+        bootstrap = incident["kind"] == "resilience_bootstrap"
+        duration_ms = 61506 if bootstrap else 600000
         failures = [(index, event["data"]) for index, event in enumerate(events)
                     if event["type"] == "model.call_failure"]
         mirrors = [(index, event["data"]) for index, event in enumerate(events)
@@ -267,14 +269,15 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
         if (failure.get("model") != "gemini-4-argon" or failure.get("reasoningEffort") != "medium"
                 or failure.get("failureKind") != "transport" or failure.get("transport") != "http"
                 or failure.get("apiEndpoint") != "/chat/completions" or failure.get("source") != "top_level"
-                or failure.get("errorMessage") != '"Native model HTTP stream timed out"'
-                or failure.get("durationMs") != 600000 or failure.get("retryAttempt") != 0
+                or not isinstance(failure.get("errorMessage"), str)
+                or (not bootstrap and failure["errorMessage"] != '"Native model HTTP stream timed out"')
+                or failure.get("durationMs") != duration_ms or failure.get("retryAttempt") != 0
                 or failure.get("rte") is not False or failure.get("isAuto") is not False
                 or failure.get("isByok") is not False or failure.get("fusion")
                 or any(key in failure for key in ("providerCallId", "apiCallId", "serviceRequestId",
                                                   "statusCode", "errorCode", "errorType"))
                 or mirror.get("kind") != "model_call_failure" or mirror.get("reasoningEffort") != "medium"
-                or mirror.get("rte") is not False or mirror.get("modelCallDurationMs") != 600000
+                or mirror.get("rte") is not False or mirror.get("modelCallDurationMs") != duration_ms
                 or not isinstance(call, dict) or call.get("model") != failure["model"]
                 or call.get("request_id") != "" or call.get("api_endpoint") != failure["apiEndpoint"]
                 or call.get("transport") != "http" or call.get("failure_kind") != "transport"

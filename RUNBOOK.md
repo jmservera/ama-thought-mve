@@ -943,6 +943,25 @@ cleanup. Do not clear its halt or assume the omitted charge was zero. This
 candidate still needs source-bound migration and owner authorization before
 the stopped legacy study can resume; offline tests do not supply that authority.
 
+The one-time legacy bootstrap is pinned to source
+`73712f7834ca520df543b6a58315bb299ffd38a8`, stopped state
+`1b50aa55cebf781b6950e4723ac7ac655529f28c7f13bd56ac99adc6a40577cd`
+and the retained E-14 repair journal. It preserves 3527 measurements, 3541
+attempts, all 13 earlier recovery holds, all 13 successful-session retry holds,
+and the new unknown 300-credit reservation. Known charges plus certified floors
+sum to 40976.11943 credits; actual total spending remains unknown.
+
+Use the historical source-change recovery command, not `--operational-study`,
+for this bootstrap. It requires the exact old and new owner manifests, genuine
+state/source/attempt-specific approval, the original calibration manifest and
+all eleven earlier checkout roots in chronological order. The approval must
+explicitly accept retaining the unknown hold and a fresh repair allowance
+(900 seconds, 270 soft credits, 300 reserved), as well as the mid-study source
+change. It does not extend the study deadline, alter allocation, rerun measured
+work, authorize a paid launch or infer a zero charge. The original study stays
+unchanged. Subsequent prospective failures use the supervisor rather than new
+historical incident entries.
+
 #### Specific 2722-step paired unaccounted-retry interruption
 
 The stopped state

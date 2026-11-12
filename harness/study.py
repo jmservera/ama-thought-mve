@@ -137,6 +137,10 @@ HTTP_TIMEOUT_RECOVERY_STATE_SHA256 = "a1759e095bed45164905610c73efcfa671aa6dcd9d
 HTTP_TIMEOUT_RECOVERY_SOURCE = "29e5f0834717b3c8a58a248858782174e775b6b8"
 HTTP_TIMEOUT_RECOVERY_ATTEMPT = "pilot-estimation-gemini-4-argon-D-14-f06-feature-1"
 HTTP_TIMEOUT_RECOVERY_JOURNAL_SHA256 = "44ef3324c6aa47d8945cd2dcdff87ad4928f8c2043fb449684b3bbe3e528805c"
+RESILIENCE_BOOTSTRAP_STATE_SHA256 = "1b50aa55cebf781b6950e4723ac7ac655529f28c7f13bd56ac99adc6a40577cd"
+RESILIENCE_BOOTSTRAP_SOURCE = "73712f7834ca520df543b6a58315bb299ffd38a8"
+RESILIENCE_BOOTSTRAP_ATTEMPT = "pilot-estimation-gemini-4-argon-E-14-f10-repair-1"
+RESILIENCE_BOOTSTRAP_JOURNAL_SHA256 = "8a455755c1eefaee9eabf52d5655dfcf4592b73b6e802b220eb799f738e49c4e"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
@@ -991,6 +995,11 @@ def recovery_incident(state_sha256: str) -> dict:
                 "journal_sha256": HTTP_TIMEOUT_RECOVERY_JOURNAL_SHA256,
                 "steps": 3473, "attempts": 3486, "known_nano": credits("40106.89859"),
                 "kind": "http_stream_timeout", "reserved_nano": 600 * NANO}
+    if state_sha256 == RESILIENCE_BOOTSTRAP_STATE_SHA256:
+        return {"source": RESILIENCE_BOOTSTRAP_SOURCE, "attempt": RESILIENCE_BOOTSTRAP_ATTEMPT,
+                "journal_sha256": RESILIENCE_BOOTSTRAP_JOURNAL_SHA256,
+                "steps": 3527, "attempts": 3541, "known_nano": credits("40976.11943"),
+                "kind": "resilience_bootstrap", "reserved_nano": 300 * NANO}
     raise StudyError("Recovery state is not one of the disclosed estimation interruptions")
 
 
@@ -1021,7 +1030,7 @@ def recovery_state_hashes() -> tuple[str, ...]:
     return (RECOVERY_STATE_SHA256, BACKEND_RECOVERY_STATE_SHA256, SANDBOX_RECOVERY_STATE_SHA256,
             SERVICE_RECOVERY_STATE_SHA256, TRANSPORT_RECOVERY_STATE_SHA256, CLOSE_RECOVERY_STATE_SHA256,
             MIXED_RECOVERY_STATE_SHA256, UNACCOUNTED_RECOVERY_STATE_SHA256, PAIRED_RECOVERY_STATE_SHA256,
-            HTTP_RECOVERY_STATE_SHA256, HTTP_TIMEOUT_RECOVERY_STATE_SHA256)
+            HTTP_RECOVERY_STATE_SHA256, HTTP_TIMEOUT_RECOVERY_STATE_SHA256, RESILIENCE_BOOTSTRAP_STATE_SHA256)
 
 
 def recovery_records(state: dict) -> list[dict]:
