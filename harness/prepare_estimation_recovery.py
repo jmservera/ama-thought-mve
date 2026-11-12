@@ -28,6 +28,9 @@ def verify_approval(approval: dict, new_manifest: dict) -> None:
                 "accept_fresh_retry_time_allowance", "accept_mid_study_source_change", "owner_approved",
                 "approved_at", "disclosure_url"}
     incident = study.recovery_incident(approval.get("original_state_sha256"))
+    quarantine_only = incident["kind"] == "fallback_metadata_quarantine"
+    if quarantine_only:
+        expected.add("accept_quarantine_only")
     if (set(approval) != expected or approval["schema"] != "estimation-incident-approval/v1"
             or approval["original_commit"] != incident["source"]
             or approval["target_commit"] != new_manifest.get("commit")
@@ -35,9 +38,11 @@ def verify_approval(approval: dict, new_manifest: dict) -> None:
             or approval["attempt_id"] != study.incident_attempt_ref(incident)
             or type(approval["unknown_reservation_nano"]) is not int
             or approval["unknown_reservation_nano"] != incident["reserved_nano"]
-            or any(approval[key] is not True for key in ("accept_unknown_hold",
-                   "accept_fresh_retry_reservation", "accept_fresh_retry_time_allowance",
-                   "accept_mid_study_source_change", "owner_approved"))
+                 or any(approval[key] is not True for key in ("accept_unknown_hold",
+                     "accept_mid_study_source_change", "owner_approved"))
+                 or any(approval[key] is not (not quarantine_only) for key in (
+                  "accept_fresh_retry_reservation", "accept_fresh_retry_time_allowance"))
+                 or (quarantine_only and approval["accept_quarantine_only"] is not True)
             or approval["disclosure_url"] != new_manifest.get("public_disclosure_url")):
         raise StudyError("Recovery approval must explicitly authorize the exact incident and source change")
     try:
@@ -67,6 +72,56 @@ def require_regular_tree(root: Path) -> None:
             mode = (Path(base) / name).lstat().st_mode
             if not (stat.S_ISDIR(mode) or stat.S_ISREG(mode)):
                 raise StudyError("Recovery trees must not contain links or special files")
+
+
+def verify_fallback_quarantine(directory: Path, attempt: dict, receipt: dict, events: list[dict], terminal: dict) -> None:
+    """Verify the pinned typed failure without reinterpreting unknown billing or accepting its work."""
+    failures = [event["data"] for event in events if event["type"] == "model.call_failure"]
+    mirrors = [event["data"] for event in events if event["type"] == "model.model_call_failure"]
+    outcome = study.validate_attempt_outcome(receipt.get("outcome"))
+    if (len(failures) != 2 or len(mirrors) != 2
+            or receipt.get("sdk_version") != "1.0.28" or receipt.get("cli_version") != "1.0.105"
+            or receipt.get("protocol_version") != 3 or receipt.get("protocol_error") != "unexpected_runtime_activity"
+            or receipt.get("actual_models") != ["gpt-6.1-sol"]
+            or receipt.get("actual_reasoning_efforts") != ["medium"] or receipt.get("routing_changes") != []
+            or receipt.get("usage_lower_bound") is not None or attempt.get("usage") != receipt.get("usage")
+            or outcome["work"] != "unavailable" or outcome["safety"] != "unverified"
+            or outcome["quiescent"] is not True or outcome["accounting"] != "unknown"
+            or outcome["failure"]["kind"] != "contract"
+            or events[-1]["type"] != "model.call_finished" or events[-1]["data"].get("outcome") != "error"
+            or any(event["type"] in ("session.idle", "session.shutdown") for event in events)):
+        raise StudyError("Fallback quarantine lacks its pinned unmeasured, quiescent unknown-charge outcome")
+    for retry, (failure, mirror) in enumerate(zip(failures, mirrors)):
+        call = mirror.get("modelCall", {})
+        if (failure.get("model") != "gpt-6.1-sol" or failure.get("reasoningEffort") != "medium"
+                or failure.get("source") != "top_level" or failure.get("failureKind") != "transport"
+                or failure.get("transport") != "websocket" or failure.get("retryAttempt") != retry
+                or failure.get("isAuto") is not False or failure.get("isByok") is not False
+                or failure.get("fusion") or mirror.get("reasoningEffort") != "medium"
+                or call.get("model") != failure["model"] or call.get("transport") != failure["transport"]
+                or call.get("failure_kind") != "transport" or call.get("error") != failure.get("errorMessage")
+                or call.get("retry_attempt") != retry):
+            raise StudyError("Fallback quarantine changed assigned identity or failure/mirror evidence")
+    fallback = failures[-1]
+    if (fallback.get("websocketFallbackAfterMs") != 58933
+            or fallback.get("websocketFallbackErrorKind") != "connection_reset"
+            or fallback.get("websocketFallbackReason") != "transport_failed"
+            or fallback.get("websocketFallbackReconnectAttempted") is not False
+            or fallback.get("websocketFallbackStartedThisCall") is not True):
+        raise StudyError("Fallback quarantine differs from the documented fallback metadata")
+    folder = directory / attempt["directory"]
+    path = folder / "terminal.json"
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 2 * 1024 * 1024:
+        raise StudyError("Fallback quarantine requires its retained terminal evidence")
+    payload = path.read_bytes()
+    saved = json.loads(payload)
+    if (hashlib.sha256(payload).hexdigest() != attempt.get("terminal_sha256")
+            or saved.get("source_commit") != attempt.get("source_commit")
+            or saved.get("attempt_id") != attempt["id"] or saved.get("result") != terminal
+            or saved.get("request_sha256") != attempt.get("request_sha256")
+            or saved.get("events_sha256") != hashlib.sha256((folder / "transport/events.jsonl").read_bytes()).hexdigest()
+            or hashlib.sha256((folder / "request.json").read_bytes()).hexdigest() != attempt.get("request_sha256")):
+        raise StudyError("Fallback quarantine terminal or request differs from the original evidence")
 
 
 def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = False) -> str:
@@ -145,7 +200,9 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
             or receipt.get("usage", {}).get("totalNanoAiu") is not None):
         raise StudyError("Failed attempt does not retain its terminal failure and unknown usage")
     events = [record["event"] for record in records if "event" in record]
-    if incident["kind"] == "missing_edit":
+    if incident["kind"] == "fallback_metadata_quarantine":
+        verify_fallback_quarantine(directory, attempt, receipt, events, complete[0])
+    elif incident["kind"] == "missing_edit":
         starts = [event["data"] for event in events if event["type"] == "tool.execution_start"
                   and event["data"].get("toolName") == "edit"]
         if len(starts) != 1:
@@ -460,6 +517,7 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
     verify_approval(approval, new_manifest)
     incident = study.recovery_incident(approval["original_state_sha256"])
     holds = study.incident_holds(incident)
+    quarantine_only = incident["kind"] == "fallback_metadata_quarantine"
     original_paid_lock, source = study.recovery_source_paths(
         source_root, expected_state_sha256=approval["original_state_sha256"])
     prior_roots = ([] if prior_source_root is None else [prior_source_root]
@@ -520,6 +578,7 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
             raise StudyError("Original study is not the expected stopped, inactive estimation")
         cfg = identity["config"]
         study.validate_recovery_state(state)
+        study.validate_supervisor_state(source, state, old_manifest)
         previous = study.recovery_records(state)
         previous_holds = sum(len(study.incident_holds(study.recovery_incident(item["original_state_sha256"])))
                              for item in previous)
@@ -556,7 +615,8 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
         for held_id, hold in holds.items():
             attempt = next(item for item in attempts if item["id"] == held_id)
             cell = next(cell for cell in cells if attempt in cell["attempts"])
-            if (attempt.get("status") != "interrupted" or attempt.get("usage") is not None
+            if (attempt.get("status") != "interrupted"
+                    or (attempt.get("usage") is not None and not quarantine_only)
                     or attempt.get("measurement") or entries[held_id] != {
                         "status": "unknown", "actual_nano": None, "reserved_nano": hold["reserved_nano"]}
                     or (cell.get("checkpoint") or {}).get("step") != attempt["step"]
@@ -609,6 +669,9 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
         for held_id in holds:
             held_attempts[held_id]["status"] = "recovery_interrupted"
             entries[held_id]["status"] = "recovery_hold"
+            if quarantine_only:
+                cell = next(cell for cell in cells if held_attempts[held_id] in cell["attempts"])
+                cell["status"] = "quarantined"
         identity["commit"] = new_manifest["commit"]
         identity["inputs_sha256"] = new_manifest["inputs_sha256"]
         identity["source_provenance"] = study.source_provenance(new_manifest)
@@ -624,6 +687,7 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
         state["status"] = "partial"
         study.validate_recovery_state(state)
         study.validate_recovery_evidence(target, state, new_manifest)
+        study.validate_supervisor_state(target, state, new_manifest)
         atomic_json(target / "state.json", state)
     return target
 

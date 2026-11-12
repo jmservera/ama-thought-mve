@@ -23,7 +23,10 @@ export function operationalFailure(data, request) {
   if (!keysOnly(data, ['apiCallId', 'apiEndpoint', 'durationMs', 'errorCode', 'errorMessage',
     'errorType', 'failureKind', 'isAuto', 'isByok', 'model', 'providerCallId', 'reasoningEffort',
     'retryAttempt', 'rte', 'serviceRequestId', 'source', 'statusCode', 'transport', 'interactionType',
-    'maxOutputTokens', 'maxPromptTokens', 'requestBodyBytes', 'requestBodyEncoding', 'requestBodyWireBytes']) ||
+    'maxOutputTokens', 'maxPromptTokens', 'requestBodyBytes', 'requestBodyEncoding', 'requestBodyWireBytes',
+    'websocketFallbackAfterMs', 'websocketFallbackCloseCode', 'websocketFallbackErrorKind',
+    'websocketFallbackReason', 'websocketFallbackReconnectAttempted', 'websocketFallbackStartedThisCall',
+    'websocketFallbackStatusCode']) ||
     data.source !== 'top_level' || !['http', 'websocket'].includes(data.transport) ||
     (data.model !== undefined && data.model !== request.model) ||
     (data.reasoningEffort !== undefined && data.reasoningEffort !== request.reasoningEffort) ||
@@ -36,6 +39,23 @@ export function operationalFailure(data, request) {
       data[key] !== undefined && !nano(data[key])) ||
     (data.retryAttempt !== undefined && !nano(data.retryAttempt)) ||
     (data.durationMs !== undefined && (!Number.isFinite(data.durationMs) || data.durationMs < 0)) ||
+    (data.websocketFallbackAfterMs !== undefined &&
+      (!Number.isFinite(data.websocketFallbackAfterMs) || data.websocketFallbackAfterMs < 0)) ||
+    (data.websocketFallbackCloseCode !== undefined &&
+      (!Number.isInteger(data.websocketFallbackCloseCode) || data.websocketFallbackCloseCode < 1000 ||
+        data.websocketFallbackCloseCode > 4999)) ||
+    (data.websocketFallbackStatusCode !== undefined &&
+      (!Number.isInteger(data.websocketFallbackStatusCode) || data.websocketFallbackStatusCode < 100 ||
+        data.websocketFallbackStatusCode > 599)) ||
+    (data.websocketFallbackErrorKind !== undefined &&
+      !['dns', 'tls', 'timeout', 'connection_refused', 'connection_reset', 'closed_by_peer',
+        'closed_locally', 'not_connected', 'http_status', 'protocol', 'configuration', 'other']
+        .includes(data.websocketFallbackErrorKind)) ||
+    (data.websocketFallbackReason !== undefined &&
+      !['connect_failed', 'connection_unavailable', 'send_failed', 'api_error', 'transport_failed']
+        .includes(data.websocketFallbackReason)) ||
+    ['websocketFallbackReconnectAttempted', 'websocketFallbackStartedThisCall'].some(key =>
+      data[key] !== undefined && typeof data[key] !== 'boolean') ||
     (data.rte !== undefined && typeof data.rte !== 'boolean') ||
     (data.statusCode !== undefined && (!Number.isInteger(data.statusCode) ||
       data.statusCode < 100 || data.statusCode > 599))) return null;

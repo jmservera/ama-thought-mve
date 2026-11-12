@@ -133,6 +133,34 @@ test('prospective resilience classifies structured faults without billing IDs or
       statusCode: 503, ...change }, request()), null);
 });
 
+test('prospective resilience validates documented WebSocket fallback metadata', () => {
+  for (const transport of ['http', 'websocket']) {
+    for (const reason of ['connect_failed', 'connection_unavailable', 'send_failed', 'api_error', 'transport_failed']) {
+      const data = { source: 'top_level', failureKind: 'transport', transport,
+        websocketFallbackAfterMs: 58933, websocketFallbackCloseCode: 1006,
+        websocketFallbackErrorKind: 'connection_reset', websocketFallbackReason: reason,
+        websocketFallbackReconnectAttempted: false, websocketFallbackStartedThisCall: true,
+        websocketFallbackStatusCode: 503 };
+      assert.equal(operationalFailure(data, request())?.kind, 'transport');
+    }
+  }
+});
+
+test('prospective resilience rejects malformed or unknown WebSocket fallback metadata', () => {
+  for (const changed of [
+    { websocketFallbackAfterMs: -1 }, { websocketFallbackAfterMs: Infinity },
+    { websocketFallbackAfterMs: '58933' }, { websocketFallbackCloseCode: 999 },
+    { websocketFallbackCloseCode: 1000.5 }, { websocketFallbackCloseCode: 5000 },
+    { websocketFallbackErrorKind: 'unknown-kind' }, { websocketFallbackReason: 'unknown-reason' },
+    { websocketFallbackReconnectAttempted: 'false' }, { websocketFallbackStartedThisCall: 1 },
+    { websocketFallbackStatusCode: 600 }, { websocketFallbackStatusCode: 503.5 },
+    { websocketFallbackSurprise: true },
+  ]) {
+    assert.equal(operationalFailure({ source: 'top_level', failureKind: 'transport', transport: 'websocket',
+      ...changed }, request()), null);
+  }
+});
+
 test('prospective resilience retains a failed unbilled request as unavailable, not successful or free', async () => {
   const result = await runFake({ async action(config) {
     config.onEvent(event('model.call_start', { turnId: 'original', model: 'test-model' }));
@@ -438,6 +466,31 @@ function successfulRetry(config, turn = 1) {
   config.onEvent(event('model.call_start', { model: 'test-model', turnId: String(turn) }));
   config.onEvent(event('model.call_finished', { turnId: String(turn), outcome: 'success' }));
 }
+
+test('a reset followed by fallback failure is quarantinable without accepting work or inventing usage', async () => {
+  for (const lateViolation of [false, true]) {
+    const result = await runFake({ async action(config) {
+      failProvider(config, resetFailure(), 6);
+      failProvider(config, resetFailure({ retryAttempt: 1, durationMs: 31151, rte: false,
+        apiCallId: undefined, serviceRequestId: undefined, errorMessage: 'different transport diagnostic',
+        websocketFallbackAfterMs: 58933, websocketFallbackErrorKind: 'connection_reset',
+        websocketFallbackReason: 'transport_failed', websocketFallbackReconnectAttempted: false,
+        websocketFallbackStartedThisCall: true }), 6);
+      if (lateViolation) config.onEvent(event('instruction.update', {}));
+    } }, request({ resiliencePolicy: 'study-resilience-policy/v1' }));
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.state.sent, 1);
+    assert.equal(result.state.closed, 1);
+    assert.equal(result.receipt.protocol_error, 'provider_operational_failure');
+    assert.equal(result.receipt.outcome.native_failures, 2);
+    assert.equal(result.receipt.outcome.work, 'unavailable');
+    assert.equal(result.receipt.outcome.safety, lateViolation ? 'unverified' : 'valid');
+    assert.equal(result.receipt.outcome.quiescent, true);
+    assert.equal(result.receipt.outcome.accounting, 'unknown');
+    assert.equal(result.receipt.usage.totalNanoAiu, null);
+    assert.equal(result.receipt.usage_lower_bound, null);
+  }
+});
 
 test('real same-turn provider retry preserves limits and accounts for the failed request', async () => {
   for (const failure of [providerFailure(),
