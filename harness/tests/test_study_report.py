@@ -73,6 +73,35 @@ def test_export_is_deterministic_and_has_no_private_paths(modules, reports):
     assert all(str(reports.parent).encode() not in data for data in before.values())
 
 
+def test_given_quarantined_usage_when_exporting_then_cost_is_unknown_and_operational_counts_are_separate(
+        modules, reports):
+    study, report = modules
+    state = study.read_json(reports.parent / "state.json")
+    cell = state["cells"][0]
+    cell["status"] = "quarantined"
+    attempt = {"id": "offline-quarantined", "step": "f01-feature", "status": "infra_failed", "usage": None,
+               "seconds": 1, "outcome": {"work": "unavailable", "safety": "valid", "accounting": "unknown",
+                   "quiescent": True, "native_calls": 1, "native_failures": 1,
+                   "failure": {"kind": "provider_transient", "stage": "session_send"}},
+               "supervision": {"action": "quarantine_cell"}}
+    cell["attempts"].append(attempt)
+    state["ledger"]["entries"][attempt["id"]] = {
+        "status": "quarantine_hold", "reserved_nano": 300 * study.NANO, "actual_nano": None}
+    report.export(reports.parent, state, "export-test")
+
+    summary = study.read_json(reports / "summary.json")["provenance"]["resilience"]
+    assert summary["native_calls_observed"] == 1 and summary["native_failures_observed"] == 1
+    assert summary["quarantined_actual_nano"] is None
+    assert summary["quarantined_reserved_nano"] == 300 * study.NANO
+    assert summary["global_oracle_halt"] is False
+    with (reports / "attempts.csv").open() as stream:
+        row = next(csv.DictReader(stream))
+    assert row["actual_nano"] == "" and row["credits_status"] == "quarantine_hold"
+    assert row["work_outcome"] == "unavailable" and row["accounting_outcome"] == "unknown"
+    assert row["failure_kind"] == "provider_transient" and row["recovery_action"] == "quarantine_cell"
+    assert all("private" not in path.read_text() for path in reports.iterdir() if path.suffix == ".json")
+
+
 def test_reporting_applies_both_overlays_before_endpoint_analysis(modules, reports, monkeypatch):
     study, report = modules
     attribution = importlib.import_module("analysis_adjudications")

@@ -249,7 +249,9 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
                 or receipt.get("routing_changes") != [] or receipt.get("provider_failures") != []
                 or receipt.get("usage_lower_bound") is not None):
             raise StudyError("HTTP interruption differs from its pinned correlated 503 and unknown-usage signature")
-    elif incident["kind"] == "http_stream_timeout":
+    elif incident["kind"] in ("http_stream_timeout", "resilience_bootstrap"):
+        bootstrap = incident["kind"] == "resilience_bootstrap"
+        duration_ms = 61506 if bootstrap else 600000
         failures = [(index, event["data"]) for index, event in enumerate(events)
                     if event["type"] == "model.call_failure"]
         mirrors = [(index, event["data"]) for index, event in enumerate(events)
@@ -267,14 +269,15 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
         if (failure.get("model") != "gemini-4-argon" or failure.get("reasoningEffort") != "medium"
                 or failure.get("failureKind") != "transport" or failure.get("transport") != "http"
                 or failure.get("apiEndpoint") != "/chat/completions" or failure.get("source") != "top_level"
-                or failure.get("errorMessage") != '"Native model HTTP stream timed out"'
-                or failure.get("durationMs") != 600000 or failure.get("retryAttempt") != 0
+                or not isinstance(failure.get("errorMessage"), str)
+                or (not bootstrap and failure["errorMessage"] != '"Native model HTTP stream timed out"')
+                or failure.get("durationMs") != duration_ms or failure.get("retryAttempt") != 0
                 or failure.get("rte") is not False or failure.get("isAuto") is not False
                 or failure.get("isByok") is not False or failure.get("fusion")
                 or any(key in failure for key in ("providerCallId", "apiCallId", "serviceRequestId",
                                                   "statusCode", "errorCode", "errorType"))
                 or mirror.get("kind") != "model_call_failure" or mirror.get("reasoningEffort") != "medium"
-                or mirror.get("rte") is not False or mirror.get("modelCallDurationMs") != 600000
+                or mirror.get("rte") is not False or mirror.get("modelCallDurationMs") != duration_ms
                 or not isinstance(call, dict) or call.get("model") != failure["model"]
                 or call.get("request_id") != "" or call.get("api_endpoint") != failure["apiEndpoint"]
                 or call.get("transport") != "http" or call.get("failure_kind") != "transport"
@@ -625,17 +628,212 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
     return target
 
 
-def main() -> None:
+def verify_operational_approval(approval: dict, state: dict, manifest: dict, payload: bytes) -> None:
+    """Bind same-source recovery to one stopped state and an explicit prospective policy."""
+    fields = {"schema", "state_sha256", "source_commit", "manifest_sha256", "attempts",
+              "owner_approved", "approval", "approved_at"}
+    if (set(approval) != fields or approval["schema"] != "study-operational-approval/v1"
+            or approval["owner_approved"] is not True
+            or approval["state_sha256"] != hashlib.sha256(payload).hexdigest()
+            or approval["source_commit"] != state["identity"]["commit"]
+            or approval["source_commit"] != manifest.get("commit")
+            or approval["manifest_sha256"] != digest(manifest)
+            or state["identity"].get("source_provenance") != study.source_provenance(manifest)
+            or not isinstance(approval["approval"], str) or not approval["approval"].strip()
+            or not isinstance(approval["attempts"], dict) or not approval["attempts"]
+            or any(not isinstance(key, str) or not isinstance(value, str)
+                   or re.fullmatch(r"[0-9a-f]{64}", value) is None
+                   for key, value in approval["attempts"].items())
+            or not study.resilience_policy(manifest)):
+        raise StudyError("Same-source recovery requires exact state, manifest, terminal hashes and owner approval")
+    try:
+        approved = datetime.fromisoformat(approval["approved_at"])
+        if approved.utcoffset() is None or approved.timestamp() > time.time():
+            raise ValueError("Invalid approval time")
+    except (TypeError, ValueError, OverflowError) as error:
+        raise StudyError("Operational recovery requires a nonfuture timezone-aware approval") from error
+
+
+def validate_operational_recoveries(directory: Path, state: dict, manifest: dict) -> None:
+    """Require every same-source transition's original state and immutable owner authorization."""
+    seen = set()
+    for index, record in enumerate(state["operational_recoveries"]):
+        original_sha = record.get("state_sha256")
+        if (record.get("schema") != "study-operational-recovery/v1"
+                or not isinstance(original_sha, str) or re.fullmatch(r"[0-9a-f]{64}", original_sha) is None
+                or original_sha in seen or record.get("source_commit") != state["identity"]["commit"]):
+            raise StudyError("Invalid same-source operational recovery history")
+        seen.add(original_sha)
+        root = directory / "operational-recovery" / original_sha
+        paths = (root.parent, root, root / "before.json", root / "approval.json")
+        if any(path.is_symlink() or not path.exists() for path in paths):
+            raise StudyError("Operational recovery audit evidence is missing or unsafe")
+        payload = (root / "before.json").read_bytes()
+        before, approval = json.loads(payload), read_json(root / "approval.json")
+        verify_operational_approval(approval, before, manifest, payload)
+        if (record.get("approval_sha256") != digest(approval)
+                or record.get("attempts") != approval["attempts"]
+            or before.get("operational_recoveries", []) != state["operational_recoveries"][:index]
+                or before["identity"] != state["identity"] or before["started"] != state["started"]
+                or before["deadline"] != state["deadline"]
+                or any(before["ledger"].get(key) != state["ledger"].get(key)
+                       for key in ("ceiling_nano", "prior_nano", "historical_credit_provisions", "calibration_handoff"))):
+            raise StudyError("Operational recovery changed source, budget, calibration or deadline")
+        if len(before["cells"]) != len(state["cells"]):
+            raise StudyError("Operational recovery changed the original allocation")
+        for old_cell, current_cell in zip(before["cells"], state["cells"]):
+            fixed = ("run_id", "arm", "features", "change_request", "assigned_model", "replicate", "analysis_design")
+            if (any(old_cell.get(key) != current_cell.get(key) for key in fixed)
+                    or current_cell.get("completed_steps", 0) < old_cell.get("completed_steps", 0)
+                    or (old_cell["status"] == "completed" and current_cell["status"] != "completed")
+                    or len(current_cell["attempts"]) < len(old_cell["attempts"])):
+                raise StudyError("Operational recovery lost original progress or attempts")
+            for old_attempt, current_attempt in zip(old_cell["attempts"], current_cell["attempts"]):
+                key = old_attempt["id"]
+                immutable = ("id", "step", "started", "seconds_limit", "credit_limit_nano", "directory",
+                             "request_sha256", "source_commit", "parallelism")
+                if any(old_attempt.get(field) != current_attempt.get(field) for field in immutable):
+                    raise StudyError("Operational recovery changed an original attempt or allowance")
+                old_entry = before["ledger"]["entries"][key]
+                new_entry = state["ledger"]["entries"][key]
+                if (old_entry["reserved_nano"] != new_entry["reserved_nano"]
+                        or (key not in approval["attempts"] and old_entry != new_entry)
+                        or (old_attempt.get("cost_included_in_step") and not current_attempt.get("cost_included_in_step"))):
+                    raise StudyError("Operational recovery changed an original reservation or included cost")
+
+
+def prepare_operational(directory: Path, manifest: dict, approval: dict, *, apply: bool = False) -> dict:
+    """Validate or commit same-source failure supervision without copying data or calling a model."""
+    if directory.is_symlink() or directory.absolute() != directory.resolve():
+        raise StudyError("Operational recovery directory must not contain symlink components")
+    with ExitStack() as locks:
+        if apply:
+            locks.enter_context(study.paid_study_lock())
+            locks.enter_context(study.study_lock(directory))
+        state_path = directory / "state.json"
+        if state_path.is_symlink() or not state_path.is_file():
+            raise StudyError("Operational recovery requires the original regular state file")
+        payload = state_path.read_bytes()
+        state = json.loads(payload)
+        verify_operational_approval(approval, state, manifest, payload)
+        if (state["identity"]["smoke"] is not False
+                or manifest.get("commit") != study.command(["git", "rev-parse", "HEAD"])
+                or state["identity"]["inputs_sha256"] != manifest.get("inputs_sha256")
+                or manifest.get("inputs_sha256") != study.fingerprint()
+                or state.get("oracle_halt") or state.get("stop_requested")
+                or state.get("writer_pending") or state.get("writer_pid")
+                or state.get("status") not in ("partial", "interrupted") or time.time() >= state["deadline"]):
+            raise StudyError("Same-source recovery cannot override safety, source, stop or deadline gates")
+        selected = approval["attempts"]
+        inventory = {attempt["id"]: (cell, attempt) for cell in state["cells"] for attempt in cell["attempts"]}
+        if (set(inventory) != set(state["ledger"]["entries"]) or not set(selected).issubset(inventory)
+                or any(attempt["status"] == "running" and key not in selected
+                       for key, (cell, attempt) in inventory.items())):
+            raise StudyError("Operational recovery must preserve and reconcile every interrupted attempt")
+        selected_cells = {inventory[key][0]["run_id"] for key in selected}
+        if len(selected_cells) != len(selected):
+            raise StudyError("Operational recovery selects at most the latest attempt of each cell")
+        for key, writer in state.get("writers", {}).items():
+            if (key not in selected_cells or writer.get("pending") is not False
+                    or type(writer.get("pid")) is not int or writer["pid"] <= 0
+                    or study.group_alive(writer["pid"])):
+                raise StudyError("Operational recovery requires quiescent, independently identified writers")
+        actions = []
+        for key, terminal_sha in selected.items():
+            cell, attempt = inventory[key]
+            if (attempt is not cell["attempts"][-1] or attempt.get("measurement")
+                    or attempt.get("cost_included_in_step") or attempt.get("supervision")
+                    or attempt.get("status") not in ("running", "interrupted", "infra_failed")
+                    or (cell.get("checkpoint") or {}).get("step") != attempt["step"]):
+                raise StudyError("Operational recovery cannot discard returned or measured work")
+            terminal = study.supervised_terminal(directory, attempt, cell["assigned_model"],
+                                                  state["identity"]["commit"], expected_sha256=terminal_sha)
+            receipt = terminal["result"]["receipt"]
+            if receipt["outcome"]["work"] == "complete":
+                raise StudyError("Completed work requires retained-snapshot measurement recovery, never agent replay")
+            verify_approval_after_attempt(approval, dict(attempt, seconds=terminal["seconds"]))
+            seconds = attempt.get("seconds")
+            if seconds is None:
+                seconds = terminal["seconds"]
+            elif type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds < terminal["seconds"]:
+                raise StudyError("Operational recovery cannot reduce the original attempt duration")
+            attempt.update(status="infra_failed", usage=receipt.get("usage"), seconds=seconds,
+                           outcome=receipt["outcome"], terminal_sha256=terminal_sha)
+            study.reconcile(state["ledger"], key, attempt["usage"])
+            state.setdefault("writers", {}).pop(cell["run_id"], None)
+            cell["status"] = "partial"
+            study.supervise_failure_state(directory, state, manifest, cell, attempt)
+            actions.append({"attempt_id": key, "action": attempt["supervision"]["action"]})
+        record = {"schema": "study-operational-recovery/v1", "state_sha256": approval["state_sha256"],
+                  "source_commit": approval["source_commit"], "approval_sha256": digest(approval),
+                  "attempts": selected}
+        state.setdefault("operational_recoveries", []).append(record)
+        state["status"] = "partial"
+        summary = {"schema": "study-operational-recovery-preview/v1", "applied": apply,
+                   "state_sha256": approval["state_sha256"], "actions": actions}
+        if not apply:
+            return summary
+        archive = directory / "operational-recovery" / approval["state_sha256"]
+        if archive.parent.is_symlink() or archive.is_symlink():
+            raise StudyError("Operational audit directory must not be a symlink")
+        archive.mkdir(parents=True, mode=0o700, exist_ok=True)
+        for name, contents in (("before.json", payload),
+                               ("approval.json", (json.dumps(approval, sort_keys=True) + "\n").encode())):
+            path = archive / name
+            if path.exists() or path.is_symlink():
+                if path.is_symlink() or not path.is_file() or path.read_bytes() != contents:
+                    raise StudyError("Operational recovery never overwrites different audit evidence")
+                continue
+            with path.open("xb") as stream:
+                os.fchmod(stream.fileno(), 0o600)
+                stream.write(contents)
+                stream.flush()
+                os.fsync(stream.fileno())
+        for path in (archive, archive.parent):
+            descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        study.validate_supervisor_state(directory, state, manifest)
+        if state_path.read_bytes() != payload:
+            raise StudyError("Stopped state changed during operational recovery")
+        atomic_json(state_path, state)
+        return summary
+
+
+def create_parser() -> argparse.ArgumentParser:
+    """Keep historical copy recovery separate from explicit same-source operational recovery."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source-root", required=True, type=Path)
-    parser.add_argument("--old-manifest", required=True, type=Path)
-    parser.add_argument("--new-manifest", required=True, type=Path)
+    parser.add_argument("--source-root", type=Path)
+    parser.add_argument("--old-manifest", type=Path)
+    parser.add_argument("--new-manifest", type=Path)
     parser.add_argument("--approval", required=True, type=Path)
+    parser.add_argument("--operational-study", type=Path, help="same-source study; validation only unless --apply")
+    parser.add_argument("--manifest", type=Path, help="unchanged prospective owner manifest")
+    parser.add_argument("--apply", action="store_true", help="commit the approved same-source data transition")
     parser.add_argument("--prior-source-root", type=Path, action="append",
                         help="earlier original checkout; repeat in chronological recovery order")
     parser.add_argument("--calibration-manifest", type=Path,
                         help="first original owner manifest required for the preserved calibration")
+    return parser
+
+
+def main() -> None:
+    parser = create_parser()
     args = parser.parse_args()
+    if args.operational_study:
+        if (not args.manifest or args.source_root or args.old_manifest or args.new_manifest
+                or args.prior_source_root or args.calibration_manifest):
+            parser.error("--operational-study requires --manifest and cannot change source or calibration")
+        for path in (args.manifest, args.approval):
+            if path.is_symlink() or not path.is_file():
+                raise StudyError("Operational recovery evidence must be regular files")
+        print(json.dumps(prepare_operational(args.operational_study, read_json(args.manifest),
+                                              read_json(args.approval), apply=args.apply), indent=2))
+        return
+    if not all((args.source_root, args.old_manifest, args.new_manifest)) or args.manifest or args.apply:
+        parser.error("Historical recovery requires --source-root, --old-manifest and --new-manifest")
     for path in (args.old_manifest, args.new_manifest, args.approval):
         if path.is_symlink() or not path.is_file():
             raise StudyError("Recovery evidence must be regular files, not symlinks")

@@ -403,6 +403,39 @@ def write_pilot(out: Path, result: dict, *, provenance: dict | None = None,
     figure(runs, out, diagnostic=diagnostic)
 
 
+def attempt_outcome_fields(cell: dict, attempt: dict) -> dict:
+    """Export bounded operational categories without raw provider messages or prompts."""
+    outcome = attempt.get("outcome") or {}
+    failure = outcome.get("failure") or {}
+    supervision = attempt.get("supervision") or {}
+    decision = attempt.get("recovery_action") or {}
+    return {"work_outcome": outcome.get("work"), "safety_outcome": outcome.get("safety"),
+            "accounting_outcome": outcome.get("accounting"), "runtime_quiescent": outcome.get("quiescent"),
+            "failure_kind": failure.get("kind"), "failure_stage": failure.get("stage"),
+            "model_route": cell.get("assigned_model"), "native_calls": outcome.get("native_calls"),
+            "native_failures": outcome.get("native_failures"),
+            "recovery_action": decision.get("action", supervision.get("action"))}
+
+
+def resilience_summary(state: dict) -> dict | None:
+    """Keep observed provider counters and retained risk separate from functional results."""
+    outcomes = [attempt["outcome"] for cell in state["cells"] for attempt in cell["attempts"]
+                if attempt.get("outcome")]
+    if not outcomes and not state.get("supervisor"):
+        return None
+    held = [entry for entry in state["ledger"]["entries"].values() if entry["status"] == "quarantine_hold"]
+    return {"schema": "study-resilience-summary/v1", "typed_attempts": len(outcomes),
+            "attempts_with_native_counters": sum("native_calls" in outcome for outcome in outcomes),
+            "native_calls_observed": sum(outcome.get("native_calls", 0) for outcome in outcomes),
+            "native_failures_observed": sum(outcome.get("native_failures", 0) for outcome in outcomes),
+            "quarantined_attempts": len(held),
+            "quarantined_reserved_nano": sum(entry["reserved_nano"] for entry in held),
+            "quarantined_actual_nano": None if held else 0,
+            "global_oracle_halt": bool(state.get("oracle_halt")),
+            "operational_recovery_count": len(state.get("operational_recoveries", [])),
+            "routes": state.get("supervisor", {}).get("routes", {})}
+
+
 def export(directory: Path, state: dict, study_id: str) -> None:
     from analysis_adjudications import apply as analysis_adjudications
     from intervention_coverage import apply as intervention_coverage
@@ -413,6 +446,7 @@ def export(directory: Path, state: dict, study_id: str) -> None:
     raw, adjudications = analysis_adjudications(directory, state, raw)
     raw, coverage = intervention_coverage(directory, state, raw)
     result = analyze_pilot(raw, seed=state["identity"]["config"]["seed"], cells=state["cells"])
+    resilience = resilience_summary(state)
     dispositions, attempts = [], []
     by_id = {run["run_id"]: run for run in result["runs"]}
     for cell in state["cells"]:
@@ -437,6 +471,8 @@ def export(directory: Path, state: dict, study_id: str) -> None:
                              "lower_bound_nano": entry.get("lower_bound_nano")}
             if state.get("recovery"):
                 row["source_commit"] = attempt["source_commit"]
+            if resilience is not None:
+                row.update(attempt_outcome_fields(cell, attempt))
             attempts.append(row)
     provenance = {"study_id": study_id, "diagnostic_stub": state["identity"]["smoke"],
                   "phase": state["identity"]["phase"], "collection_role": result["collection_role"],
@@ -455,6 +491,9 @@ def export(directory: Path, state: dict, study_id: str) -> None:
                   "billing_limit_kind": "local admission plus per-session soft caps; not guaranteed billed consumption"}
     provenance["intervention_coverage"] = coverage
     provenance["analysis_adjudications"] = adjudications
+    if resilience is not None:
+        provenance["resilience"] = resilience
+        provenance["operational_recoveries"] = state.get("operational_recoveries", [])
     if state.get("recovery"):
         provenance["source_transition"] = state["recovery"]
         if state.get("recovery_history"):

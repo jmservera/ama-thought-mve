@@ -839,6 +839,129 @@ session, or a mismatched receipt, still ends as unknown usage and needs the
 separately approved copy-only recovery. Provider omissions can still recur and
 no provider-side billing guarantee exists.
 
+#### Prospective operational resilience
+
+Newly qualified source can opt in to typed failure supervision through the
+owner evidence manifest. This is a prospective protocol change, not permission
+to modify a running study, clear an existing `oracle_halt`, or insert a policy
+into a historical manifest. Publish, qualify, disclose and authorize the exact
+new source and policy before collection. Existing studies retain their original
+rules. The following example is not owner approval:
+
+```json
+{
+  "resilience_policy": {
+    "schema": "study-resilience-policy/v1",
+    "approval": "REPLACE_WITH_OWNER_DECISION_REFERENCE",
+    "approved_at": "2026-11-11T00:00:00+00:00",
+    "max_quarantined_attempts": 10,
+    "max_quarantined_credits": 6000,
+    "route_failure_threshold": 3,
+    "route_cooldown_seconds": 60,
+    "retry_backoff_seconds": 2,
+    "retry_max_backoff_seconds": 30
+  }
+}
+```
+
+Omitting the policy preserves earlier behavior. Setting both quarantine bounds
+to zero permits only finally billed infrastructure retries and keeps strict
+unknown-cost admission stops. Nonzero bounds explicitly accept residual unknown
+provider charges so other eligible cells can continue. Reservations remain
+provisions, not provider-enforced billing caps or measured spending. Each hold
+consumes its full original reservation against the existing aggregate ceiling.
+The count and credit bounds apply together; exhaustion pauses new admission.
+This policy does not replace the separate successful-session retry-hold policy.
+
+The transport emits `study-attempt-outcome/v1` with independent work, safety,
+accounting and quiescence fields. Structured top-level provider or transport
+failures need not match exact error messages or supply optional billing IDs.
+Missing IDs and charges are never fabricated. Unsupported schemas, model or
+effort changes, active discovery, malformed control records, isolation failures
+and accounting contradictions remain fail-closed. A later safety violation
+cannot be hidden by an earlier provider error.
+
+* An incomplete request with final accounting may retry only before measurement,
+  after owned cleanup, within the original time, credit, deadline and attempt
+  limits. Persistent bounded backoff prevents immediate repeated dispatch.
+* An incomplete request with unknown accounting is never replayed. Its cell is
+  quarantined, its ledger entry becomes `quarantine_hold`, and `actual_nano`
+  remains empty. Other cells continue only within both approved risk bounds.
+* Repeated failures pause the assigned model route. Deferred cells do not occupy
+  worker slots; ready routes can continue. The controller never substitutes a
+  model, effort, arm or replicate. Cooldowns survive resume.
+* Completed work with missing billing remains retained and cannot be replayed.
+  Without the separately approved successful-session retry hold, it causes a
+  financial pause rather than claiming oracle corruption.
+* Functional nonpasses are measurements, not infrastructure errors. Measurement
+  retries remain bounded to the same retained snapshot and never rerun the agent.
+
+Raw events stay private. Each supervised outcome binds the exact source,
+request, terminal receipt and raw-journal hashes. Resume verifies the evidence,
+reservations and policy before admission. Derived `attempts.csv` adds work,
+safety, accounting, failure-kind/stage, route, native-call counters and recovery
+action fields; provenance reports observed counters and quarantine exposure.
+Missing counter coverage is explicit. No prompt, provider diagnostic message
+or raw journal is added to the shareable package.
+
+For a stopped study already collected under this exact source and policy, a
+generic same-source recovery can reconcile a durable failed terminal receipt
+that survived an interrupted bookkeeping transition. It does not copy the
+study or calibration and makes no model call. An owner authorization must bind
+`schema=study-operational-approval/v1`, the exact stopped `state_sha256`, unchanged
+`source_commit`, canonical `manifest_sha256`, an `attempts` mapping from each
+selected attempt ID to its `terminal.json` SHA-256, `owner_approved=true`, an
+approval reference and a nonfuture timezone-aware `approved_at` after the
+attempt. Unknown-charge requests can only be quarantined, never given a fresh
+allowance. Completed or measured work, live or ambiguous writers, source
+changes, safety halts and expired deadlines are refused.
+
+Validate first; without `--apply` this command writes no recovery state:
+
+```bash
+.venv/bin/python -B harness/prepare_estimation_recovery.py \
+  --operational-study .study/STUDY_ID \
+  --manifest /private/owner-manifest.json \
+  --approval /private/operational-approval.json
+```
+
+After reviewing the preview, append `--apply` to commit the exact authorized
+transition under the paid-study and controller locks. Original state and
+approval are retained in the study's `operational-recovery` audit directory.
+Source, schedule, calibration, original allowances, ledger history and absolute
+deadline are unchanged. Repeating an applied authorization is rejected.
+Changing source still requires the separate disclosed source-change procedure;
+this command cannot recover legacy incidents that lack typed terminal evidence.
+
+For the reported 3527-step interruption, the console's
+`unexpected_runtime_activity` label alone is not a diagnosis. The retained
+Gemini E-14 `f10-repair` journal confirms a top-level HTTP transport failure
+after 61.5 seconds, not the earlier ten-minute timeout. Its event stream replays
+as a supported transport failure under the prospective supervisor, with unknown
+accounting. Historical replay does not establish provider cancellation or owned
+cleanup. Do not clear its halt or assume the omitted charge was zero. This
+candidate still needs source-bound migration and owner authorization before
+the stopped legacy study can resume; offline tests do not supply that authority.
+
+The one-time legacy bootstrap is pinned to source
+`73712f7834ca520df543b6a58315bb299ffd38a8`, stopped state
+`1b50aa55cebf781b6950e4723ac7ac655529f28c7f13bd56ac99adc6a40577cd`
+and the retained E-14 repair journal. It preserves 3527 measurements, 3541
+attempts, all 13 earlier recovery holds, all 13 successful-session retry holds,
+and the new unknown 300-credit reservation. Known charges plus certified floors
+sum to 40976.11943 credits; actual total spending remains unknown.
+
+Use the historical source-change recovery command, not `--operational-study`,
+for this bootstrap. It requires the exact old and new owner manifests, genuine
+state/source/attempt-specific approval, the original calibration manifest and
+all eleven earlier checkout roots in chronological order. The approval must
+explicitly accept retaining the unknown hold and a fresh repair allowance
+(900 seconds, 270 soft credits, 300 reserved), as well as the mid-study source
+change. It does not extend the study deadline, alter allocation, rerun measured
+work, authorize a paid launch or infer a zero charge. The original study stays
+unchanged. Subsequent prospective failures use the supervisor rather than new
+historical incident entries.
+
 #### Specific 2722-step paired unaccounted-retry interruption
 
 The stopped state

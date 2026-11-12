@@ -449,6 +449,19 @@ def test_backend_incident_requires_new_explicit_owner_approval(backend_incident,
     assert not (case["target_root"] / ".study/pilot-estimation").exists()
 
 
+def test_given_retained_resilience_bootstrap_when_lookup_then_exact_source_and_hold(monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / "harness"))
+    study = importlib.import_module("study")
+
+    incident = study.recovery_incident("1b50aa55cebf781b6950e4723ac7ac655529f28c7f13bd56ac99adc6a40577cd")
+
+    assert incident["source"] == "73712f7834ca520df543b6a58315bb299ffd38a8"
+    assert incident["attempt"] == "pilot-estimation-gemini-4-argon-E-14-f10-repair-1"
+    assert incident["reserved_nano"] == 300 * study.NANO
+    assert incident["steps"] == 3527 and incident["attempts"] == 3541
+    assert incident["known_nano"] == 40976119430000
+
+
 def test_backend_preparation_requires_first_original_and_its_calibration_manifest(backend_incident):
     case = backend_incident
     study, recovery = case["study"], case["recovery"]
@@ -2112,3 +2125,140 @@ def test_http_timeout_recovery_rejects_changed_identity_approval_usage_and_holds
     with pytest.raises(study.StudyError):
         prepare_http_timeout_incident(case)
     assert not (case["target_root"] / ".study/pilot-estimation").exists()
+
+
+@pytest.fixture
+def resilience_bootstrap_incident(http_timeout_incident, tmp_path, monkeypatch):
+    case = http_timeout_incident
+    study, recovery = case["study"], case["recovery"]
+    source = prepare_http_timeout_incident(case)
+    source_root = case["target_root"]
+    state = study.read_json(source / "state.json")
+    known = sum(entry["actual_nano"] if entry["status"] == "complete" else entry.get("lower_bound_nano", 0)
+                for entry in state["ledger"]["entries"].values() if entry["status"] in ("complete", "retry_hold"))
+    quotient, remainder = divmod(study.credits("40976.11943") - known - 3 * study.NANO, 51)
+    for index in range(54):
+        cell = state["cells"][index]
+        identity = f"bootstrap-complete-{index}"
+        amount = quotient + (index < remainder) if index < 51 else study.NANO
+        held = index >= 51
+        usage = ({"credits_complete": False, "totalNanoAiu": None,
+                  "lowerBoundNanoAiu": amount, "unaccountedFailedRequests": 1} if held else
+                 {"credits_complete": True, "totalNanoAiu": amount})
+        cell["completed_steps"] = cell.get("completed_steps", 0) + 1
+        cell["attempts"].append({"id": identity, "step": f"bootstrap-step-{index}", "status": "agent_returned",
+                                 "source_commit": case["new"]["commit"], "seconds": 1, "usage": usage})
+        entry = {"status": "retry_hold" if held else "complete", "reserved_nano": 300 * study.NANO,
+                 "actual_nano": None if held else amount}
+        if held:
+            entry.update(lower_bound_nano=amount, unaccounted_failed_requests=1)
+        state["ledger"]["entries"][identity] = entry
+    identity = study.RESILIENCE_BOOTSTRAP_ATTEMPT
+    cell = next(cell for cell in state["cells"] if cell["assigned_model"] == "gemini-4-argon"
+                and cell["arm"] == "E" and cell["replicate"] == 14)
+    directory = f"runs/{cell['run_id']}/attempts/{identity}"
+    attempt = {"id": identity, "step": "f10-repair", "status": "interrupted", "usage": None,
+               "source_commit": case["new"]["commit"], "started": 1769472000, "seconds": 168.6788,
+               "seconds_limit": 900, "credit_limit_nano": 270 * study.NANO, "directory": directory}
+    cell["attempts"].append(attempt)
+    cell["checkpoint"] = {"step": "f10-repair", "head": "checkpoint"}
+    state["ledger"]["entries"][identity] = {
+        "status": "unknown", "reserved_nano": 300 * study.NANO, "actual_nano": None}
+    records = [json.loads(line) for line in case["journal"].read_bytes().splitlines()]
+    records[1]["event"]["data"].update(durationMs=61506, errorMessage="synthetic HTTP transport interruption")
+    mirror = records[2]["event"]["data"]
+    mirror["modelCallDurationMs"] = 61506
+    mirror["modelCall"]["error"] = "synthetic HTTP transport interruption"
+    records[-1]["receipt"]["session_id"] = "bootstrap-fixture"
+    journal = source / directory / "transport/events.jsonl"
+    journal.parent.mkdir(parents=True)
+    journal.write_text("".join(json.dumps(record) + "\n" for record in records))
+    state.update(status="oracle_halt", oracle_halt=True, stop_requested=False)
+    study.atomic_json(source / "state.json", state)
+    original = (source / "state.json").read_bytes()
+    target_root = tmp_path / "resilience-bootstrap-new"
+    target_root.mkdir()
+    shutil.copytree(source_root / "protocol", target_root / "protocol")
+    shutil.copytree(source_root / "harness", target_root / "harness")
+    new_commit = "a9" * 20
+    new = {**case["new"], "commit": new_commit, "inputs_sha256": "a8" * 32,
+           "public_disclosure_url": f"https://github.com/jmservera/ama-thought-mve/commit/{new_commit}",
+           "disclosed_at": "2026-01-28T00:00:00Z", "resilience_policy": {
+               "schema": "study-resilience-policy/v1", "approval": "Synthetic prospective owner decision",
+               "approved_at": "2026-01-28T00:00:00Z", "max_quarantined_attempts": 10,
+               "max_quarantined_credits": 6000, "route_failure_threshold": 3,
+               "route_cooldown_seconds": 60, "retry_backoff_seconds": 2, "retry_max_backoff_seconds": 30}}
+    monkeypatch.setattr(study, "RESILIENCE_BOOTSTRAP_SOURCE", case["new"]["commit"])
+    monkeypatch.setattr(study, "RESILIENCE_BOOTSTRAP_STATE_SHA256", hashlib.sha256(original).hexdigest())
+    monkeypatch.setattr(study, "RESILIENCE_BOOTSTRAP_JOURNAL_SHA256", hashlib.sha256(journal.read_bytes()).hexdigest())
+    monkeypatch.setattr(study, "ROOT", target_root)
+    monkeypatch.setattr(recovery, "ROOT", target_root)
+    monkeypatch.setattr(study, "fingerprint", lambda *args: new["inputs_sha256"])
+    prior_roots = [*case["prior_roots"], case["source_root"]]
+    commits = {root: study.read_json(root / ".study/pilot-estimation/state.json")["identity"]["commit"]
+               for root in [*prior_roots, source_root]}
+    monkeypatch.setattr(study, "command", lambda args, **kwargs: commits.get(kwargs.get("cwd"), new_commit))
+    approval = {**case["approval"], "original_state_sha256": study.RESILIENCE_BOOTSTRAP_STATE_SHA256,
+                "original_commit": case["new"]["commit"], "target_commit": new_commit,
+                "attempt_id": identity, "unknown_reservation_nano": 300 * study.NANO,
+                "approved_at": "2026-01-29T00:00:00Z", "disclosure_url": new["public_disclosure_url"]}
+    return {**case, "source_root": source_root, "source": source, "target_root": target_root,
+            "old": case["new"], "new": new, "approval": approval, "original": original,
+            "journal": journal, "attempt": attempt, "prior_roots": prior_roots}
+
+
+def test_given_resilience_bootstrap_when_copying_then_all_holds_and_original_limits_survive(
+        resilience_bootstrap_incident):
+    case, study = resilience_bootstrap_incident, resilience_bootstrap_incident["study"]
+    before = study.read_json(case["source"] / "state.json")
+    prior_retry = {identity: entry for identity, entry in before["ledger"]["entries"].items()
+                   if entry["status"] == "retry_hold"}
+
+    target = prepare_http_timeout_incident(case)
+    state = study.read_json(target / "state.json")
+
+    assert len(study.recovery_records(state)) == 12 and len(state["ledger"]["entries"]) == 3541
+    assert sum(cell.get("completed_steps", 0) for cell in state["cells"]) == 3527
+    assert sum(entry["status"] == "recovery_hold" for entry in state["ledger"]["entries"].values()) == 14
+    assert {identity: entry for identity, entry in state["ledger"]["entries"].items()
+            if entry["status"] == "retry_hold"} == prior_retry
+    assert len(prior_retry) == 13
+    assert state["identity"]["config"] == before["identity"]["config"] and state["deadline"] == before["deadline"]
+    assert (case["source"] / "state.json").read_bytes() == case["original"]
+    controller = study.Controller(target, case["config"], smoke=False, phase="pilot-estimation",
+                                  study_id="pilot-estimation", replicates=21,
+                                  unregistered=case["new"], handoff=case["handoff"])
+    cell = next(cell for cell in controller.state["cells"] if any(
+        attempt["id"] == study.RESILIENCE_BOOTSTRAP_ATTEMPT for attempt in cell["attempts"]))
+    run = object.__new__(study.StudyRun)
+    run.controller, run.cell, run.arm, run.current_step = controller, cell, cell["arm"], "f10-repair"
+    assert run.remaining_allowance(900) == (900, 270 * study.NANO)
+    study.validate_recovery_evidence(target, controller.state, case["new"])
+    assert len(study.recovery_source_locks(state, [*case["prior_roots"], case["source_root"]])) == 24
+
+
+@pytest.mark.parametrize("damage", ["approval_hold", "model", "request_id", "duration", "finish", "usage"])
+def test_given_changed_resilience_bootstrap_when_copying_then_recovery_is_refused(
+        resilience_bootstrap_incident, damage):
+    case, study = resilience_bootstrap_incident, resilience_bootstrap_incident["study"]
+    if damage == "approval_hold":
+        case["approval"]["unknown_reservation_nano"] = 600 * study.NANO
+    else:
+        records = [json.loads(line) for line in case["journal"].read_bytes().splitlines()]
+        if damage == "model":
+            records[1]["event"]["data"]["model"] = "other"
+        elif damage == "request_id":
+            records[2]["event"]["data"]["modelCall"]["request_id"] = "invented-request"
+        elif damage == "duration":
+            records[1]["event"]["data"]["durationMs"] = 61505
+        elif damage == "finish":
+            records[3]["event"]["data"]["outcome"] = "success"
+        else:
+            records[-1]["receipt"]["usage_lower_bound"] = {"totalNanoAiu": 0}
+        case["journal"].write_text("".join(json.dumps(record) + "\n" for record in records))
+
+    with pytest.raises(study.StudyError):
+        prepare_http_timeout_incident(case)
+
+    assert not (case["target_root"] / ".study/pilot-estimation").exists()
+    assert (case["source"] / "state.json").read_bytes() == case["original"]

@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { CopilotRequestHandler } from '@github/copilot-sdk';
 import { Evidence, InputRecords, OutputRecords, assertRuntime, permissionHandler,
-  runTransport, sessionConfig, validateArguments, WEBSOCKET_RESET_MESSAGE } from './transport.mjs';
+  operationalFailure, runTransport, sessionConfig, validateArguments, WEBSOCKET_RESET_MESSAGE } from './transport.mjs';
 import { RpcFrames, hostEnvironment, makeRuntime, prepareRuntimeDirectories } from './runtime-guard.mjs';
 
 const request = (extra = {}) => ({ model: 'test-model', reasoningEffort: 'medium', prompt: 'test',
@@ -110,6 +110,91 @@ async function runFake(options = {}, req = request(), limits) {
   output.destroy();
   return { ...result, records, state: runtime.state };
 }
+
+test('prospective resilience classifies structured faults without billing IDs or message signatures', () => {
+  for (const transport of ['http', 'websocket']) {
+    for (const statusCode of [408, 429, 500, 502, 503, 504, 529, 599]) {
+      const failure = operationalFailure({ source: 'top_level', failureKind: 'api', transport,
+        statusCode, errorMessage: 'arbitrary private diagnostic', interactionType: 'conversation-agent',
+        maxOutputTokens: 16384, maxPromptTokens: 1000000, requestBodyBytes: 12000,
+        requestBodyWireBytes: 12000, requestBodyEncoding: 'identity' }, request());
+      assert.equal(failure.kind, statusCode === 408 ? 'timeout' : 'provider_transient');
+      assert.equal(failure.retry_after_seconds, null);
+      assert.equal(Object.hasOwn(failure, 'request_id'), false);
+    }
+    assert.equal(operationalFailure({ source: 'top_level', failureKind: 'transport', transport },
+      request()).kind, 'transport');
+  }
+  for (const change of [{ statusCode: 401 }, { statusCode: 403 }, { statusCode: 400 },
+    { statusCode: '503' }, { model: 'fallback' }, { reasoningEffort: 'high' }, { isAuto: true },
+    { isByok: true }, { source: 'nested' }, { fusion: {} }, { surprise: true }, { retryAttempt: -1 },
+    { interactionType: 'conversation-subagent' }, { requestBodyBytes: '12000' }, { maxOutputTokens: -1 }])
+    assert.equal(operationalFailure({ source: 'top_level', failureKind: 'api', transport: 'http',
+      statusCode: 503, ...change }, request()), null);
+});
+
+test('prospective resilience retains a failed unbilled request as unavailable, not successful or free', async () => {
+  const result = await runFake({ async action(config) {
+    config.onEvent(event('model.call_start', { turnId: 'original', model: 'test-model' }));
+    config.onEvent(event('model.call_failure', { source: 'top_level', failureKind: 'api',
+      statusCode: 529, transport: 'http', errorMessage: 'new provider wording' }));
+  } }, request({ resiliencePolicy: 'study-resilience-policy/v1' }));
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.state.sent, 1);
+  assert.equal(result.state.closed, 1);
+  assert.deepEqual(result.receipt.outcome, { schema: 'study-attempt-outcome/v1',
+    work: 'unavailable', safety: 'valid', accounting: 'unknown', quiescent: true,
+    failure: { kind: 'provider_transient', stage: 'session_send', retry_after_seconds: null },
+    native_calls: 1, native_failures: 1 });
+  assert.equal(result.receipt.usage.totalNanoAiu, null);
+  assert.equal(result.receipt.usage.credits_complete, false);
+  assert.equal(result.records.at(-1).receipt.outcome.safety, 'valid');
+});
+
+test('prospective resilience handles short HTTP transport failures and native stream timeouts', () => {
+  for (const durationMs of [61506, 600000]) {
+    const req = request({ model: 'gemini-4-argon', resiliencePolicy: 'study-resilience-policy/v1' });
+    const evidence = new Evidence(req, 'session');
+    evidence.observe(start('session', req));
+    evidence.verifyToolCatalog({ tools: [{ name: 'isolated_exec' }] });
+    evidence.observe(event('model.call_start', { turnId: 'original', model: req.model }));
+    let code;
+    try {
+      evidence.observe(event('model.call_failure', {
+        model: req.model, reasoningEffort: 'medium', source: 'top_level', failureKind: 'transport',
+        transport: 'http', apiEndpoint: '/chat/completions', isAuto: false, isByok: false,
+        interactionType: 'conversation-agent', retryAttempt: 0, rte: false, durationMs,
+        errorMessage: durationMs === 600000 ? '"Native model HTTP stream timed out"' : 'different upstream error',
+        maxOutputTokens: 16384, maxPromptTokens: 1000000, requestBodyBytes: 12000,
+        requestBodyWireBytes: 12000, requestBodyEncoding: 'identity',
+      }));
+    } catch (error) { code = error.transportCode; }
+    assert.equal(code, durationMs === 600000 ? 'http_stream_timeout_usage_unknown' : 'provider_operational_failure');
+    const receipt = evidence.receipt(code);
+    const outcome = evidence.outcome(receipt, code, 'session_send', true);
+    assert.equal(outcome.safety, 'valid');
+    assert.equal(outcome.work, 'unavailable');
+    assert.equal(outcome.accounting, 'unknown');
+    assert.equal(outcome.failure.kind, 'transport');
+    assert.equal(receipt.usage.totalNanoAiu, null);
+  }
+});
+
+test('prospective resilience does not hide a later identity or discovery violation behind an outage', async () => {
+  for (const late of [event('assistant.usage', usage('unused', { model: 'fallback' }).data),
+    event('session.skills_loaded', { skills: [{ name: 'host-skill' }] }),
+    event('instruction.update', {})]) {
+    const result = await runFake({ async action(config) {
+      config.onEvent(event('model.call_start', { turnId: 'original', model: 'test-model' }));
+      config.onEvent(event('model.call_failure', { source: 'top_level', failureKind: 'transport',
+        transport: 'http' }));
+    }, closeEvents(config) { config.onEvent(late); } },
+    request({ resiliencePolicy: 'study-resilience-policy/v1' }));
+    assert.equal(result.receipt.outcome.safety, 'unverified');
+    assert.equal(result.receipt.outcome.failure.kind, 'contract');
+    assert.equal(result.exitCode, 1);
+  }
+});
 
 test('exact source-qualified tools, permission/session checks, shared limits and token-free environment', () => {
   const config = sessionConfig(request(), 'registered', () => {}, () => {});

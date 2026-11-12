@@ -16,7 +16,7 @@ import time
 from pathlib import Path, PurePosixPath
 
 from runner import git, head
-from study_io import ROOT, RetryableError, StudyError, atomic_json, read_json
+from study_io import ROOT, AccountingError, RetryableError, StudyError, atomic_json, read_json
 
 NANO = 1_000_000_000
 RECORD_LIMIT = 8 * 1024 * 1024
@@ -248,7 +248,7 @@ class LiveRuntime:
             raise StudyError("Isolated runtime failed; reconcile exact owned resources before resuming") from error
 
     def run_agent(self, prompt: str, step_dir: str, budget: int) -> dict:
-        from study import retry_hold_policy, retry_hold_usage
+        from study import accounted_nano, resilience_policy, retry_hold_policy, retry_hold_usage, validate_attempt_outcome
 
         run = self.run
         controller = run.controller
@@ -267,6 +267,8 @@ class LiveRuntime:
         started = time.monotonic()
         usage = None
         result = None
+        attempt_status = "interrupted"
+        supervision = resilience_policy(controller.unregistered)
 
         def writer_started(pid):
             controller.writer_started(run.cell, pid)
@@ -293,6 +295,8 @@ class LiveRuntime:
                 "maxAiCredits": credit_limit / NANO, "cliPath": shutil.which("copilot"),
                 "baseDirectory": str(directory / "sdk"),
             }
+            if supervision:
+                request["resiliencePolicy"] = supervision["schema"]
             if request["remainingSeconds"] <= 0:
                 raise StudyError("Original step allowance exhausted before SDK startup")
             atomic_json(directory / "request.json", request)
@@ -301,12 +305,44 @@ class LiveRuntime:
             controller.writer_pending(run.cell)
             policy = retry_hold_policy(controller.unregistered)
             holds_allowed = bool(policy) and controller.retry_holds() < policy["max_holds"]
-            result = run_bridge(request, directory / "transport", tool, on_start=writer_started,
-                                on_stop=writer_stopped, accept_unaccounted_retry=holds_allowed)
+            bridge_options = {"on_start": writer_started, "on_stop": writer_stopped,
+                              "accept_unaccounted_retry": holds_allowed}
+            if supervision:
+                bridge_options["accept_failed_outcome"] = True
+            result = run_bridge(request, directory / "transport", tool, **bridge_options)
             receipt = result.get("receipt")
             if not isinstance(receipt, dict):
                 raise StudyError("SDK did not produce a usage receipt")
             usage = receipt.get("usage")
+            if supervision:
+                journal = directory / "transport/events.jsonl"
+                if journal.is_symlink() or not journal.is_file() or journal.stat().st_size > JOURNAL_LIMIT:
+                    raise StudyError("Typed SDK outcome lacks its retained raw journal")
+                terminal_path = directory / "terminal.json"
+                atomic_json(terminal_path, {
+                    "schema": "study-transport-terminal/v1", "attempt_id": attempt["id"],
+                    "source_commit": controller.state["identity"]["commit"],
+                    "request_sha256": attempt["request_sha256"],
+                    "events_sha256": hashlib.sha256(journal.read_bytes()).hexdigest(),
+                    "seconds": round(time.monotonic() - started, 4), "result": result})
+                controller.update(attempt, terminal_sha256=hashlib.sha256(terminal_path.read_bytes()).hexdigest())
+                outcome = validate_attempt_outcome(receipt.get("outcome"))
+                controller.update(attempt, outcome=outcome)
+                if (receipt.get("sdk_version") != "1.0.28" or receipt.get("cli_version") != "1.0.105"
+                        or receipt.get("protocol_version") != 3
+                        or receipt.get("actual_models") != [run.assigned_model]
+                        or receipt.get("actual_reasoning_efforts") != ["medium"]
+                        or receipt.get("routing_changes") != []
+                        or outcome["safety"] != "valid" or outcome["quiescent"] is not True
+                        or (outcome["accounting"] == "final") != (accounted_nano(usage) is not None)):
+                    raise StudyError("Typed SDK outcome failed identity, accounting or quiescence validation")
+                if outcome["work"] != "complete":
+                    if (not outcome["failure"] or outcome["failure"]["kind"] not in
+                            ("provider_transient", "transport", "timeout")
+                            or result.get("exit_code") != 1):
+                        raise StudyError("Typed SDK failure is not an eligible operational interruption")
+                    attempt_status = "infra_failed"
+                    raise RetryableError("Provider infrastructure failure; outputs and original allowance retained")
             held = (retry_hold_usage(receipt, result.get("exit_code"), run.assigned_model)
                     if holds_allowed else None)
             if held is not None:
@@ -315,6 +351,9 @@ class LiveRuntime:
                 usage = held
             elif (not isinstance(usage, dict) or usage.get("credits_complete") is not True
                     or type(usage.get("totalNanoAiu")) is not int or usage["totalNanoAiu"] < 0):
+                if supervision:
+                    attempt_status = "agent_returned"
+                    raise AccountingError("SDK accounting is incomplete; retained work must not be replayed")
                 raise StudyError("SDK usage is incomplete; reservation retained")
             if (receipt.get("sdk_version") != "1.0.28" or receipt.get("cli_version") != "1.0.105"
                     or receipt.get("protocol_version") != 3
@@ -327,6 +366,9 @@ class LiveRuntime:
             self.last_export = self.broker_call("export", self.state, review=run.current_step.endswith("-review"))
             if not run.current_step.endswith("-review"):
                 self.publish_committed(self.last_export)
+            if supervision:
+                controller.route_succeeded(run.cell)
+            attempt_status = "agent_returned"
             return {"exit_code": result.get("exit_code", 0), "timed_out": False,
                     "seconds": time.monotonic() - started, "usage": usage,
                     "possible_leak": False, "diagnostic_stub": False,
@@ -334,14 +376,18 @@ class LiveRuntime:
                                 "image": self.receipt["image"], "isolated_tools": True},
                     "actual_models": receipt["actual_models"],
                     "actual_reasoning_efforts": receipt["actual_reasoning_efforts"]}
+        except (RetryableError, AccountingError):
+            raise
         except (RuntimeError, OSError):
             controller.update(controller.state, oracle_halt=True)
             raise
         finally:
             with controller.lock:
                 attempt.update(seconds=round(time.monotonic() - started, 4), usage=usage,
-                               status="agent_returned" if result is not None else "interrupted")
+                               status=attempt_status)
                 controller.settle_attempt(attempt["id"], usage)
+                if supervision and attempt_status == "infra_failed":
+                    controller.supervise_failure(run.cell, attempt)
 
     def publish_committed(self, exported: dict) -> None:
         if not isinstance(exported, dict) or type(exported.get("head_changed")) is not bool:
@@ -496,7 +542,7 @@ class LiveRuntime:
 
 
 def run_bridge(request: dict, directory: Path, tool, *, on_start=None, on_stop=None,
-               accept_unaccounted_retry: bool = False) -> dict:
+               accept_unaccounted_retry: bool = False, accept_failed_outcome: bool = False) -> dict:
     """Drive the trusted bridge with bounded durable events and owned cleanup."""
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     deadline = time.monotonic() + request["remainingSeconds"]
@@ -594,6 +640,13 @@ def run_bridge(request: dict, directory: Path, tool, *, on_start=None, on_stop=N
             terminal = receipt.get("receipt")
             if not isinstance(terminal, dict) or terminal.get("session_id") != seen_session:
                 raise StudyError("SDK terminal receipt belongs to a different session")
+            if accept_failed_outcome:
+                from study import validate_attempt_outcome
+
+                validate_attempt_outcome(terminal.get("outcome"))
+                if type(receipt.get("exit_code")) is not int or receipt["exit_code"] != process.returncode:
+                    raise StudyError("SDK terminal outcome and process exit disagree")
+                return receipt
             if process.returncode:
                 code = terminal.get("protocol_error")
                 if code == "websocket_closed_usage_unknown":
