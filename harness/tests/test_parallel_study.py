@@ -1,10 +1,13 @@
 """Offline tests for concurrency, restart recovery, and calibration accounting."""
 import importlib
+import hashlib
 import json
 import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -91,6 +94,331 @@ def test_stopped_cell_reports_safe_reason_without_raw_infrastructure_details(
     assert f"Stopped: {cell['run_id']} | {cell['stop_reason']}" in output
     assert "private provider response" not in output
     assert (reason if error_kind == "accounting" else "inspect private attempt logs") in output
+
+
+def resilience_manifest():
+    return {"resilience_policy": {
+        "schema": "study-resilience-policy/v1", "approval": "Owner reviewed prospective resilience",
+        "approved_at": "2026-11-11T00:00:00+00:00", "max_quarantined_attempts": 2,
+        "max_quarantined_credits": 900, "route_failure_threshold": 2,
+        "route_cooldown_seconds": 60, "retry_backoff_seconds": 0,
+        "retry_max_backoff_seconds": 30}}
+
+
+@pytest.fixture
+def resilient_controller(study, config, tmp_path, monkeypatch):
+    monkeypatch.setattr(study, "fingerprint", lambda root=study.ROOT: "f" * 64)
+    monkeypatch.setattr(study, "show_progress", lambda *args: None)
+    monkeypatch.setattr(importlib.import_module("study_report"), "export", lambda *args: None)
+    manifest = dict(unregistered_manifest(study), **resilience_manifest())
+    return study.Controller(tmp_path, config, smoke=False, phase="calibration", study_id="supervisor",
+                            short_calibration=True, unregistered=manifest)
+
+
+def failed_operational_attempt(study, current, cell, *, known=False):
+    current.update(cell, checkpoint={"step": "f01-feature", "head": "retained-checkpoint"})
+    attempt = current.new_attempt(cell, "f01-feature")
+    usage = {"credits_complete": True, "totalNanoAiu": study.NANO} if known else None
+    current.settle_attempt(attempt["id"], usage)
+    current.update(attempt, status="infra_failed", usage=usage, seconds=1,
+                   outcome={"schema": "study-attempt-outcome/v1", "work": "unavailable", "safety": "valid",
+                            "accounting": "final" if known else "unknown", "quiescent": True,
+                            "failure": {"kind": "provider_transient", "stage": "session_send",
+                                        "retry_after_seconds": None}})
+    directory = current.directory / "runs" / cell["run_id"] / "attempts" / attempt["id"]
+    request = {"model": cell["assigned_model"], "reasoningEffort": "medium",
+               "resiliencePolicy": "study-resilience-policy/v1", "remainingSeconds": 899,
+               "maxAiCredits": 270, "prompt": "offline fixture"}
+    study.atomic_json(directory / "request.json", request)
+    result = {"type": "complete", "exit_code": 1, "receipt": {
+        "session_id": "offline-session", "sdk_version": "1.0.28", "cli_version": "1.0.105", "protocol_version": 3,
+        "actual_models": [cell["assigned_model"]], "actual_reasoning_efforts": ["medium"], "routing_changes": [],
+        "usage": usage, "outcome": attempt["outcome"]}}
+    journal = directory / "transport/events.jsonl"
+    journal.parent.mkdir(parents=True)
+    journal.write_text("".join(json.dumps(record) + "\n" for record in [
+        {"type": "event", "sessionId": "offline-session"}, result]))
+    request_sha = hashlib.sha256((directory / "request.json").read_bytes()).hexdigest()
+    study.atomic_json(directory / "terminal.json", {
+        "schema": "study-transport-terminal/v1", "attempt_id": attempt["id"],
+        "source_commit": current.state["identity"]["commit"], "request_sha256": request_sha,
+        "events_sha256": hashlib.sha256(journal.read_bytes()).hexdigest(), "seconds": 1, "result": result})
+    current.update(attempt, directory=str(directory.relative_to(current.directory)), seconds_limit=900,
+                   credit_limit_nano=270 * study.NANO, request_sha256=request_sha,
+                   terminal_sha256=hashlib.sha256((directory / "terminal.json").read_bytes()).hexdigest())
+    return attempt
+
+
+def test_given_quarantined_provider_failure_when_scheduling_then_healthy_cells_continue(
+        study, resilient_controller, monkeypatch):
+    current = resilient_controller
+    victim = current.state["cells"][0]
+    calls = []
+
+    def run_cell(cell):
+        calls.append(cell["run_id"])
+        if cell is victim:
+            failed_operational_attempt(study, current, cell)
+            raise study.RetryableError("Provider unavailable; no final charge")
+        attempt = current.new_attempt(cell, "f01-feature")
+        usage = {"credits_complete": True, "totalNanoAiu": study.NANO}
+        current.settle_attempt(attempt["id"], usage)
+        current.update(attempt, status="agent_returned", usage=usage, seconds=1)
+        current.update(cell, status="completed")
+
+    monkeypatch.setattr(current, "run_cell", run_cell)
+    assert not current.go()
+
+    entry = current.state["ledger"]["entries"][victim["attempts"][0]["id"]]
+    assert entry["status"] == "quarantine_hold" and entry["actual_nano"] is None
+    assert victim["status"] == "quarantined" and calls.count(victim["run_id"]) == 1
+    assert sum(cell["status"] == "completed" for cell in current.state["cells"]) == 14
+    assert not current.state.get("oracle_halt") and not current.admission_stopped()
+    assert current.state["status"] == "partial"
+    with pytest.raises(study.StudyError, match="Quarantined cell"):
+        current.new_attempt(victim, "f01-feature")
+
+
+@pytest.mark.parametrize("limit", ["count", "credits", "strict"])
+def test_given_unknown_risk_limit_when_exhausted_then_new_admission_stops(
+        study, resilient_controller, limit):
+    current = resilient_controller
+    policy = current.unregistered["resilience_policy"]
+    if limit == "count":
+        policy["max_quarantined_attempts"] = 1
+    elif limit == "credits":
+        policy["max_quarantined_credits"] = 600
+    else:
+        policy.update(max_quarantined_attempts=0, max_quarantined_credits=0)
+    victims = [cell for cell in current.state["cells"] if cell["arm"] == "D"]
+    for cell in victims[:1 if limit == "strict" else 2]:
+        attempt = failed_operational_attempt(study, current, cell)
+        current.supervise_failure(cell, attempt)
+
+    assert current.admission_stopped()
+    assert any(entry["status"] == "unknown" and entry["actual_nano"] is None
+               for entry in current.state["ledger"]["entries"].values())
+    with pytest.raises(study.StudyError, match="Unknown usage"):
+        current.new_attempt(current.state["cells"][-1], "f01-feature")
+
+
+def test_given_quarantine_hold_when_reserving_then_full_provision_and_policy_are_required(
+        study, resilient_controller):
+    current = resilient_controller
+    victim = current.state["cells"][0]
+    attempt = failed_operational_attempt(study, current, victim)
+    current.supervise_failure(victim, attempt)
+    ledger = current.state["ledger"]
+    held = ledger["entries"][attempt["id"]]["reserved_nano"]
+    policy = current.unregistered["resilience_policy"]
+    with pytest.raises(study.StudyError, match="owner-approved resilience policy"):
+        study.reserve(ledger, "without-policy", 1)
+    ledger["ceiling_nano"] = ledger["prior_nano"] + held + 1
+    study.reserve(ledger, "last-nano", 1, quarantine_policy=policy)
+    with pytest.raises(study.StudyError, match="ceiling"):
+        study.reserve(ledger, "over-ceiling", 1, quarantine_policy=policy)
+    assert study.accounted_nano(attempt["usage"]) is None
+
+
+def test_given_route_cooldown_when_scheduling_then_other_routes_keep_worker_capacity(
+        study, resilient_controller, monkeypatch):
+    current = resilient_controller
+    current.unregistered["resilience_policy"]["route_failure_threshold"] = 1
+    victim = current.state["cells"][0]
+    now = [study.time.time()]
+    monkeypatch.setattr(study.time, "time", lambda: now[0])
+    monkeypatch.setattr(current, "wait_for_schedule", lambda delay: now.__setitem__(0, now[0] + max(delay, 1)))
+    calls = []
+
+    def run_cell(cell):
+        calls.append((cell["run_id"], cell["assigned_model"], now[0]))
+        if cell is victim and not cell["attempts"]:
+            failed_operational_attempt(study, current, cell, known=True)
+            raise study.RetryableError("Final-billed provider failure")
+        current.update(cell, status="completed")
+
+    monkeypatch.setattr(current, "run_cell", run_cell)
+    assert current.go()
+
+    retried_at = [when for run_id, model, when in calls if run_id == victim["run_id"]][-1]
+    healthy = [(model, when) for run_id, model, when in calls if model != victim["assigned_model"]]
+    assert healthy and all(when < retried_at for model, when in healthy)
+    assert retried_at - calls[0][2] >= 60
+    assert current.state["supervisor"]["routes"][victim["assigned_model"]]["consecutive_failures"] == 1
+    assert all(model == next(cell["assigned_model"] for cell in current.state["cells"]
+                             if cell["run_id"] == run_id) for run_id, model, when in calls)
+
+
+def test_given_quarantine_when_resuming_then_hold_and_route_state_survive(study, resilient_controller):
+    current = resilient_controller
+    victim = current.state["cells"][0]
+    attempt = failed_operational_attempt(study, current, victim)
+    current.supervise_failure(victim, attempt)
+    before = study.read_json(current.path)
+
+    resumed = study.Controller(current.directory, current.cfg, smoke=False, phase="calibration",
+                               study_id=current.study_id, short_calibration=True,
+                               unregistered=current.unregistered)
+
+    assert resumed.state["ledger"] == before["ledger"]
+    assert resumed.state["supervisor"] == before["supervisor"]
+    assert resumed.state["cells"][0]["status"] == "quarantined"
+    assert resumed.state["cells"][0]["attempts"] == before["cells"][0]["attempts"]
+    assert not resumed.admission_stopped()
+
+
+@pytest.mark.parametrize("known", [False, True])
+def test_given_source_bound_terminal_when_recovering_then_no_copy_or_fresh_allowance(
+        study, resilient_controller, monkeypatch, known):
+    current = resilient_controller
+    recovery = importlib.import_module("prepare_estimation_recovery")
+    cell = current.state["cells"][0]
+    attempt = failed_operational_attempt(study, current, cell, known=known)
+    attempt["started"] -= 10
+    current.update(current.state, status="partial")
+    original = current.path.read_bytes()
+    approval = {"schema": "study-operational-approval/v1",
+                "state_sha256": hashlib.sha256(original).hexdigest(),
+                "source_commit": current.state["identity"]["commit"],
+                "manifest_sha256": recovery.digest(current.unregistered),
+                "attempts": {attempt["id"]: attempt["terminal_sha256"]}, "owner_approved": True,
+                "approval": "Owner authorized exact same-source terminal recovery",
+                "approved_at": datetime.now(timezone.utc).isoformat()}
+    monkeypatch.setattr(study, "paid_study_lock", lambda: nullcontext())
+    monkeypatch.setattr(study, "study_lock", lambda directory: nullcontext())
+
+    preview = recovery.prepare_operational(current.directory, current.unregistered, approval)
+    assert preview["applied"] is False and current.path.read_bytes() == original
+    assert not (current.directory / "operational-recovery").exists()
+    result = recovery.prepare_operational(current.directory, current.unregistered, approval, apply=True)
+    after = study.read_json(current.path)
+
+    assert result["applied"] is True
+    assert after["identity"] == current.state["identity"]
+    assert after["deadline"] == current.state["deadline"] and after["started"] == current.state["started"]
+    assert len(after["ledger"]["entries"]) == 1 and len(after["cells"][0]["attempts"]) == 1
+    entry = after["ledger"]["entries"][attempt["id"]]
+    assert entry["status"] == ("complete" if known else "quarantine_hold")
+    assert entry["actual_nano"] == (study.NANO if known else None)
+    assert (current.directory / "operational-recovery" / approval["state_sha256"] / "before.json").read_bytes() == original
+    study.validate_supervisor_state(current.directory, after, current.unregistered)
+    after["cells"][0]["attempts"][0]["credit_limit_nano"] += 1
+    with pytest.raises(study.StudyError):
+        study.validate_supervisor_state(current.directory, after, current.unregistered)
+    with pytest.raises(study.StudyError, match="exact state"):
+        recovery.prepare_operational(current.directory, current.unregistered, approval, apply=True)
+
+
+@pytest.mark.parametrize("damage", ["journal", "terminal", "safety_halt", "measurement", "writer", "expired"])
+def test_given_invalid_recovery_boundary_when_validating_then_state_is_unchanged(
+        study, resilient_controller, monkeypatch, damage):
+    current = resilient_controller
+    recovery = importlib.import_module("prepare_estimation_recovery")
+    cell = current.state["cells"][0]
+    attempt = failed_operational_attempt(study, current, cell)
+    attempt["started"] -= 10
+    if damage == "safety_halt":
+        current.state["oracle_halt"] = True
+    elif damage == "measurement":
+        attempt["measurement"] = {"status": "pending", "calls": 1}
+    elif damage == "writer":
+        current.state["writers"][cell["run_id"]] = {"pending": False, "pid": 123}
+        monkeypatch.setattr(study, "group_alive", lambda pid: True)
+    elif damage == "expired":
+        current.state["deadline"] = study.time.time() - 1
+    current.update(current.state, status="partial")
+    original = current.path.read_bytes()
+    approval = {"schema": "study-operational-approval/v1", "state_sha256": hashlib.sha256(original).hexdigest(),
+                "source_commit": current.state["identity"]["commit"], "manifest_sha256": recovery.digest(current.unregistered),
+                "attempts": {attempt["id"]: attempt["terminal_sha256"]}, "owner_approved": True,
+                "approval": "Exact stopped-state authorization", "approved_at": datetime.now(timezone.utc).isoformat()}
+    if damage in ("journal", "terminal"):
+        relative = "transport/events.jsonl" if damage == "journal" else "terminal.json"
+        path = current.directory / attempt["directory"] / relative
+        path.write_bytes(path.read_bytes() + b"\n")
+
+    with pytest.raises(study.StudyError):
+        recovery.prepare_operational(current.directory, current.unregistered, approval)
+
+    assert current.path.read_bytes() == original
+    assert not (current.directory / "operational-recovery").exists()
+
+
+def test_given_retry_backoff_when_cell_state_lags_then_dispatch_still_honors_the_decision(
+        study, resilient_controller):
+    current = resilient_controller
+    cell = current.state["cells"][0]
+    attempt = failed_operational_attempt(study, current, cell, known=True)
+    now = study.time.time()
+    current.update(attempt, recovery_action={"action": "retry_original_step", "decided_at": now,
+                                             "not_before": now + 60,
+                                             "source_commit": current.state["identity"]["commit"]})
+
+    assert current.route_not_before(cell) == now + 60
+    with pytest.raises(study.RetryableError, match="cooling down"):
+        current.new_attempt(cell, "f01-feature")
+    assert len(cell["attempts"]) == 1
+
+
+def test_given_accounted_failure_in_a_measured_retry_when_resuming_then_prior_cost_is_preserved(
+        study, resilient_controller):
+    current = resilient_controller
+    cell = current.state["cells"][0]
+    attempt = failed_operational_attempt(study, current, cell, known=True)
+    current.supervise_failure(cell, attempt)
+    current.update(attempt, cost_included_in_step=True)
+    current.update(cell, status="completed", checkpoint=None)
+
+    study.validate_supervisor_state(current.directory, current.state, current.unregistered)
+    assert current.state["ledger"]["entries"][attempt["id"]]["actual_nano"] == study.NANO
+
+
+@pytest.mark.parametrize("damage", ["unknown", "measurement", "unsafe", "active", "duration", "ledger", "measured"])
+def test_given_ineligible_attempt_when_considering_retry_then_no_replay(study, resilient_controller, damage):
+    current = resilient_controller
+    cell = current.state["cells"][0]
+    attempt = failed_operational_attempt(study, current, cell, known=True)
+    if damage == "unknown":
+        attempt["usage"] = None
+    elif damage == "measurement":
+        attempt["measurement"] = {"status": "pending", "calls": 1}
+    elif damage == "unsafe":
+        attempt["outcome"]["safety"] = "violated"
+    elif damage == "active":
+        current.state["writers"][cell["run_id"]] = {"pending": False, "pid": 123}
+    elif damage == "duration":
+        attempt["seconds"] = None
+    elif damage == "ledger":
+        current.state["ledger"]["entries"][attempt["id"]]["actual_nano"] += 1
+    else:
+        attempt["cost_included_in_step"] = True
+
+    assert not current.retry_live_attempt(cell, [attempt])
+    assert "recovery_action" not in attempt
+
+
+def test_given_known_quiescent_failure_when_live_then_retries_original_step(
+        study, config, tmp_path, monkeypatch):
+    current = study.Controller(tmp_path, config, smoke=False, phase="calibration", study_id="live-retry",
+                               short_calibration=True)
+    current.unregistered = resilience_manifest()
+    cell = current.state["cells"][0]
+    calls = []
+
+    def run_cell(item):
+        calls.append(item["run_id"])
+        if len(calls) == 1:
+            failed_operational_attempt(study, current, item, known=True)
+            raise study.RetryableError("Provider infrastructure failure; original allowance retained")
+        current.update(item, status="completed")
+
+    monkeypatch.setattr(current, "run_cell", run_cell)
+    current.run_scheduled_cell(cell)
+
+    assert calls == [cell["run_id"], cell["run_id"]]
+    assert cell["status"] == "completed"
+    assert len(cell["attempts"]) == 1
+    assert cell["attempts"][0]["usage"]["totalNanoAiu"] == study.NANO
 
 
 def benign_retry_receipt(nano=2_000_000_000, model="gpt-6.1-sol"):

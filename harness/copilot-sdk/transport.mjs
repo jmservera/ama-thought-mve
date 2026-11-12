@@ -19,6 +19,34 @@ const text = value => typeof value === 'string' && value.length > 0;
 const nano = value => Number.isSafeInteger(value) && value >= 0;
 const fault = code => Object.assign(new Error(code), { transportCode: code });
 
+export function operationalFailure(data, request) {
+  if (!keysOnly(data, ['apiCallId', 'apiEndpoint', 'durationMs', 'errorCode', 'errorMessage',
+    'errorType', 'failureKind', 'isAuto', 'isByok', 'model', 'providerCallId', 'reasoningEffort',
+    'retryAttempt', 'rte', 'serviceRequestId', 'source', 'statusCode', 'transport', 'interactionType',
+    'maxOutputTokens', 'maxPromptTokens', 'requestBodyBytes', 'requestBodyEncoding', 'requestBodyWireBytes']) ||
+    data.source !== 'top_level' || !['http', 'websocket'].includes(data.transport) ||
+    (data.model !== undefined && data.model !== request.model) ||
+    (data.reasoningEffort !== undefined && data.reasoningEffort !== request.reasoningEffort) ||
+    ['isAuto', 'isByok'].some(key => data[key] !== undefined && data[key] !== false) ||
+    ['apiCallId', 'apiEndpoint', 'errorCode', 'errorMessage', 'errorType', 'model',
+      'providerCallId', 'reasoningEffort', 'serviceRequestId', 'requestBodyEncoding'].some(key =>
+      data[key] !== undefined && typeof data[key] !== 'string') ||
+    (data.interactionType !== undefined && data.interactionType !== 'conversation-agent') ||
+    ['maxOutputTokens', 'maxPromptTokens', 'requestBodyBytes', 'requestBodyWireBytes'].some(key =>
+      data[key] !== undefined && !nano(data[key])) ||
+    (data.retryAttempt !== undefined && !nano(data.retryAttempt)) ||
+    (data.durationMs !== undefined && (!Number.isFinite(data.durationMs) || data.durationMs < 0)) ||
+    (data.rte !== undefined && typeof data.rte !== 'boolean') ||
+    (data.statusCode !== undefined && (!Number.isInteger(data.statusCode) ||
+      data.statusCode < 100 || data.statusCode > 599))) return null;
+  const status = data.statusCode;
+  if (status !== undefined && status < 500 && ![408, 429].includes(status)) return null;
+  const kind = data.failureKind === 'transport' ? 'transport' :
+    data.failureKind === 'api' && (status >= 500 || [408, 429].includes(status)) ?
+      status === 408 ? 'timeout' : 'provider_transient' : null;
+  return kind ? { kind, stage: 'session_send', retry_after_seconds: null } : null;
+}
+
 export function isWebSocketReset(data) {
   return object(data) && data.failureKind === 'transport' && data.transport === 'websocket' &&
     data.source === 'top_level' && data.apiEndpoint === 'ws:/responses' &&
@@ -37,14 +65,15 @@ export function isWebSocketGoingAway(data) {
 
 export function validateRequest(request) {
   if (!keysOnly(request, ['model', 'reasoningEffort', 'prompt', 'remainingSeconds',
-    'maxAiCredits', 'cliPath', 'baseDirectory']) ||
+    'maxAiCredits', 'cliPath', 'baseDirectory', 'resiliencePolicy']) ||
     !text(request.model) || request.model.length > 200 ||
     request.reasoningEffort !== 'medium' || !text(request.prompt) ||
     !Number.isFinite(request.remainingSeconds) || request.remainingSeconds <= 0 ||
     request.remainingSeconds > 86400 ||
     !Number.isFinite(request.maxAiCredits) || request.maxAiCredits <= 0 ||
     !text(request.cliPath) || !isAbsolute(request.cliPath) ||
-    !text(request.baseDirectory) || !isAbsolute(request.baseDirectory))
+    !text(request.baseDirectory) || !isAbsolute(request.baseDirectory) ||
+    (request.resiliencePolicy !== undefined && request.resiliencePolicy !== 'study-resilience-policy/v1'))
     throw fault('invalid_initial_request');
   return request;
 }
@@ -217,6 +246,9 @@ export class Evidence {
     this.finishedRetryCall = null;
     this.providerFailures = new Map();
     this.retryNeedsSuccess = false;
+    this.operationalFailures = [];
+    this.lateSafetyFault = false;
+    this.nativeCalls = 0;
   }
   verifyToolCatalog(metadata) {
     const tools = metadata?.tools;
@@ -231,6 +263,52 @@ export class Evidence {
     if (text(effort)) this.efforts.add(effort);
     if (model !== this.request.model || effort !== this.request.reasoningEffort)
       throw fault('actual_identity_unavailable_or_mismatched');
+  }
+  inspectAfterFailure(event) {
+    if (!object(event) || !text(event.id) || !text(event.type) || !object(event.data) || event.agentId)
+      throw fault('invalid_sdk_event');
+    const data = event.data;
+    if ((data.sessionId !== undefined && data.sessionId !== this.sessionId) ||
+      [data.model, data.newModel, data.currentModel, data.modelCall?.model].some(model =>
+        model !== undefined && model !== this.request.model) ||
+      (data.reasoningEffort !== undefined && data.reasoningEffort !== this.request.reasoningEffort) ||
+      data.isAuto || data.isByok || data.fusion)
+      throw fault('actual_identity_unavailable_or_mismatched');
+    if (['session.model_change', 'session.model_deselected', 'session.truncation',
+      'session.handoff', 'session.instruction_update', 'instruction.update', 'skill.invoked',
+      'subagent.started', 'hook.start', 'tool.search_activated', 'session.managed_plugin_progress']
+      .includes(event.type) || /^(mcp\.|subagent\.|hook\.|session\.fusion|assistant\.fusion)/.test(event.type) ||
+      (event.type.startsWith('session.mcp_') && event.type !== 'session.mcp_servers_loaded') ||
+      (event.type === 'system.notification' && data.kind?.type === 'instruction_discovered'))
+      throw fault('unexpected_runtime_activity');
+    if (event.type.startsWith('tool.execution_') ||
+      ['session.skills_loaded', 'session.custom_agents_updated', 'session.mcp_servers_loaded',
+        'session.extensions_loaded', 'assistant.usage', 'session.usage_checkpoint'].includes(event.type))
+      this.observe(event);
+    if (event.type === 'model.call_failure' && !operationalFailure(data, this.request))
+      throw fault('unexpected_runtime_activity');
+  }
+  outcome(receipt, errorCode, failureStage, quiescent) {
+    const enabled = this.request.resiliencePolicy === 'study-resilience-policy/v1';
+    if (!enabled) return undefined;
+    const operational = this.operationalFailures.at(-1);
+    const supported = !errorCode || (operational && ['provider_operational_failure',
+      'websocket_closed_usage_unknown', 'transient_provider_failure', 'incomplete_provider_retry',
+      'provider_retry_limit', 'sdk_failure', 'session_aborted'].includes(errorCode)) ||
+      errorCode === 'original_deadline_exhausted';
+    const valid = supported && !this.lateSafetyFault && this.started && this.toolCatalogVerified &&
+      this.models.size === 1 && this.models.has(this.request.model) &&
+      this.efforts.size === 1 && this.efforts.has(this.request.reasoningEffort) && !this.routing.length;
+    return { schema: 'study-attempt-outcome/v1',
+      work: !errorCode && this.idle && this.shutdown ? 'complete' : 'unavailable',
+      safety: valid ? 'valid' : 'unverified',
+      accounting: receipt.usage.credits_complete ? 'final' : receipt.usage_lower_bound ? 'provisional' : 'unknown',
+      quiescent: Boolean(quiescent),
+      failure: receipt.usage.credits_complete && !errorCode ? null : {
+        kind: !valid ? 'contract' : errorCode === 'original_deadline_exhausted' ? 'timeout' :
+          operational?.kind ?? 'accounting_incomplete',
+        stage: failureStage ?? 'accounting', retry_after_seconds: operational?.retry_after_seconds ?? null,
+      }, native_calls: this.nativeCalls, native_failures: this.operationalFailures.length };
   }
   observe(event) {
     if (!object(event) || !text(event.id) || !text(event.type) || !object(event.data))
@@ -252,6 +330,7 @@ export class Evidence {
       this.identity(data.newModel, data.reasoningEffort);
       if (data.source === 'automatic' || data.cause) throw fault('unexpected_model_routing');
     } else if (event.type === 'model.call_start') {
+      this.nativeCalls++;
       if (!this.started || !this.toolCatalogVerified ||
         !text(data.turnId) || data.turnId.length > 128 || data.model !== this.request.model)
         throw fault('provider_call_correlation_unavailable');
@@ -269,7 +348,12 @@ export class Evidence {
         this.finishedRetryCall = null;
       }
     } else if (event.type === 'model.call_failure') {
-      this.identity(data.model, data.reasoningEffort);
+      const operational = this.request.resiliencePolicy === 'study-resilience-policy/v1' &&
+        this.started && this.toolCatalogVerified && this.modelCall?.attemptActive ?
+        operationalFailure(data, this.request) : null;
+      if (operational) this.operationalFailures.push(operational);
+      if (!operational || (data.model !== undefined && data.reasoningEffort !== undefined))
+        this.identity(data.model, data.reasoningEffort);
       if (this.started && this.toolCatalogVerified && this.modelCall?.attemptActive &&
         data.isAuto === false && data.isByok === false && !data.fusion &&
         isWebSocketGoingAway(data)) throw fault('websocket_closed_usage_unknown');
@@ -286,7 +370,7 @@ export class Evidence {
         (!websocketFailure && !httpFailure) || data.isAuto !== false || data.isByok !== false ||
         data.fusion ||
         data.retryAttempt !== this.modelCall.failures.length)
-        throw fault('unexpected_runtime_activity');
+        throw fault(operational ? 'provider_operational_failure' : 'unexpected_runtime_activity');
       if (this.providerFailures.has(failureKey))
         throw fault('provider_failure_correlation_unavailable');
       if (this.providerFailures.size >= MAX_TRANSIENT_FAILURES)
@@ -540,6 +624,7 @@ export async function runTransport({ input = process.stdin, output = process.std
   let failure;
   let stage = 'initial_request';
   let failureStage;
+  let runtimeQuiescent = false;
   const toolIds = new Set();
   let rejectFailure;
   let resolveInitial;
@@ -656,7 +741,11 @@ export async function runTransport({ input = process.stdin, output = process.std
       try {
         writer.write({ type: 'event', sessionId: evidence.sessionId, event });
         if (!failure) evidence.observe(event);
-      } catch (error) { fail(error); }
+        else if (request.resiliencePolicy) evidence.inspectAfterFailure(event);
+      } catch (error) {
+        if (failure && request.resiliencePolicy) evidence.lateSafetyFault = true;
+        fail(error);
+      }
     });
     if (failure) throw failure;
     stage = 'session_create';
@@ -679,8 +768,12 @@ export async function runTransport({ input = process.stdin, output = process.std
   } finally {
     if (runtime) {
       stage = 'runtime_cleanup';
-      try { await runtime.close(); }
+      try {
+        await runtime.close();
+        runtimeQuiescent = true;
+      }
       catch {
+        if (evidence) evidence.lateSafetyFault = true;
         if (!failure) {
           failure = fault('runtime_cleanup_failure');
           failureStage = stage;
@@ -709,6 +802,8 @@ export async function runTransport({ input = process.stdin, output = process.std
       protocol_error: failure?.message || 'missing_initial_request',
     };
     receipt.failure_stage = failure ? failureStage : null;
+    if (evidence?.request.resiliencePolicy)
+      receipt.outcome = evidence.outcome(receipt, failure?.message, receipt.failure_stage, runtimeQuiescent);
     let exitCode = receipt.usage.credits_complete ? 0 : 1;
     try {
       writer.write({ type: 'complete', receipt, exit_code: exitCode });

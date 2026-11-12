@@ -558,6 +558,76 @@ def test_live_attempt_reserves_before_transport_and_preserves_charge_on_failure(
     assert current.state["writer_pid"] is None and not current.state["writer_pending"]
 
 
+@pytest.mark.parametrize("damage", [None, "identity", "safety", "quiescence", "accounting", "schema", "accounting_only"])
+def test_given_typed_provider_failure_when_live_then_preserves_unknown_cost_without_export(
+        runtime, tmp_path, monkeypatch, damage):
+    study = importlib.import_module("study")
+    config = study.read_json(study.ROOT / "harness/study-config.json")
+    current = study.Controller(tmp_path / "private", config, smoke=False, phase="calibration",
+                               study_id="typed-failure", short_calibration=True)
+    current.unregistered = {"resilience_policy": {
+        "schema": "study-resilience-policy/v1", "approval": "Owner reviewed prospective resilience",
+        "approved_at": "2026-11-11T00:00:00+00:00", "max_quarantined_attempts": 2,
+        "max_quarantined_credits": 900, "route_failure_threshold": 2,
+        "route_cooldown_seconds": 60, "retry_backoff_seconds": 0, "retry_max_backoff_seconds": 30}}
+    cell = current.state["cells"][0]
+    repo = trusted_repo(runtime, tmp_path)
+    live = object.__new__(runtime.LiveRuntime)
+    live.run = SimpleNamespace(controller=current, cell=cell, current_step="f01-feature", repo=repo,
+                               dir=str(current.directory / "fixture"), assigned_model=cell["assigned_model"],
+                               credit_multiplier=lambda: 1,
+                               remaining_allowance=lambda budget: (budget, 270 * runtime.NANO))
+    live.receipt = {"image": "sha256:" + "0" * 64}
+    live.broker = SimpleNamespace(seed=lambda files, *, git_bundle: "opaque-fixture-state",
+                                  export=lambda *args, **kwargs: pytest.fail("Failed work must not be published"))
+    monkeypatch.setattr(runtime, "runtime_errors", lambda *args, **kwargs: [])
+    outcome = {"schema": "study-attempt-outcome/v1", "work": "unavailable", "safety": "valid",
+               "accounting": "unknown", "quiescent": True,
+               "failure": {"kind": "provider_transient", "stage": "session_send", "retry_after_seconds": None}}
+    if damage in ("safety", "quiescence", "accounting", "schema"):
+        key, value = {"safety": ("safety", "unverified"), "quiescence": ("quiescent", False),
+                      "accounting": ("accounting", "final"), "schema": ("schema", "unknown/v9")}[damage]
+        outcome[key] = value
+    elif damage == "accounting_only":
+        outcome["work"] = "complete"
+        outcome["failure"]["kind"] = "accounting_incomplete"
+
+    def bridge(request, directory, tool, **options):
+        assert request["resiliencePolicy"] == "study-resilience-policy/v1"
+        assert options["accept_failed_outcome"] is True
+        options["on_start"](123)
+        options["on_stop"]()
+        result = {"type": "complete", "exit_code": 1, "receipt": {
+            "session_id": "offline-session",
+            "sdk_version": "1.0.28", "cli_version": "1.0.105", "protocol_version": 3,
+            "protocol_error": "provider_operational_failure", "routing_changes": [],
+            "actual_models": ["other"] if damage == "identity" else [cell["assigned_model"]],
+            "actual_reasoning_efforts": ["medium"], "outcome": outcome,
+            "usage": {"credits_complete": False, "totalNanoAiu": None}}}
+        directory.mkdir(parents=True)
+        (directory / "events.jsonl").write_text("".join(json.dumps(record) + "\n" for record in [
+            {"type": "event", "sessionId": "offline-session"}, result]))
+        return result
+
+    monkeypatch.setattr(runtime, "run_bridge", bridge)
+    expected_error = (runtime.RetryableError if damage is None else runtime.AccountingError
+                      if damage == "accounting_only" else runtime.StudyError)
+    with pytest.raises(expected_error):
+        live.run_agent("offline fixture", str(tmp_path / "steps"), 900)
+
+    attempt = cell["attempts"][-1]
+    entry = current.state["ledger"]["entries"][attempt["id"]]
+    assert entry["status"] == ("quarantine_hold" if damage is None else "unknown")
+    assert entry["actual_nano"] is None
+    if damage is None:
+        assert attempt["supervision"]["action"] == "quarantine_cell"
+        assert cell["status"] == "quarantined" and not current.admission_stopped()
+    assert attempt["status"] == ("infra_failed" if damage is None else "agent_returned"
+                                 if damage == "accounting_only" else "interrupted")
+    assert bool(current.state.get("oracle_halt")) is (damage not in (None, "accounting_only"))
+    assert (repo / "src/code.py").read_text() == "VALUE = 1\n"
+
+
 @pytest.mark.parametrize("case", ["accepted", "no_policy", "at_limit", "mismatched_calls", "failed_midway"])
 def test_unaccounted_retry_keeps_delivered_work_only_under_bounded_owner_policy(
     runtime, tmp_path, monkeypatch, case,

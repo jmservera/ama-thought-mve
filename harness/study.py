@@ -296,7 +296,24 @@ def schedule(smoke: bool, phase: str, seed: int, replicates: int | None = None,
     return cells
 
 
-def reserve(ledger: dict, attempt: str, amount: int) -> None:
+def quarantine_exposure(ledger: dict, policy: dict | None) -> tuple[int, int]:
+    """Count full unresolved reservations, never treating provisions as measured spending."""
+    entries = [entry for entry in ledger["entries"].values() if entry["status"] == "quarantine_hold"]
+    if not entries:
+        return 0, 0
+    if not policy:
+        raise StudyError("Quarantined unknown usage requires the original owner-approved resilience policy")
+    resilience_policy({"resilience_policy": policy})
+    if any(type(entry.get("reserved_nano")) is not int or entry["reserved_nano"] <= 0
+           or entry.get("actual_nano") is not None for entry in entries):
+        raise StudyError("Invalid quarantined unknown-charge reservation")
+    exposure = sum(entry["reserved_nano"] for entry in entries)
+    if len(entries) > policy["max_quarantined_attempts"] or exposure > credits(policy["max_quarantined_credits"]):
+        raise StudyError("Quarantined unknown-charge risk envelope exhausted")
+    return len(entries), exposure
+
+
+def reserve(ledger: dict, attempt: str, amount: int, *, quarantine_policy: dict | None = None) -> None:
     """Admit work only when known spending plus all held budget fits."""
     if type(amount) is not int or amount < 0:
         raise StudyError("Reservation must be nonnegative integer nano-credits")
@@ -308,6 +325,7 @@ def reserve(ledger: dict, attempt: str, amount: int) -> None:
     entries = ledger["entries"].values()
     if any(entry["status"] == "unknown" for entry in entries):
         raise StudyError("Unknown usage holds its reservation and blocks new work")
+    quarantine_exposure(ledger, quarantine_policy)
     if any(entry["status"] == "complete" and entry["actual_nano"] > entry["reserved_nano"] for entry in entries):
         raise StudyError("Actual credits exceeded a reservation; new work stays blocked")
     handoff = ledger.get("calibration_handoff") or {}
@@ -350,6 +368,255 @@ def retry_hold_policy(manifest: dict | None) -> dict | None:
     if approved.utcoffset() is None:
         raise StudyError("Retry hold approval timestamp must include a timezone")
     return policy
+
+
+def resilience_policy(manifest: dict | None) -> dict | None:
+    """Validate prospective owner authorization without enabling it for existing studies."""
+    policy = (manifest or {}).get("resilience_policy")
+    if policy is None:
+        return None
+    fields = {"schema", "approval", "approved_at", "max_quarantined_attempts",
+              "max_quarantined_credits", "route_failure_threshold", "route_cooldown_seconds",
+              "retry_backoff_seconds", "retry_max_backoff_seconds"}
+    if (not isinstance(policy, dict) or set(policy) != fields
+            or policy["schema"] != "study-resilience-policy/v1"
+            or not isinstance(policy["approval"], str) or not policy["approval"].strip()):
+        raise StudyError("Invalid prospective resilience policy")
+    for name, lower, upper in (("max_quarantined_attempts", 0, 200),
+                               ("route_failure_threshold", 1, 20),
+                               ("route_cooldown_seconds", 1, 86400),
+                               ("retry_backoff_seconds", 0, 300),
+                               ("retry_max_backoff_seconds", 0, 3600)):
+        if type(policy[name]) is not int or not lower <= policy[name] <= upper:
+            raise StudyError(f"Invalid resilience policy bound: {name}")
+    held = credits(policy["max_quarantined_credits"])
+    if (held > MAX_CREDITS or (held == 0) != (policy["max_quarantined_attempts"] == 0)
+            or policy["retry_backoff_seconds"] > policy["retry_max_backoff_seconds"]):
+        raise StudyError("Inconsistent resilience policy bounds")
+    try:
+        approved = datetime.fromisoformat(policy["approved_at"])
+    except (TypeError, ValueError) as error:
+        raise StudyError("Resilience approval requires an ISO 8601 timestamp") from error
+    if approved.utcoffset() is None:
+        raise StudyError("Resilience approval timestamp must include a timezone")
+    return policy
+
+
+def validate_attempt_outcome(outcome: object) -> dict:
+    """Reject unknown outcome schemas rather than guessing safety or recovery eligibility."""
+    required = {"schema", "work", "safety", "accounting", "quiescent", "failure"}
+    if (not isinstance(outcome, dict) or set(outcome) - {"native_calls", "native_failures"} != required
+            or outcome["schema"] != "study-attempt-outcome/v1"
+            or outcome["work"] not in ("complete", "partial", "unavailable")
+            or outcome["safety"] not in ("valid", "violated", "unverified")
+            or outcome["accounting"] not in ("final", "provisional", "unknown")
+            or type(outcome["quiescent"]) is not bool):
+        raise StudyError("Invalid typed attempt outcome; preserve evidence for investigation")
+    for name in ("native_calls", "native_failures"):
+        if name in outcome and (type(outcome[name]) is not int or not 0 <= outcome[name] <= 1_000_000):
+            raise StudyError("Invalid typed attempt counters")
+    failure = outcome["failure"]
+    if failure is None:
+        if outcome["work"] != "complete" or outcome["accounting"] != "final" or outcome["safety"] != "valid":
+            raise StudyError("Incomplete typed outcome lacks a failure disposition")
+        return outcome
+    stages = {"initial_request", "runtime_setup", "runtime_startup", "session_create", "session_tool_catalog",
+              "session_send", "session_shutdown", "runtime_cleanup", "output_flush", "accounting"}
+    if (not isinstance(failure, dict) or set(failure) != {"kind", "stage", "retry_after_seconds"}
+            or failure["kind"] not in ("provider_transient", "transport", "timeout", "contract",
+                                        "accounting_incomplete", "authentication")
+            or failure["stage"] not in stages):
+        raise StudyError("Unknown typed failure contract")
+    delay = failure["retry_after_seconds"]
+    if delay is not None and (type(delay) not in (int, float) or not math.isfinite(delay) or delay < 0):
+        raise StudyError("Invalid typed Retry-After evidence")
+    return outcome
+
+
+def supervised_terminal(directory: Path, attempt: dict, model: str, commit: str,
+                        *, expected_sha256: str | None = None) -> dict:
+    """Verify source-bound terminal evidence without importing work or replaying a request."""
+    relative = attempt.get("directory")
+    if (not isinstance(relative, str) or not relative or Path(relative).is_absolute()
+            or relative != Path(relative).as_posix() or ".." in Path(relative).parts
+            or Path(relative).parts[-2:] != ("attempts", attempt["id"])):
+        raise StudyError("Invalid supervised attempt directory")
+    parent = directory
+    for part in Path(relative).parts:
+        parent = parent / part
+        if parent.is_symlink() or not parent.is_dir():
+            raise StudyError("Supervised evidence contains an unsafe directory")
+
+    def payload(path: Path, limit: int) -> bytes:
+        if (path.parent.is_symlink() or path.is_symlink() or not path.is_file()
+                or not path.resolve().is_relative_to(directory.resolve()) or path.stat().st_size > limit):
+            raise StudyError("Supervised evidence is missing, unsafe or oversized")
+        return path.read_bytes()
+
+    terminal_bytes = payload(parent / "terminal.json", 2 * 1024 * 1024)
+    expected = expected_sha256 or attempt.get("terminal_sha256")
+    if not isinstance(expected, str) or hashlib.sha256(terminal_bytes).hexdigest() != expected:
+        raise StudyError("Supervised terminal hash differs from its durable authorization")
+    terminal = json.loads(terminal_bytes)
+    fields = {"schema", "attempt_id", "source_commit", "request_sha256", "events_sha256", "seconds", "result"}
+    if (not isinstance(terminal, dict) or set(terminal) != fields
+            or terminal["schema"] != "study-transport-terminal/v1" or terminal["attempt_id"] != attempt["id"]
+            or terminal["source_commit"] != commit or attempt.get("source_commit") != commit
+            or type(terminal["seconds"]) not in (int, float)
+            or not math.isfinite(terminal["seconds"]) or terminal["seconds"] < 0):
+        raise StudyError("Supervised terminal source or duration is invalid")
+    request_bytes = payload(parent / "request.json", 1024 * 1024)
+    request = json.loads(request_bytes)
+    if (hashlib.sha256(request_bytes).hexdigest() != terminal["request_sha256"]
+            or terminal["request_sha256"] != attempt.get("request_sha256")
+            or not isinstance(request, dict) or request.get("model") != model
+            or request.get("reasoningEffort") != "medium"
+            or request.get("resiliencePolicy") != "study-resilience-policy/v1"
+            or credits(request.get("maxAiCredits")) != attempt.get("credit_limit_nano")
+            or type(request.get("remainingSeconds")) not in (int, float)
+            or not math.isfinite(request["remainingSeconds"])
+            or not 0 < request["remainingSeconds"] <= attempt.get("seconds_limit", 0)):
+        raise StudyError("Supervised request differs from the original treatment or allowance")
+    result = terminal["result"]
+    receipt = result.get("receipt") if isinstance(result, dict) else None
+    if (not isinstance(result, dict) or set(result) != {"type", "receipt", "exit_code"}
+            or result["type"] != "complete" or type(result["exit_code"]) is not int
+            or result["exit_code"] not in (0, 1) or not isinstance(receipt, dict)
+            or receipt.get("sdk_version") != "1.0.28" or receipt.get("cli_version") != "1.0.105"
+            or receipt.get("protocol_version") != 3 or receipt.get("actual_models") != [model]
+            or receipt.get("actual_reasoning_efforts") != ["medium"] or receipt.get("routing_changes") != []):
+        raise StudyError("Supervised terminal treatment or transport identity differs")
+    outcome = validate_attempt_outcome(receipt.get("outcome"))
+    if (outcome["safety"] != "valid" or outcome["quiescent"] is not True
+            or (outcome["accounting"] == "final") != (accounted_nano(receipt.get("usage")) is not None)):
+        raise StudyError("Supervised terminal lacks valid safety, quiescence or accounting")
+    if attempt.get("outcome") is not None and attempt["outcome"] != outcome:
+        raise StudyError("Supervised outcome differs from the retained receipt")
+    if attempt.get("usage") is not None and attempt["usage"] != receipt.get("usage"):
+        raise StudyError("Supervised billing differs from the retained receipt")
+    journal = payload(parent / "transport/events.jsonl", 64 * 1024 * 1024)
+    if not journal.endswith(b"\n") or hashlib.sha256(journal).hexdigest() != terminal["events_sha256"]:
+        raise StudyError("Supervised journal hash or final framing differs")
+    records = [json.loads(line) for line in journal.splitlines()]
+    sessions = {record.get("sessionId") for record in records
+                if isinstance(record, dict) and record.get("type") == "event"}
+    if (not records or records[-1] != result
+            or any(not isinstance(record, dict) or record.get("type") not in ("event", "tool", "complete")
+                   for record in records)
+            or sum(record["type"] == "complete" for record in records) != 1
+            or sessions != {receipt.get("session_id")} or None in sessions or "" in sessions):
+        raise StudyError("Supervised journal does not contain one correlated terminal outcome")
+    return terminal
+
+
+def validate_supervisor_state(directory: Path, state: dict, manifest: dict | None) -> None:
+    """Revalidate persistent quarantine and route evidence before any resumed admission."""
+    policy = resilience_policy(manifest)
+    supervisor = state.get("supervisor")
+    if supervisor is not None:
+        if (not policy or not isinstance(supervisor, dict)
+                or set(supervisor) != {"schema", "routes"} or supervisor["schema"] != "study-supervisor/v1"
+                or not isinstance(supervisor["routes"], dict)):
+            raise StudyError("Persistent supervisor lacks its original approved policy")
+        models = {cell.get("assigned_model") for cell in state["cells"]}
+        for model, route in supervisor["routes"].items():
+            if (model not in models or not isinstance(route, dict)
+                    or set(route) != {"consecutive_failures", "blocked_until"}
+                    or type(route["consecutive_failures"]) is not int or route["consecutive_failures"] < 0
+                    or type(route["blocked_until"]) not in (int, float)
+                    or not math.isfinite(route["blocked_until"]) or route["blocked_until"] < 0):
+                raise StudyError("Invalid persistent provider route state")
+    quarantine_exposure(state["ledger"], policy)
+    entries = state["ledger"]["entries"]
+    if supervisor is not None or any(entry["status"] == "quarantine_hold" for entry in entries.values()):
+        ids = [attempt["id"] for cell in state["cells"] for attempt in cell["attempts"]]
+        if len(set(ids)) != len(ids) or set(ids) != set(entries):
+            raise StudyError("Supervised attempt and reservation inventories differ")
+    for cell in state["cells"]:
+        for attempt in cell["attempts"]:
+            if entries[attempt["id"]]["status"] != "quarantine_hold" and not attempt.get("supervision"):
+                continue
+            terminal = supervised_terminal(directory, attempt, cell["assigned_model"], state["identity"]["commit"])
+            outcome = terminal["result"]["receipt"]["outcome"]
+            observation = attempt.get("supervision")
+            if (not isinstance(observation, dict)
+                    or set(observation) != {"action", "observed_at", "source_commit", "route"}
+                    or observation["action"] not in ("retain_original_allowance", "quarantine_cell",
+                                                       "pause_unknown_risk_exhausted")
+                    or observation["source_commit"] != state["identity"]["commit"]
+                    or observation["route"] != cell["assigned_model"]
+                    or type(observation["observed_at"]) not in (int, float)
+                    or not math.isfinite(observation["observed_at"]) or observation["observed_at"] < 0):
+                raise StudyError("Persistent recovery action differs from its source and route")
+            if (not policy or attempt.get("status") != "infra_failed" or attempt.get("measurement")
+                    or outcome["work"] == "complete"
+                    or outcome["failure"]["kind"] not in ("provider_transient", "transport", "timeout")):
+                raise StudyError("Persistent operational recovery is not an unmeasured infrastructure failure")
+            if entries[attempt["id"]]["status"] == "quarantine_hold" and (
+                    cell.get("status") != "quarantined" or outcome["accounting"] == "final"
+                    or attempt.get("cost_included_in_step")
+                    or attempt.get("supervision", {}).get("action") != "quarantine_cell"):
+                raise StudyError("Quarantined reservation differs from its retained cell outcome")
+            if outcome["accounting"] == "final" and (
+                    entries[attempt["id"]]["status"] != "complete"
+                    or entries[attempt["id"]]["actual_nano"] != accounted_nano(attempt.get("usage"))):
+                raise StudyError("Supervised final accounting differs from its retained reservation")
+            decision = attempt.get("recovery_action")
+            if decision is not None and (
+                    not isinstance(decision, dict)
+                    or set(decision) != {"action", "decided_at", "not_before", "source_commit"}
+                    or decision["action"] != "retry_original_step"
+                    or decision["source_commit"] != state["identity"]["commit"]
+                    or any(type(decision[key]) not in (int, float) or not math.isfinite(decision[key])
+                           for key in ("decided_at", "not_before"))
+                    or decision["not_before"] < decision["decided_at"]):
+                raise StudyError("Persistent retry backoff differs from its original authorization")
+    if state.get("operational_recoveries"):
+        from prepare_estimation_recovery import validate_operational_recoveries
+
+        validate_operational_recoveries(directory, state, manifest)
+
+
+def supervise_failure_state(directory: Path, state: dict, manifest: dict | None,
+                            cell: dict, attempt: dict) -> None:
+    """Apply one evidence-checked supervision transition; the caller owns locking and persistence."""
+    policy = resilience_policy(manifest)
+    if not policy or attempt.get("supervision"):
+        return
+    outcome = validate_attempt_outcome(attempt.get("outcome"))
+    if (outcome["safety"] != "valid" or outcome["quiescent"] is not True
+            or outcome["work"] == "complete" or not outcome["failure"]
+            or outcome["failure"]["kind"] not in ("provider_transient", "transport", "timeout")
+            or attempt.get("measurement") or attempt.get("cost_included_in_step")
+            or cell["run_id"] in state.get("writers", {})
+            or attempt.get("source_commit") != state["identity"]["commit"]):
+        raise StudyError("Operational recovery lacks valid quiescent unmeasured evidence")
+    supervised_terminal(directory, attempt, cell["assigned_model"], state["identity"]["commit"])
+    supervisor = state.setdefault("supervisor", {"schema": "study-supervisor/v1", "routes": {}})
+    route = supervisor["routes"].setdefault(cell["assigned_model"],
+                                           {"consecutive_failures": 0, "blocked_until": 0})
+    route["consecutive_failures"] += 1
+    now = time.time()
+    if route["consecutive_failures"] >= policy["route_failure_threshold"]:
+        route["blocked_until"] = max(route["blocked_until"], now + policy["route_cooldown_seconds"])
+    retry_after = outcome["failure"]["retry_after_seconds"]
+    if retry_after is not None:
+        route["blocked_until"] = max(route["blocked_until"], now + retry_after)
+    action = "retain_original_allowance"
+    entry = state["ledger"]["entries"][attempt["id"]]
+    if accounted_nano(attempt.get("usage")) is None:
+        if entry["status"] != "unknown":
+            raise StudyError("Unfinished provider request lacks an unknown reservation")
+        count, exposure = quarantine_exposure(state["ledger"], policy)
+        if (count < policy["max_quarantined_attempts"]
+                and exposure + entry["reserved_nano"] <= credits(policy["max_quarantined_credits"])):
+            entry["status"] = "quarantine_hold"
+            action = "quarantine_cell"
+        else:
+            action = "pause_unknown_risk_exhausted"
+        cell["status"] = "quarantined"
+    attempt["supervision"] = {"action": action, "observed_at": now,
+                              "source_commit": state["identity"]["commit"], "route": cell["assigned_model"]}
 
 
 def retry_hold_lower_bound(usage: dict | None) -> tuple[int, int] | None:
@@ -442,6 +709,10 @@ def freeze_errors(cfg: dict, root: Path = ROOT, *, unregistered: dict | None = N
         for gate in GATES:
             if not isinstance(unregistered.get(gate), str) or not unregistered[gate].strip():
                 errors.append(f"Owner evidence missing: {gate}")
+        try:
+            resilience_policy(unregistered)
+        except StudyError as error:
+            errors.append(str(error))
         return errors
     manifest_path = (root / cfg["freeze_manifest"]).resolve()
     if not manifest_path.is_relative_to(root / "protocol") or not manifest_path.is_file():
@@ -1312,6 +1583,7 @@ class Controller:
         self.study_id = study_id
         self.parallelism = parallelism
         self.unregistered = unregistered
+        resilience_policy(unregistered)
         self.boot_id = boot_id()
         self.path = directory / "state.json"
         estimation = not smoke and phase not in ("pilot", "calibration")
@@ -1357,6 +1629,7 @@ class Controller:
             self.save()
         validate_recovery_state(self.state)
         validate_recovery_evidence(directory, self.state, unregistered)
+        validate_supervisor_state(directory, self.state, unregistered)
         if (len(self.state["cells"]) != len(proposed)
                 or any({key: actual.get(key) for key in expected} != expected
                        for actual, expected in zip(self.state["cells"], proposed))):
@@ -1500,6 +1773,11 @@ class Controller:
     def new_attempt(self, cell: dict, step: str, allowance_nano: int | None = None) -> dict:
         """Reserve before launch, counting every infrastructure retry."""
         with self.lock:
+            policy = resilience_policy(self.unregistered)
+            if cell.get("status") == "quarantined":
+                raise StudyError("Quarantined cell cannot replay an unresolved request")
+            if policy and self.route_not_before(cell) > time.time():
+                raise RetryableError("Assigned provider route is cooling down; no session dispatched")
             if any(entry["status"] == "unknown" for entry in self.state["ledger"]["entries"].values()):
                 raise StudyError("Unknown usage holds its reservation and blocks new work")
             if self.retry_hold_limit_exceeded():
@@ -1517,7 +1795,7 @@ class Controller:
             if allowance_nano is not None:
                 amount = min(amount, allowance_nano)
             try:
-                reserve(self.state["ledger"], attempt_id, amount)
+                reserve(self.state["ledger"], attempt_id, amount, quarantine_policy=policy)
             except StudyError:
                 self.state["stop_requested"] = True
                 self.state["stop_reason"] = "Credit admission failed; no new session admitted"
@@ -1526,7 +1804,7 @@ class Controller:
             attempt = {"id": attempt_id, "step": step, "status": "running",
                        "started": time.time(), "seconds": None, "usage": None,
                        "parallelism": self.parallelism}
-            if self.state.get("recovery"):
+            if self.state.get("recovery") or resilience_policy(self.unregistered):
                 attempt["source_commit"] = self.state["identity"]["commit"]
             cell["attempts"].append(attempt)
             self.save()
@@ -1630,6 +1908,85 @@ class Controller:
             cell["status"] = "completed"
             self.save()
 
+    def route_not_before(self, cell: dict) -> float:
+        """Keep route cooldown and per-cell backoff outside worker occupancy."""
+        with self.lock:
+            route = self.state.get("supervisor", {}).get("routes", {}).get(cell.get("assigned_model"), {})
+            step = (cell.get("checkpoint") or {}).get("step")
+            attempts = [attempt for attempt in cell["attempts"] if attempt["step"] == step]
+            decision = attempts[-1].get("recovery_action", {}) if attempts else {}
+            return max(route.get("blocked_until", 0), cell.get("retry_not_before", 0), decision.get("not_before", 0))
+
+    def route_succeeded(self, cell: dict) -> None:
+        """Reset consecutive failures without releasing a still-active cooldown early."""
+        with self.lock:
+            route = self.state.get("supervisor", {}).get("routes", {}).get(cell.get("assigned_model"))
+            if route is not None:
+                route["consecutive_failures"] = 0
+                if route["blocked_until"] <= time.time():
+                    route["blocked_until"] = 0
+                self.save()
+
+    def wait_for_schedule(self, delay: float) -> None:
+        """Leave workers free while respecting durable backoff and the absolute deadline."""
+        threading.Event().wait(max(0, min(delay, 1)))
+
+    def supervise_failure(self, cell: dict, attempt: dict) -> None:
+        """Persist one route observation and quarantine only an approved, quiescent failed request."""
+        with self.lock:
+            supervise_failure_state(self.directory, self.state, self.unregistered, cell, attempt)
+            self.save()
+
+    def retry_live_attempt(self, cell: dict, attempts: list[dict]) -> bool:
+        """Authorize only quiescent, finally billed infrastructure failures before measurement."""
+        policy = resilience_policy(self.unregistered)
+        if not policy or not attempts or self.admission_stopped():
+            return False
+        if cell["run_id"] in self.state.get("writers", {}) or self.state.get("writer_pid"):
+            return False
+        latest = attempts[-1]
+        outcome = validate_attempt_outcome(latest.get("outcome"))
+        failure = outcome.get("failure") or {}
+        if (latest.get("status") != "infra_failed"
+                or outcome.get("schema") != "study-attempt-outcome/v1"
+                or outcome.get("work") not in ("unavailable", "partial")
+                or outcome.get("safety") != "valid" or outcome.get("quiescent") is not True
+                or outcome.get("accounting") != "final"
+                or failure.get("kind") not in ("provider_transient", "transport", "timeout")):
+            return False
+        for attempt in attempts:
+            entry = self.state["ledger"]["entries"].get(attempt["id"], {})
+            seconds = attempt.get("seconds")
+            nano = accounted_nano(attempt.get("usage"))
+            if (attempt.get("measurement") or attempt.get("cost_included_in_step")
+                    or type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds < 0
+                    or nano is None or entry.get("status") != "complete"
+                    or entry.get("actual_nano") != nano or nano > entry["reserved_nano"]):
+                return False
+            supervised_terminal(self.directory, latest, cell["assigned_model"], self.state["identity"]["commit"])
+        retry_after = failure.get("retry_after_seconds")
+        if retry_after is not None and (type(retry_after) not in (int, float)
+                                        or not math.isfinite(retry_after) or retry_after < 0):
+            return False
+        decision = latest.get("recovery_action")
+        if decision is None:
+            delay = min(policy["retry_max_backoff_seconds"],
+                        policy["retry_backoff_seconds"] * (2 ** (len(attempts) - 1))
+                        + random.uniform(0, policy["retry_backoff_seconds"]))
+            delay = max(delay, retry_after or 0)
+            decision = {"action": "retry_original_step", "decided_at": time.time(),
+                        "not_before": time.time() + delay,
+                        "source_commit": self.state["identity"]["commit"]}
+            self.update(latest, recovery_action=decision)
+        not_before = max(decision["not_before"], self.route_not_before(cell))
+        if not_before >= self.state["deadline"]:
+            return False
+        if not_before > time.time():
+            self.update(cell, status="deferred", retry_not_before=not_before)
+            return False
+        cell.pop("retry_not_before", None)
+        return not self.admission_stopped()
+
     def run_scheduled_cell(self, cell: dict) -> None:
         """Retain a failed cell and preserve the original bounded retry policy."""
         for _ in range(self.cfg["max_attempts"]):
@@ -1638,15 +1995,24 @@ class Controller:
                 return
             except (StudyError, RuntimeError, OSError, subprocess.TimeoutExpired) as error:
                 with self.lock:
-                    cell.update(status="partial", error=type(error).__name__,
+                    cell.update(status="quarantined" if cell.get("status") == "quarantined" else "partial",
+                                error=type(error).__name__,
                                 stop_reason=(str(error) if isinstance(error, (StudyError, RetryableError))
                                              else "Infrastructure failure; inspect private attempt logs"))
                     self.save()
                     print(f"Stopped: {cell['run_id']} | {cell['stop_reason']}", file=sys.stderr, flush=True)
                     step = (cell.get("checkpoint") or {}).get("step")
                     attempts = [attempt for attempt in cell["attempts"] if attempt["step"] == step]
-                if (not self.smoke or not attempts or len(attempts) >= self.cfg["max_attempts"]
-                        or not isinstance(error, RetryableError)):
+                    policy = resilience_policy(self.unregistered)
+                    if policy and isinstance(error, RetryableError):
+                        if attempts and attempts[-1].get("status") == "infra_failed":
+                            self.supervise_failure(cell, attempts[-1])
+                        elif self.route_not_before(cell) > time.time():
+                            self.update(cell, status="deferred", retry_not_before=self.route_not_before(cell))
+                            return
+                if (not attempts or len(attempts) >= self.cfg["max_attempts"]
+                    or not isinstance(error, RetryableError)
+                    or (not self.smoke and not self.retry_live_attempt(cell, attempts))):
                     return
 
     def admission_stopped(self) -> bool:
@@ -1656,6 +2022,12 @@ class Controller:
             entries = self.state["ledger"]["entries"].values()
             if any(entry["status"] == "unknown" for entry in entries):
                 self.state["stop_reason"] = "Unknown usage blocks new paid work"
+                self.save()
+                return True
+            try:
+                quarantine_exposure(self.state["ledger"], resilience_policy(self.unregistered))
+            except StudyError as error:
+                self.state["stop_reason"] = str(error)
                 self.save()
                 return True
             if any((entry["status"] == "complete" and entry["actual_nano"] > entry["reserved_nano"])
@@ -1679,23 +2051,34 @@ class Controller:
         self.update(self.state, status="running", stop_requested=False)
         executor = ThreadPoolExecutor(max_workers=min(self.parallelism, max(1, len(self.state["cells"]))))
         active = {}
-        pending = iter(cell for cell in self.state["cells"] if cell["status"] != "completed")
+        pending = [cell for cell in self.state["cells"] if cell["status"] not in ("completed", "quarantined")]
 
         def fill() -> None:
             while len(active) < self.parallelism and not self.admission_stopped():
-                cell = next(pending, None)
-                if cell is None:
+                index = next((index for index, cell in enumerate(pending)
+                              if self.route_not_before(cell) <= time.time()), None)
+                if index is None:
                     break
+                cell = pending.pop(index)
                 active[executor.submit(self.run_scheduled_cell, cell)] = cell
 
         finished = False
         try:
             fill()
-            while active:
-                completed, _ = wait(active, return_when=FIRST_COMPLETED)
+            while active or pending:
+                if not active and self.admission_stopped():
+                    break
+                if not active:
+                    delay = min(self.route_not_before(cell) for cell in pending) - time.time()
+                    self.wait_for_schedule(delay)
+                    fill()
+                    continue
+                completed, _ = wait(active, timeout=1, return_when=FIRST_COMPLETED)
                 for future in completed:
-                    active.pop(future)
+                    cell = active.pop(future)
                     future.result()
+                    if cell["status"] == "deferred":
+                        pending.append(cell)
                 fill()
             finished = True
         finally:

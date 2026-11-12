@@ -17,6 +17,10 @@ class RetryableError(RuntimeError):
     """An unmeasured infrastructure failure, never a measured task failure."""
 
 
+class AccountingError(StudyError):
+    """Valid execution with incomplete billing; pause financially without claiming a safety violation."""
+
+
 def read_json(path: Path) -> dict:
     """Read an object rather than silently accepting malformed state."""
     with path.open(encoding="utf-8") as stream:
