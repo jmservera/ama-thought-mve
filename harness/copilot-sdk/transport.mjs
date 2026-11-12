@@ -301,7 +301,8 @@ export class Evidence {
     if (!enabled) return undefined;
     const operational = this.operationalFailures.at(-1);
     const supported = !errorCode || (operational && ['provider_operational_failure',
-      'websocket_closed_usage_unknown', 'transient_provider_failure', 'incomplete_provider_retry',
+      'websocket_closed_usage_unknown', 'http_stream_timeout_usage_unknown',
+      'transient_provider_failure', 'incomplete_provider_retry',
       'provider_retry_limit', 'sdk_failure', 'session_aborted'].includes(errorCode)) ||
       errorCode === 'original_deadline_exhausted';
     const valid = supported && !this.lateSafetyFault && this.started && this.toolCatalogVerified &&

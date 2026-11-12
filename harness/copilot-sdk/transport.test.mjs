@@ -151,6 +151,35 @@ test('prospective resilience retains a failed unbilled request as unavailable, n
   assert.equal(result.records.at(-1).receipt.outcome.safety, 'valid');
 });
 
+test('prospective resilience handles short HTTP transport failures and native stream timeouts', () => {
+  for (const durationMs of [61506, 600000]) {
+    const req = request({ model: 'gemini-4-argon', resiliencePolicy: 'study-resilience-policy/v1' });
+    const evidence = new Evidence(req, 'session');
+    evidence.observe(start('session', req));
+    evidence.verifyToolCatalog({ tools: [{ name: 'isolated_exec' }] });
+    evidence.observe(event('model.call_start', { turnId: 'original', model: req.model }));
+    let code;
+    try {
+      evidence.observe(event('model.call_failure', {
+        model: req.model, reasoningEffort: 'medium', source: 'top_level', failureKind: 'transport',
+        transport: 'http', apiEndpoint: '/chat/completions', isAuto: false, isByok: false,
+        interactionType: 'conversation-agent', retryAttempt: 0, rte: false, durationMs,
+        errorMessage: durationMs === 600000 ? '"Native model HTTP stream timed out"' : 'different upstream error',
+        maxOutputTokens: 16384, maxPromptTokens: 1000000, requestBodyBytes: 12000,
+        requestBodyWireBytes: 12000, requestBodyEncoding: 'identity',
+      }));
+    } catch (error) { code = error.transportCode; }
+    assert.equal(code, durationMs === 600000 ? 'http_stream_timeout_usage_unknown' : 'provider_operational_failure');
+    const receipt = evidence.receipt(code);
+    const outcome = evidence.outcome(receipt, code, 'session_send', true);
+    assert.equal(outcome.safety, 'valid');
+    assert.equal(outcome.work, 'unavailable');
+    assert.equal(outcome.accounting, 'unknown');
+    assert.equal(outcome.failure.kind, 'transport');
+    assert.equal(receipt.usage.totalNanoAiu, null);
+  }
+});
+
 test('prospective resilience does not hide a later identity or discovery violation behind an outage', async () => {
   for (const late of [event('assistant.usage', usage('unused', { model: 'fallback' }).data),
     event('session.skills_loaded', { skills: [{ name: 'host-skill' }] }),

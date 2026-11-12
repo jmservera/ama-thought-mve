@@ -934,11 +934,14 @@ Changing source still requires the separate disclosed source-change procedure;
 this command cannot recover legacy incidents that lack typed terminal evidence.
 
 For the reported 3527-step interruption, the console's
-`unexpected_runtime_activity` label is not a diagnosis. Inspect the retained
-Gemini E-14 `f10-repair` transport journal before deciding whether it was a
-supported provider failure or a genuine contract/safety violation. Do not clear
-its halt or assume the omitted charge was zero. This candidate is not deployed
-or authorized on that stopped study by the offline tests.
+`unexpected_runtime_activity` label alone is not a diagnosis. The retained
+Gemini E-14 `f10-repair` journal confirms a top-level HTTP transport failure
+after 61.5 seconds, not the earlier ten-minute timeout. Its event stream replays
+as a supported transport failure under the prospective supervisor, with unknown
+accounting. Historical replay does not establish provider cancellation or owned
+cleanup. Do not clear its halt or assume the omitted charge was zero. This
+candidate still needs source-bound migration and owner authorization before
+the stopped legacy study can resume; offline tests do not supply that authority.
 
 #### Specific 2722-step paired unaccounted-retry interruption
 
