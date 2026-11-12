@@ -962,6 +962,35 @@ work, authorize a paid launch or infer a zero charge. The original study stays
 unchanged. Subsequent prospective failures use the supervisor rather than new
 historical incident entries.
 
+#### Specific 4915-step fallback-metadata interruption
+
+The GPT C-20 `f10-feature` interruption at source
+`0c35eff0e345d04c41722a43420d19b892c7fb8c` is pinned to stopped state
+`e15ef046d01b323b2ae66aa1055572dd0754817b320787763436811308b1b60b`.
+It retains 4915 measurements and 4931 attempts. The second WebSocket failure
+included documented fallback telemetry that the old classifier rejected as
+unknown fields. The corrected classifier validates the numeric, boolean and
+enum fields; unknown fields, malformed values and treatment violations remain
+fail-closed. The full retained journal replays as an operational transport
+failure, not complete work or final accounting.
+
+This source-change recovery is quarantine-only. Its explicit approval requires
+`accept_quarantine_only=true`, `accept_fresh_retry_reservation=false` and
+`accept_fresh_retry_time_allowance=false`. The entire unknown 300-credit
+reservation becomes a separately approved historical recovery provision; no
+time, credits or agent attempt are refreshed. The affected cell remains
+quarantined and cannot dispatch another request. It retains its missingness;
+eligible cells can continue under the unchanged prospective policy. The
+5355-step denominator is not reduced to conceal quarantined work.
+
+Preserve all fourteen earlier recovery holds, thirty-three successful-session
+retry holds and the existing prospective quarantine. Their raw receipts,
+original source identities and accounting remain unchanged. The new source
+must be disclosed, qualified and explicitly approved; the audited copy must
+retain the original calibration, allocation, budget and absolute deadline.
+Do not edit the old receipt, clear the original halt or replay the unfinished
+request. Paid launch is a separate action from deployment and preparation.
+
 #### Specific 2722-step paired unaccounted-retry interruption
 
 The stopped state

@@ -267,6 +267,25 @@ def test_given_quarantine_when_resuming_then_hold_and_route_state_survive(study,
     assert not resumed.admission_stopped()
 
 
+def test_given_authorized_source_change_when_validating_then_prior_quarantine_keeps_its_source(
+        study, resilient_controller, monkeypatch):
+    current = resilient_controller
+    cell = current.state["cells"][0]
+    attempt = failed_operational_attempt(study, current, cell)
+    current.supervise_failure(cell, attempt)
+    original_commit = current.state["identity"]["commit"]
+    current.state["identity"]["commit"] = "b" * 40
+    monkeypatch.setattr(study, "recovery_records", lambda state: [{"original_commit": original_commit}])
+
+    study.validate_supervisor_state(current.directory, current.state, current.unregistered)
+
+    assert attempt["source_commit"] == original_commit
+    assert attempt["supervision"]["source_commit"] == original_commit
+    attempt["source_commit"] = "c" * 40
+    with pytest.raises(study.StudyError):
+        study.validate_supervisor_state(current.directory, current.state, current.unregistered)
+
+
 @pytest.mark.parametrize("known", [False, True])
 def test_given_source_bound_terminal_when_recovering_then_no_copy_or_fresh_allowance(
         study, resilient_controller, monkeypatch, known):

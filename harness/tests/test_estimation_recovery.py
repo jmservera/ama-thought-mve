@@ -462,6 +462,20 @@ def test_given_retained_resilience_bootstrap_when_lookup_then_exact_source_and_h
     assert incident["known_nano"] == 40976119430000
 
 
+def test_given_fallback_metadata_stop_when_lookup_then_recovery_is_quarantine_only(monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / "harness"))
+    study = importlib.import_module("study")
+
+    incident = study.recovery_incident("e15ef046d01b323b2ae66aa1055572dd0754817b320787763436811308b1b60b")
+
+    assert incident["source"] == "0c35eff0e345d04c41722a43420d19b892c7fb8c"
+    assert incident["attempt"] == "pilot-estimation-gpt-6.1-sol-C-20-f10-feature-1"
+    assert incident["kind"] == "fallback_metadata_quarantine"
+    assert incident["steps"] == 4915 and incident["attempts"] == 4931
+    assert incident["reserved_nano"] == 300 * study.NANO
+    assert incident["known_nano"] == 58019931850000
+
+
 def test_backend_preparation_requires_first_original_and_its_calibration_manifest(backend_incident):
     case = backend_incident
     study, recovery = case["study"], case["recovery"]
@@ -2255,6 +2269,170 @@ def test_given_changed_resilience_bootstrap_when_copying_then_recovery_is_refuse
             records[3]["event"]["data"]["outcome"] = "success"
         else:
             records[-1]["receipt"]["usage_lower_bound"] = {"totalNanoAiu": 0}
+        case["journal"].write_text("".join(json.dumps(record) + "\n" for record in records))
+
+    with pytest.raises(study.StudyError):
+        prepare_http_timeout_incident(case)
+
+    assert not (case["target_root"] / ".study/pilot-estimation").exists()
+    assert (case["source"] / "state.json").read_bytes() == case["original"]
+
+
+@pytest.fixture
+def fallback_quarantine_incident(resilience_bootstrap_incident, tmp_path, monkeypatch):
+    from test_parallel_study import failed_operational_attempt
+
+    case = resilience_bootstrap_incident
+    study, recovery = case["study"], case["recovery"]
+    source = prepare_http_timeout_incident(case)
+    source_root = case["target_root"]
+    current = study.Controller(source, case["config"], smoke=False, phase="pilot-estimation",
+                               study_id="pilot-estimation", replicates=21,
+                               unregistered=case["new"], handoff=case["handoff"])
+    state = current.state
+    known = sum(entry["actual_nano"] if entry["status"] == "complete" else entry.get("lower_bound_nano", 0)
+                for entry in state["ledger"]["entries"].values() if entry["status"] in ("complete", "retry_hold"))
+    quotient, remainder = divmod(study.credits("58019.93185") - known - 20 * study.NANO, 1368)
+    for index in range(1388):
+        cell = state["cells"][index % len(state["cells"])]
+        identity = f"fallback-complete-{index}"
+        held = index >= 1368
+        amount = study.NANO if held else quotient + (index < remainder)
+        usage = ({"credits_complete": False, "totalNanoAiu": None,
+                  "lowerBoundNanoAiu": amount, "unaccountedFailedRequests": 1} if held else
+                 {"credits_complete": True, "totalNanoAiu": amount})
+        cell["completed_steps"] = cell.get("completed_steps", 0) + 1
+        cell["attempts"].append({"id": identity, "step": f"fallback-step-{index}", "status": "agent_returned",
+                                 "source_commit": case["new"]["commit"], "seconds": 1, "usage": usage})
+        entry = {"status": "retry_hold" if held else "complete", "reserved_nano": 300 * study.NANO,
+                 "actual_nano": None if held else amount}
+        if held:
+            entry.update(lower_bound_nano=amount, unaccounted_failed_requests=1)
+        state["ledger"]["entries"][identity] = entry
+    prior_cell = next(cell for cell in state["cells"] if cell["assigned_model"] == "gemini-4-argon"
+                      and cell["arm"] == "E" and cell["replicate"] == 15)
+    prior = failed_operational_attempt(study, current, prior_cell)
+    current.supervise_failure(prior_cell, prior)
+    cell = next(cell for cell in state["cells"] if cell["assigned_model"] == "gpt-6.1-sol"
+                and cell["arm"] == "C" and cell["replicate"] == 20)
+    current.update(cell, checkpoint={"step": "f10-feature", "head": "checkpoint"})
+    attempt = current.new_attempt(cell, "f10-feature")
+    directory = source / "runs" / cell["run_id"] / "attempts" / attempt["id"]
+    usage = {"credits_complete": False, "totalNanoAiu": None, "aiCreditsStatus": "partial"}
+    outcome = {"schema": "study-attempt-outcome/v1", "work": "unavailable", "safety": "unverified",
+               "accounting": "unknown", "quiescent": True, "native_calls": 8, "native_failures": 1,
+               "failure": {"kind": "contract", "stage": "session_send", "retry_after_seconds": None}}
+    failures = [{"model": "gpt-6.1-sol", "reasoningEffort": "medium", "failureKind": "transport",
+                 "transport": "websocket", "source": "top_level", "isAuto": False, "isByok": False,
+                 "retryAttempt": retry, "errorMessage": "synthetic transport interruption"} for retry in (0, 1)]
+    failures[-1].update(websocketFallbackAfterMs=58933, websocketFallbackErrorKind="connection_reset",
+                        websocketFallbackReason="transport_failed", websocketFallbackReconnectAttempted=False,
+                        websocketFallbackStartedThisCall=True)
+    records = []
+    for failure in failures:
+        records.extend([
+            {"type": "event", "sessionId": "fallback-fixture", "event": {
+                "type": "model.call_start", "data": {"model": "gpt-6.1-sol", "turnId": "7"}}},
+            {"type": "event", "sessionId": "fallback-fixture", "event": {
+                "type": "model.call_failure", "data": failure}},
+            {"type": "event", "sessionId": "fallback-fixture", "event": {
+                "type": "model.model_call_failure", "data": {"reasoningEffort": "medium", "modelCall": {
+                    "model": "gpt-6.1-sol", "transport": "websocket", "failure_kind": "transport",
+                    "error": failure["errorMessage"], "retry_attempt": failure["retryAttempt"]}}}},
+            {"type": "event", "sessionId": "fallback-fixture", "event": {
+                "type": "model.call_finished", "data": {"turnId": "7", "outcome": "error"}}},
+        ])
+    result = {"type": "complete", "exit_code": 1, "receipt": {
+        "sdk_version": "1.0.28", "cli_version": "1.0.105", "protocol_version": 3,
+        "protocol_error": "unexpected_runtime_activity", "failure_stage": "session_send",
+        "actual_models": ["gpt-6.1-sol"], "actual_reasoning_efforts": ["medium"], "routing_changes": [],
+        "usage": usage, "outcome": outcome, "usage_lower_bound": None}}
+    records.append(result)
+    journal = directory / "transport/events.jsonl"
+    journal.parent.mkdir(parents=True)
+    journal.write_text("".join(json.dumps(record) + "\n" for record in records))
+    study.atomic_json(directory / "request.json", {"model": "gpt-6.1-sol", "reasoningEffort": "medium"})
+    request_sha = hashlib.sha256((directory / "request.json").read_bytes()).hexdigest()
+    study.atomic_json(directory / "terminal.json", {"source_commit": case["new"]["commit"],
+        "attempt_id": attempt["id"], "request_sha256": request_sha, "result": result,
+        "events_sha256": hashlib.sha256(journal.read_bytes()).hexdigest()})
+    current.update(attempt, status="interrupted", usage=usage, outcome=outcome, seconds=215.6691,
+                   started=1769644800, directory=str(directory.relative_to(source)), request_sha256=request_sha,
+                   terminal_sha256=hashlib.sha256((directory / "terminal.json").read_bytes()).hexdigest())
+    current.settle_attempt(attempt["id"], usage)
+    current.update(state, status="oracle_halt", oracle_halt=True, stop_requested=False)
+    original = current.path.read_bytes()
+    target_root = tmp_path / "fallback-quarantine-new"
+    target_root.mkdir()
+    shutil.copytree(source_root / "protocol", target_root / "protocol")
+    shutil.copytree(source_root / "harness", target_root / "harness")
+    new_commit = "b7" * 20
+    new = {**case["new"], "commit": new_commit, "inputs_sha256": "b8" * 32,
+           "public_disclosure_url": f"https://github.com/jmservera/ama-thought-mve/commit/{new_commit}",
+           "disclosed_at": "2026-02-01T00:00:00Z"}
+    monkeypatch.setattr(study, "FALLBACK_RECOVERY_SOURCE", case["new"]["commit"])
+    monkeypatch.setattr(study, "FALLBACK_RECOVERY_STATE_SHA256", hashlib.sha256(original).hexdigest())
+    monkeypatch.setattr(study, "FALLBACK_RECOVERY_JOURNAL_SHA256", hashlib.sha256(journal.read_bytes()).hexdigest())
+    monkeypatch.setattr(study, "ROOT", target_root)
+    monkeypatch.setattr(recovery, "ROOT", target_root)
+    monkeypatch.setattr(study, "fingerprint", lambda *args: new["inputs_sha256"])
+    prior_roots = [*case["prior_roots"], case["source_root"]]
+    commits = {root: study.read_json(root / ".study/pilot-estimation/state.json")["identity"]["commit"]
+               for root in [*prior_roots, source_root]}
+    monkeypatch.setattr(study, "command", lambda args, **kwargs: commits.get(kwargs.get("cwd"), new_commit))
+    approval = {**case["approval"], "original_state_sha256": study.FALLBACK_RECOVERY_STATE_SHA256,
+                "original_commit": case["new"]["commit"], "target_commit": new_commit,
+                "attempt_id": attempt["id"], "accept_fresh_retry_reservation": False,
+                "accept_fresh_retry_time_allowance": False, "accept_quarantine_only": True,
+                "approved_at": "2026-02-02T00:00:00Z", "disclosure_url": new["public_disclosure_url"]}
+    return {**case, "source_root": source_root, "source": source, "target_root": target_root,
+            "old": case["new"], "new": new, "approval": approval, "original": original,
+            "journal": journal, "attempt": attempt, "prior_roots": prior_roots, "prior_quarantine": prior["id"]}
+
+
+def test_given_fallback_quarantine_when_copying_then_no_request_replay_or_allowance_reset(fallback_quarantine_incident):
+    case, study = fallback_quarantine_incident, fallback_quarantine_incident["study"]
+    before = study.read_json(case["source"] / "state.json")
+
+    target = prepare_http_timeout_incident(case)
+    state = study.read_json(target / "state.json")
+
+    assert len(study.recovery_records(state)) == 13
+    assert len(state["ledger"]["entries"]) == 4931
+    assert sum(cell.get("completed_steps", 0) for cell in state["cells"]) == 4915
+    assert sum(entry["status"] == "recovery_hold" for entry in state["ledger"]["entries"].values()) == 15
+    assert state["ledger"]["entries"][case["prior_quarantine"]] == before["ledger"]["entries"][case["prior_quarantine"]]
+    assert state["deadline"] == before["deadline"] and state["identity"]["config"] == before["identity"]["config"]
+    controller = study.Controller(target, case["config"], smoke=False, phase="pilot-estimation",
+                                  study_id="pilot-estimation", replicates=21,
+                                  unregistered=case["new"], handoff=case["handoff"])
+    cell = next(cell for cell in controller.state["cells"] if cell["run_id"] == "pilot-estimation-gpt-6.1-sol-C-20")
+    assert cell["status"] == "quarantined"
+    assert cell["attempts"][-1]["usage"] == case["attempt"]["usage"]
+    with pytest.raises(study.StudyError, match="Quarantined cell"):
+        controller.new_attempt(cell, "f10-feature")
+    assert not controller.admission_stopped()
+    study.validate_recovery_evidence(target, controller.state, case["new"])
+    study.validate_supervisor_state(target, controller.state, case["new"])
+    assert (case["source"] / "state.json").read_bytes() == case["original"]
+
+
+@pytest.mark.parametrize("damage", ["fresh_retry", "approval", "quiescence", "model", "terminal"])
+def test_given_changed_fallback_quarantine_when_copying_then_recovery_is_refused(fallback_quarantine_incident, damage):
+    case, study = fallback_quarantine_incident, fallback_quarantine_incident["study"]
+    if damage == "fresh_retry":
+        case["approval"]["accept_fresh_retry_reservation"] = True
+    elif damage == "approval":
+        case["approval"]["accept_quarantine_only"] = False
+    elif damage == "terminal":
+        path = case["journal"].parent.parent / "terminal.json"
+        path.write_bytes(path.read_bytes() + b"\n")
+    else:
+        records = [json.loads(line) for line in case["journal"].read_bytes().splitlines()]
+        if damage == "quiescence":
+            records[-1]["receipt"]["outcome"]["quiescent"] = False
+        else:
+            records[1]["event"]["data"]["model"] = "other"
         case["journal"].write_text("".join(json.dumps(record) + "\n" for record in records))
 
     with pytest.raises(study.StudyError):

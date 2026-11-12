@@ -141,6 +141,10 @@ RESILIENCE_BOOTSTRAP_STATE_SHA256 = "1b50aa55cebf781b6950e4723ac7ac655529f28c7f1
 RESILIENCE_BOOTSTRAP_SOURCE = "73712f7834ca520df543b6a58315bb299ffd38a8"
 RESILIENCE_BOOTSTRAP_ATTEMPT = "pilot-estimation-gemini-4-argon-E-14-f10-repair-1"
 RESILIENCE_BOOTSTRAP_JOURNAL_SHA256 = "8a455755c1eefaee9eabf52d5655dfcf4592b73b6e802b220eb799f738e49c4e"
+FALLBACK_RECOVERY_STATE_SHA256 = "e15ef046d01b323b2ae66aa1055572dd0754817b320787763436811308b1b60b"
+FALLBACK_RECOVERY_SOURCE = "0c35eff0e345d04c41722a43420d19b892c7fb8c"
+FALLBACK_RECOVERY_ATTEMPT = "pilot-estimation-gpt-6.1-sol-C-20-f10-feature-1"
+FALLBACK_RECOVERY_JOURNAL_SHA256 = "e6704ca2f50b50dbf79d04f039673076bae1228a9572619d561ebc5fb8e7b26a"
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
@@ -536,6 +540,8 @@ def validate_supervisor_state(directory: Path, state: dict, manifest: dict | Non
                 raise StudyError("Invalid persistent provider route state")
     quarantine_exposure(state["ledger"], policy)
     entries = state["ledger"]["entries"]
+    authorized_sources = {state["identity"]["commit"],
+                          *(record["original_commit"] for record in recovery_records(state))}
     if supervisor is not None or any(entry["status"] == "quarantine_hold" for entry in entries.values()):
         ids = [attempt["id"] for cell in state["cells"] for attempt in cell["attempts"]]
         if len(set(ids)) != len(ids) or set(ids) != set(entries):
@@ -544,14 +550,17 @@ def validate_supervisor_state(directory: Path, state: dict, manifest: dict | Non
         for attempt in cell["attempts"]:
             if entries[attempt["id"]]["status"] != "quarantine_hold" and not attempt.get("supervision"):
                 continue
-            terminal = supervised_terminal(directory, attempt, cell["assigned_model"], state["identity"]["commit"])
+            source_commit = attempt.get("source_commit")
+            if source_commit not in authorized_sources:
+                raise StudyError("Supervised attempt source lacks a verified recovery transition")
+            terminal = supervised_terminal(directory, attempt, cell["assigned_model"], source_commit)
             outcome = terminal["result"]["receipt"]["outcome"]
             observation = attempt.get("supervision")
             if (not isinstance(observation, dict)
                     or set(observation) != {"action", "observed_at", "source_commit", "route"}
                     or observation["action"] not in ("retain_original_allowance", "quarantine_cell",
                                                        "pause_unknown_risk_exhausted")
-                    or observation["source_commit"] != state["identity"]["commit"]
+                    or observation["source_commit"] != source_commit
                     or observation["route"] != cell["assigned_model"]
                     or type(observation["observed_at"]) not in (int, float)
                     or not math.isfinite(observation["observed_at"]) or observation["observed_at"] < 0):
@@ -574,7 +583,7 @@ def validate_supervisor_state(directory: Path, state: dict, manifest: dict | Non
                     not isinstance(decision, dict)
                     or set(decision) != {"action", "decided_at", "not_before", "source_commit"}
                     or decision["action"] != "retry_original_step"
-                    or decision["source_commit"] != state["identity"]["commit"]
+                    or decision["source_commit"] != source_commit
                     or any(type(decision[key]) not in (int, float) or not math.isfinite(decision[key])
                            for key in ("decided_at", "not_before"))
                     or decision["not_before"] < decision["decided_at"]):
@@ -1000,6 +1009,11 @@ def recovery_incident(state_sha256: str) -> dict:
                 "journal_sha256": RESILIENCE_BOOTSTRAP_JOURNAL_SHA256,
                 "steps": 3527, "attempts": 3541, "known_nano": credits("40976.11943"),
                 "kind": "resilience_bootstrap", "reserved_nano": 300 * NANO}
+    if state_sha256 == FALLBACK_RECOVERY_STATE_SHA256:
+        return {"source": FALLBACK_RECOVERY_SOURCE, "attempt": FALLBACK_RECOVERY_ATTEMPT,
+                "journal_sha256": FALLBACK_RECOVERY_JOURNAL_SHA256,
+                "steps": 4915, "attempts": 4931, "known_nano": credits("58019.93185"),
+                "kind": "fallback_metadata_quarantine", "reserved_nano": 300 * NANO}
     raise StudyError("Recovery state is not one of the disclosed estimation interruptions")
 
 
@@ -1030,7 +1044,8 @@ def recovery_state_hashes() -> tuple[str, ...]:
     return (RECOVERY_STATE_SHA256, BACKEND_RECOVERY_STATE_SHA256, SANDBOX_RECOVERY_STATE_SHA256,
             SERVICE_RECOVERY_STATE_SHA256, TRANSPORT_RECOVERY_STATE_SHA256, CLOSE_RECOVERY_STATE_SHA256,
             MIXED_RECOVERY_STATE_SHA256, UNACCOUNTED_RECOVERY_STATE_SHA256, PAIRED_RECOVERY_STATE_SHA256,
-            HTTP_RECOVERY_STATE_SHA256, HTTP_TIMEOUT_RECOVERY_STATE_SHA256, RESILIENCE_BOOTSTRAP_STATE_SHA256)
+            HTTP_RECOVERY_STATE_SHA256, HTTP_TIMEOUT_RECOVERY_STATE_SHA256, RESILIENCE_BOOTSTRAP_STATE_SHA256,
+            FALLBACK_RECOVERY_STATE_SHA256)
 
 
 def recovery_records(state: dict) -> list[dict]:
@@ -1062,13 +1077,22 @@ def validate_recovery_state(state: dict) -> None:
     incidents = [recovery_incident(record["original_state_sha256"]) for record in records]
     expected_holds = {identity: hold["reserved_nano"] for incident in incidents
                       for identity, hold in incident_holds(incident).items()}
+    quarantine_only = {identity for incident in incidents if incident["kind"] == "fallback_metadata_quarantine"
+                       for identity in incident_holds(incident)}
     if (len(set(ids)) != len(ids) or set(ids) != set(entries) or set(holds) != set(expected_holds)
             or len(interrupted) != len(expected_holds)
             or {attempt["id"] for attempt in interrupted} != set(expected_holds)
-            or any(attempt.get("usage") is not None for attempt in interrupted)
+            or any(attempt.get("usage") is not None and (
+                attempt["id"] not in quarantine_only or not isinstance(attempt["usage"], dict)
+                or attempt["usage"].get("credits_complete") is not False
+                or attempt["usage"].get("totalNanoAiu") is not None) for attempt in interrupted)
             or any(entries[key].get("actual_nano") is not None
                    or entries[key].get("reserved_nano") != reserved for key, reserved in expected_holds.items())):
         raise StudyError("Invalid source transition or recovered unknown-charge hold")
+    for cell in state["cells"]:
+        selected = [attempt for attempt in cell["attempts"] if attempt["id"] in quarantine_only]
+        if selected and (cell.get("status") != "quarantined" or cell["attempts"][-1] is not selected[-1]):
+            raise StudyError("Quarantine-only recovery cannot replay the unfinished request")
     previous_ids = set()
     original_sources = {}
     for index, recovery in enumerate(records):
