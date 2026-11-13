@@ -11,14 +11,15 @@ class ToolSet {
   constructor() { this.entries = []; }
   addBuiltIn(name) { this.entries.push(['builtin', name]); return this; }
   addMcp(name) { this.entries.push(['mcp', name]); return this; }
+  toArray() { return this.entries.map(([source, name]) => `${source}:${name}`); }
 }
 
 test('session disables every tool and all discovery without modifying experiment config', () => {
   const config = sessionConfig({ judge: { model: 'pinned-model' }, max_ai_credits: 10 }, 'session', ToolSet, () => {});
   assert.equal(config.model, 'pinned-model');
   assert.equal(config.reasoningEffort, 'medium');
-  assert.deepEqual(config.availableTools.entries, []);
-  assert.deepEqual(config.excludedTools.entries, [['builtin', '*'], ['mcp', '*']]);
+  assert.deepEqual(config.availableTools, []);
+  assert.deepEqual(config.excludedTools, ['builtin:*', 'mcp:*']);
   assert.deepEqual(config.tools, []);
   assert.equal(config.enableConfigDiscovery, false);
   assert.equal(config.enableExperimentalMode, false);
@@ -63,6 +64,49 @@ test('serialized verdict preserves duplicate model keys for controller rejection
 
 const sdkInstalled = existsSync(new URL('../harness/copilot-sdk/node_modules/@github/copilot-sdk/package.json',
   import.meta.url));
+
+test('startup failure retains safe diagnostics without prompts, responses or provider messages', async () => {
+  const diagnostics = [];
+  let closed = 0;
+  class Evidence {
+    receipt() { return { usage: { credits_complete: false, totalNanoAiu: null }, protocol_error: 'judge_runtime_failure' }; }
+  }
+  await assert.rejects(judgeSession({ judge: { id: 'judge', model: 'pinned-model' },
+    timeout_seconds: 30, max_ai_credits: 30, specimen: { secret: 'private-specimen' } }, {
+    ToolSet, Evidence, cliPath: '/unused', assertRuntime: async () => {},
+    makeRuntime: async () => ({ close: async () => { closed++; }, client: {
+      createSession: async () => { throw new TypeError('list is not iterable'); },
+    } }), onDiagnostic: async value => { diagnostics.push(value); },
+  }), /reservation must be retained/);
+  assert.equal(closed, 1);
+  assert.equal(diagnostics[0].stage, 'session_create');
+  assert.deepEqual(diagnostics[0].failure, { name: 'TypeError', code: 'sdk_tool_filter_not_iterable' });
+  assert.equal(diagnostics[0].prompt_dispatched, false);
+  assert.equal(diagnostics[0].runtime_closed, true);
+  assert.equal(diagnostics[0].usage.totalNanoAiu, null);
+  assert.equal(JSON.stringify(diagnostics).includes('private-specimen'), false);
+});
+
+test('CommonJS SDK tool filters normalize in the ESM client without starting a runtime',
+  { skip: !sdkInstalled }, async () => {
+    const require = createRequire(import.meta.url);
+    const commonjs = await import(pathToFileURL(require.resolve('@github/copilot-sdk', {
+      paths: [new URL('../harness/copilot-sdk/', import.meta.url).pathname],
+    })).href);
+    const esm = await import(new URL('../harness/copilot-sdk/node_modules/@github/copilot-sdk/dist/index.js',
+      import.meta.url));
+    assert.notEqual(commonjs.ToolSet, esm.ToolSet);
+    const client = new esm.CopilotClient({ mode: 'empty', autoStart: false, autoRestart: false,
+      baseDirectory: new URL('../.study/offline-judge-config-test', import.meta.url).pathname });
+    const config = sessionConfig({ judge: { model: 'pinned-model' }, max_ai_credits: 30 },
+      'offline-session', commonjs.ToolSet, () => {});
+
+    assert.deepEqual(client.resolveToolFilterOptions(config), {
+      availableTools: [], excludedTools: ['builtin:*', 'mcp:*'], toolFilterPrecedence: 'excluded',
+    });
+    assert.equal(Boolean(client.connection), false);
+    assert.equal(Boolean(client.cliProcess), false);
+  });
 
 test('actual SDK evidence completes a no-tool judge session with correlated billing, without inference',
   { skip: !sdkInstalled }, async () => {

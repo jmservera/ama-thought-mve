@@ -413,6 +413,22 @@ def test_given_edited_actual_charge_when_resuming_then_no_fresh_spend_is_admitte
         judge.run_judges(bundle, config(judge), caller=caller)
 
 
+def test_given_failed_adapter_when_invoked_then_bounded_private_diagnostics_are_retained(judge, tmp_path):
+    directory = tmp_path / "failed-adapter"
+    command = [sys.executable, "-c",
+               "import sys; print('partial output'); sys.stderr.write('safe startup diagnostic\\n'); sys.exit(2)"]
+
+    with pytest.raises(judge.StudyError, match="consumption must be reconciled"):
+        judge.invoke(command, {"diagnostic": True}, directory, 10)
+
+    assert (directory / "adapter.stdout").read_text() == "partial output\n"
+    assert (directory / "adapter.stderr").read_text() == "safe startup diagnostic\n"
+    saved = judge.read_json(directory / "adapter-exit.json")
+    assert saved["return_code"] == 2 and saved["response_recorded"] is False
+    assert saved["stdout_bytes"] <= judge.LIMIT and saved["stderr_bytes"] <= judge.LIMIT
+    assert (directory / "adapter.stderr").stat().st_mode & 0o777 == 0o600
+
+
 def test_given_real_json_command_adapter_when_running_then_stdin_and_report_work(judge, bundle, tmp_path):
     script = tmp_path / "adapter.py"
     script.write_text(

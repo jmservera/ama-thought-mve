@@ -502,8 +502,11 @@ def invoke(command: list[str], request: dict, directory: Path, timeout: int) -> 
     directory.mkdir(mode=0o700)
     atomic_json(directory / "request.json", request)
     args = [arg.replace("{root}", str(ROOT)) for arg in command]
-    with (directory / "request.json").open("rb") as input_stream, tempfile.TemporaryFile() as output, \
-            tempfile.TemporaryFile() as errors:
+    with (directory / "request.json").open("rb") as input_stream, \
+            (directory / "adapter.stdout").open("x+b") as output, \
+            (directory / "adapter.stderr").open("xb") as errors:
+        os.fchmod(output.fileno(), 0o600)
+        os.fchmod(errors.fileno(), 0o600)
         process = subprocess.Popen(args, cwd=directory, stdin=input_stream, stdout=output,
                                    stderr=errors, start_new_session=True,
                                    preexec_fn=lambda: resource.setrlimit(resource.RLIMIT_FSIZE, (LIMIT, LIMIT)))
@@ -536,6 +539,12 @@ def invoke(command: list[str], request: dict, directory: Path, timeout: int) -> 
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
+            atomic_json(directory / "adapter-exit.json", {
+                "schema": "judge-adapter-exit/v1", "return_code": process.returncode,
+                "stdout_bytes": os.fstat(output.fileno()).st_size,
+                "stderr_bytes": os.fstat(errors.fileno()).st_size,
+                "response_recorded": (directory / "response.json").is_file(),
+            })
 
 
 @contextmanager
