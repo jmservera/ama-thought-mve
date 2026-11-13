@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src '__SCRIPT_HASH__'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<title>Blinded Human Review</title>
+<style>
+:root{color-scheme:light;--ink:#252c2b;--muted:#586360;--line:#d6ddda;--paper:#fff;--wash:#f3f6f5;--green:#006454;--green-wash:#e5f3ed;--red:#a12c43;--red-wash:#fff0f2;--amber:#815300;--amber-wash:#fff5da;--radius:5px}
+*{box-sizing:border-box}html{scroll-padding-top:100px}body{margin:0;color:var(--ink);background:var(--paper);font:16px/1.5 'Source Sans 3','Trebuchet MS',sans-serif;letter-spacing:0}button,input,select,textarea{font:inherit;color:inherit}button,a,input,select,textarea,summary{touch-action:manipulation}button,a{ -webkit-tap-highlight-color:transparent}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.5}button,a,input,select,textarea,summary{outline-offset:4px}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid #197cbe}a{color:var(--green)}button{border:1px solid var(--line);border-radius:var(--radius);background:var(--paper);min-height:42px;padding:8px 13px;display:inline-flex;align-items:center;justify-content:center;gap:8px}button:hover:not(:disabled){background:var(--wash);border-color:#9caca5}button.primary{background:var(--green);border-color:var(--green);color:white}button.primary:hover:not(:disabled){background:#004e41}svg{width:18px;height:18px;flex-shrink:0}h1,h2,h3,p{margin:0}h1{font-size:20px;line-height:1.2}h2{font-size:26px;line-height:1.25;font-family:Georgia,serif;font-weight:normal}h3{font-size:18px;line-height:1.4}label{display:block}input:not([type=radio]):not([type=checkbox]),select,textarea{width:100%;min-width:0;border:1px solid #aebbb5;border-radius:4px;padding:9px 10px;background:white}textarea{resize:vertical;min-height:84px;line-height:1.5}input[type=checkbox],input[type=radio]{accent-color:var(--green)}small,.muted{color:var(--muted);font-size:13px}.top{position:sticky;top:0;z-index:10;min-height:76px;border-bottom:1px solid var(--line);background:#fffffff5;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 28px}.identity{display:flex;align-items:center;gap:12px;min-width:0}.identity>svg{width:28px;height:28px;color:var(--green)}.identity small{display:block;margin-top:3px}.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.shell{display:grid;grid-template-columns:230px minmax(0,1fr);max-width:1600px;margin:auto}.rail{background:var(--wash);border-right:1px solid var(--line);padding:26px 18px;min-width:0}.rail-inner{position:sticky;top:102px}.rail h2{font:600 13px/1.5 'Trebuchet MS',sans-serif;text-transform:uppercase;margin-bottom:12px}.rail nav{display:grid;gap:4px}.specimen-button{display:grid;grid-template-columns:1fr auto;width:100%;text-align:left;justify-content:stretch;min-height:58px;background:transparent;border-color:transparent;padding:9px 10px}.specimen-button[aria-current=true]{background:white;border-color:#95b9ac;box-shadow:inset 3px 0 var(--green)}.specimen-button strong{font-size:15px}.specimen-button small{grid-column:1}.specimen-button .count{grid-column:2;grid-row:1 / 3;align-self:center;font-size:13px;color:var(--muted)}.rail-progress{border-top:1px solid var(--line);margin-top:22px;padding-top:18px}.rail-progress progress{width:100%;height:8px;accent-color:var(--green);display:block;margin:10px 0}.rail-links{display:grid;gap:12px;margin-top:24px}.rail-links a{display:flex;align-items:center;gap:8px;font-size:14px}.main{min-width:0;padding:24px 40px 0}.case-nav{display:grid;grid-template-columns:160px minmax(0,1fr);gap:16px;padding-bottom:22px;border-bottom:1px solid var(--line)}.case-nav label{font-size:13px;color:var(--muted)}.case-nav select{margin-top:5px;font-size:15px;color:var(--ink)}.case-heading{padding:27px 0 24px}.eyebrow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:13px;color:var(--muted);margin-bottom:10px}.badge{display:inline-block;padding:3px 9px;border-radius:3px;font-size:12px;font-weight:bold;text-transform:uppercase;background:var(--wash);color:var(--muted)}.badge.passed{background:var(--green-wash);color:var(--green)}.badge.failed{background:var(--red-wash);color:var(--red)}.badge.unavailable{background:var(--amber-wash);color:var(--amber)}.case-heading h2{overflow-wrap:anywhere}.case-heading .muted{margin-top:10px}.section-title{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}.section-title h2{font:600 19px/1.4 'Trebuchet MS',sans-serif}.evidence-section{border-top:1px solid var(--line);padding:24px 0}.requirements{display:grid;gap:14px}.requirement{border-left:3px solid #a9b5b0;padding-left:16px}.requirement h3{margin-bottom:8px}.requirement p,.requirement ul{margin:8px 0}.requirement li{margin-bottom:6px}pre{margin:8px 0 0;padding:14px;background:var(--wash);border-radius:4px;white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.55 'DejaVu Sans Mono',Consolas,monospace;max-height:420px;overflow:auto}details{min-width:0}details>summary{cursor:pointer;overflow-wrap:anywhere}details.observation{border-bottom:1px solid var(--line);padding:14px 0}.observation summary{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;list-style:revert}.observation summary strong{font-size:14px}.observation summary span.action{flex:1;min-width:140px;font-size:14px}.comparison{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0 4px;min-width:0}.comparison>div{min-width:0}.comparison h3{font-size:13px;color:var(--muted)}.notice{border-left:3px solid var(--amber);background:var(--amber-wash);padding:12px 16px;margin:14px 0;overflow-wrap:anywhere}.notice.error{border-color:var(--red);background:var(--red-wash)}.notice.success{border-color:var(--green);background:var(--green-wash)}.witness{margin-top:18px}.witness summary{font-size:14px;color:var(--muted)}.rating-section{border-top:2px solid var(--green);padding:26px 0}.rating-intro{margin:8px 0 22px;color:var(--muted);font-size:14px}.ratings{display:grid;grid-template-columns:1fr 1fr;gap:28px 30px}.dimension{border:0;border-top:1px solid var(--line);padding:18px 0 0;margin:0;min-width:0}.dimension legend{font-weight:bold;font-size:16px;padding:0 10px 0 0}.dimension .definition{font-size:13px;color:var(--muted);margin:7px 0 13px;min-height:40px}.score-options{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border:1px solid #9aaca3;border-radius:5px;overflow:hidden}.score-option{position:relative;display:grid;place-items:center;min-height:46px;border-right:1px solid #bac7c0;cursor:pointer;background:white}.score-option:last-child{border:0}.score-option:has(input:checked){background:var(--green);color:white;font-weight:bold}.score-option:has(input:disabled){opacity:.42;cursor:not-allowed;background:var(--wash)}.score-option:has(input:focus-visible){outline:3px solid #197cbe;outline-offset:-3px}.score-option input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:inherit}.score-option span{pointer-events:none}.score-anchor{min-height:42px;margin:9px 0 13px;font-size:12px;color:var(--muted)}.field-label{font-size:13px;font-weight:bold;margin:13px 0 6px}.citations{display:flex;gap:6px;flex-wrap:wrap;max-height:145px;overflow:auto}.citation{display:flex;align-items:center;gap:5px;padding:5px 7px;border:1px solid var(--line);border-radius:4px;font:12px/1.4 'DejaVu Sans Mono',monospace;min-height:34px;cursor:pointer;overflow-wrap:anywhere}.citation:has(input:checked){border-color:var(--green);background:var(--green-wash)}.citation input{margin:0;flex-shrink:0}.dimension-errors{font-size:12px;color:var(--red);margin-top:7px}.notes{margin-top:28px}.notes label{font-weight:bold;font-size:14px;margin-bottom:8px}.case-footer{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;background:white;border-top:1px solid var(--line);padding:14px 0;margin-top:24px;min-height:74px}.case-footer .tools{flex-wrap:nowrap}.case-footer small{overflow-wrap:anywhere}.status-line{font-size:12px;color:var(--muted);min-height:18px}.hidden,[hidden]{display:none!important}.toast{position:fixed;bottom:94px;left:50%;transform:translateX(-50%);z-index:40;background:#253d35;color:white;border-radius:5px;padding:12px 18px;max-width:min(90%,560px);box-shadow:0 4px 20px #0002;font-size:14px;overflow-wrap:anywhere}.dialog{width:min(720px,calc(100% - 24px));max-height:90dvh;border:1px solid var(--line);border-radius:6px;padding:0;color:var(--ink);box-shadow:0 20px 70px #0003}.dialog::backdrop{background:#152a235e}.dialog header{padding:22px 24px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:16px}.dialog h2{font:600 20px/1.4 'Trebuchet MS',sans-serif}.dialog .dialog-body{padding:20px 24px}.dialog .dialog-body>p{margin-bottom:15px}.dialog footer{display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap;border-top:1px solid var(--line);padding:16px 24px}.profile-fields{display:grid;grid-template-columns:1fr 1fr;gap:18px}.profile-fields .wide{grid-column:1 / -1}.profile-fields label{font-size:14px}.profile-fields input,.profile-fields select,.profile-fields textarea{margin-top:6px}.check-label{display:flex!important;gap:10px;align-items:flex-start;font-size:14px!important}.check-label input{width:18px;height:18px;flex-shrink:0;margin-top:3px}.rubric-table{border-collapse:collapse;width:100%;font-size:14px}.rubric-table td,.rubric-table th{border-bottom:1px solid var(--line);padding:10px;text-align:left;vertical-align:top}.rubric-table th{width:50px}.export-actions{display:grid;gap:12px}.export-actions button{justify-content:flex-start}.export-actions small{display:block;margin-left:28px}.export-issues{max-height:190px;overflow:auto;font-size:13px;margin:16px 0}.export-issues button{min-height:32px;text-align:left;justify-content:flex-start;border:0;text-decoration:underline;color:var(--green);padding:4px}.icon-only{width:40px;height:40px;padding:8px;flex-shrink:0}.noscript{margin:24px;padding:24px;border:1px solid var(--line)}@media(max-width:1000px){.main{padding:22px 24px 0}.shell{grid-template-columns:190px minmax(0,1fr)}.ratings{grid-template-columns:1fr}.dimension .definition{min-height:0}}@media(max-width:700px){.top{padding:12px 16px;gap:10px;align-items:flex-start;flex-wrap:wrap}.identity{flex:1}.identity small{font-size:11px}.top .tools{gap:5px}.top .tools button{padding:8px;min-height:40px}.top .compact-label{display:none}.top h1{font-size:18px}.shell{display:block}.rail{display:none}.main{padding:18px 16px 0}.case-nav{grid-template-columns:105px minmax(0,1fr);gap:10px}.comparison{grid-template-columns:1fr}.profile-fields{grid-template-columns:1fr}.profile-fields .wide{grid-column:auto}.case-heading h2{font-size:24px}.case-footer{align-items:flex-start;flex-direction:column;gap:10px;padding:10px 0}.case-footer>.tools{width:100%;justify-content:space-between}.dialog header,.dialog .dialog-body,.dialog footer{padding-left:18px;padding-right:18px}.toast{bottom:125px}}@media print{.top,.rail,.case-nav,.case-footer,.tools,.toast{display:none}.shell{display:block}.main{padding:0}.rating-section{break-before:page}details{display:block}pre{max-height:none}.score-option:has(input:checked){color:black;outline:2px solid black}}
+</style>
+<style>
+.reuse-tools{border-top:1px solid var(--line);margin-top:24px;padding-top:18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}.reuse-tools p{width:100%}.reuse-targets{display:grid;gap:8px;margin:16px 0;max-height:260px;overflow:auto}.reuse-targets label{display:flex;gap:10px;align-items:center;padding:9px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.reuse-targets input{flex-shrink:0}.requirement>summary{font-size:14px;font-weight:bold}.requirement>summary+p{margin-top:12px}.reference-link{font-size:13px}.guidance-note{font-size:13px;border-top:1px solid var(--line);padding-top:16px;margin-top:20px}
+.case-nav{grid-template-columns:130px minmax(0,1fr) 175px}.task-context{padding:0 0 22px}.task-context h2{font:600 19px/1.4 'Trebuchet MS',sans-serif;margin-bottom:10px}.task-context p{margin:9px 0}.task-context .purpose{font-size:17px}.expected-reason{font-size:15px;margin-top:12px;padding:12px 14px;border-left:3px solid #718c80;background:#f3f6f5}.rule-basis{font-size:13px;margin:12px 0}.rule-basis li{margin:8px 0}.queue-note{font-size:13px;color:var(--muted);margin:10px 0 0}
+@media(max-width:700px){html{scroll-padding-top:150px}.top .identity{flex:1 0 100%;min-width:0}.top .identity>div{min-width:0}.top .tools{width:100%;justify-content:flex-end;flex-wrap:nowrap}.case-nav{grid-template-columns:105px minmax(0,1fr)}.case-nav .queue-field{grid-column:1 / -1}.case-footer .tools{display:grid;grid-template-columns:42px minmax(0,1fr) 78px;gap:8px}.case-footer button{font-size:14px;min-width:0;padding:8px;line-height:1.3}.case-footer #previous-button{font-size:0;gap:0}}
+</style>
+</head>
+<body>
+<noscript><div class="noscript">JavaScript is required for scoring. The <a href="REVIEWER_GUIDE.html">reviewer guide</a>, evidence pages and blank CSV templates remain available without it.</div></noscript>
+<header class="top">
+  <div class="identity">__ICON_clipboard-check__<div><h1>Blinded human review</h1><small id="header-progress">8 specimens / 90 cases</small></div></div>
+  <div class="tools">
+    <button id="profile-button" title="Reviewer details" aria-label="Reviewer details">__ICON_user-round__<span class="compact-label" id="profile-label">Reviewer details</span></button>
+    <button id="backup-button" title="Save a portable draft backup" aria-label="Save draft backup">__ICON_save__<span class="compact-label">Save draft</span></button>
+    <button id="import-button" title="Import a saved draft" aria-label="Import draft">__ICON_upload__<span class="compact-label">Import</span></button>
+    <button id="export-button" class="primary" title="Export review CSV files">__ICON_download__<span>Export CSV</span></button>
+  </div>
+</header>
+<div class="shell" id="workspace" hidden>
+  <aside class="rail"><div class="rail-inner">
+    <h2>Frozen sample</h2><nav id="specimen-list" aria-label="Specimens"></nav>
+    <div class="rail-progress"><strong id="progress-count">0 of 90 complete</strong><progress id="review-progress" max="90" value="0" aria-label="Complete cases"></progress><small id="save-status" role="status">No ratings entered</small></div>
+    <div class="rail-links"><button id="rubric-button">__ICON_book-open__Scoring guidance</button><a href="REVIEWER_GUIDE.html" target="_blank" rel="noopener">__ICON_book-open__Full reviewer guide</a><a href="REQUIREMENTS.html" target="_blank" rel="noopener">__ICON_book-open__Feature reference</a><button id="new-review-button">__ICON_rotate-ccw__New review</button></div>
+  </div></aside>
+  <main class="main" id="main">
+    <div id="storage-warning" class="notice" role="status" hidden></div>
+    <div class="case-nav"><label>Specimen<select id="specimen-select" aria-label="Specimen"></select></label><label>Case<select id="case-select" aria-label="Case"></select></label><label class="queue-field">Review order<select id="queue-mode" aria-label="Review order"><option value="all">Original order</option><option value="exceptions_first">Mismatches first</option></select></label></div><p class="queue-note" id="queue-note"></p>
+    <section class="case-heading" aria-labelledby="case-title"><div class="eyebrow"><span id="case-position"></span><span id="execution-status" class="badge"></span><span id="case-completeness"></span></div><h2 id="case-title" tabindex="-1"></h2><p class="muted" id="case-meta"></p></section>
+    <section class="task-context" aria-labelledby="task-purpose-title"><h2 id="task-purpose-title">The task being tested</h2><p class="purpose" id="workflow-purpose"></p><h3>Set-up and planned actions</h3><p id="workflow-setup"></p><details><summary>Terms, identifiers and result notation</summary><p id="workflow-glossary"></p></details></section>
+    <section class="evidence-section"><div class="section-title"><h2>Requirements</h2><div class="tools"><a class="reference-link" href="REQUIREMENTS.html" target="_blank" rel="noopener">Feature reference</a><a href="#rating-section">Score this case</a></div></div><div id="requirements" class="requirements"></div></section>
+    <section class="evidence-section"><div class="section-title"><h2>Final execution evidence</h2><button id="expand-evidence">Expand all</button></div><div id="final-warning"></div><div id="observations"></div><details class="witness"><summary>Earlier passing witness: context only</summary><div id="earlier-witness"></div></details><p class="muted" id="retention-label" style="margin-top:12px"></p></section>
+    <section class="rating-section" id="rating-section" aria-labelledby="rating-title"><div class="section-title"><h2 id="rating-title">Your assessment</h2><button id="inline-rubric-button">Scoring guidance</button></div><p class="rating-intro">Use the final evidence for each dimension. NA means unsupported by the evidence; an empty score means not yet reviewed.</p><div id="unavailable-rating-note" class="notice" hidden>Final evidence is unavailable. Use NA for every dimension and explain each abstention.</div><div class="ratings" id="ratings"></div><div class="reuse-tools"><button id="reuse-button">Reuse own assessment</button><button id="abstain-button">Abstain on unavailable cases</button><p class="muted" id="group-context"></p></div><div class="notes"><label for="reviewer-notes">Additional feedback <span class="muted">(optional)</span></label><textarea id="reviewer-notes" maxlength="20000" placeholder="Other evidence-grounded observations or limitations"></textarea></div></section>
+    <footer class="case-footer"><div><strong id="footer-progress"></strong><div class="status-line" id="footer-status" role="status"></div></div><div class="tools"><button id="previous-button" title="Previous case" aria-label="Previous case">__ICON_chevron-left__Previous</button><button id="next-incomplete-button" title="Jump to the next incomplete case">Next incomplete</button><button id="next-button" class="primary" title="Next case">Next__ICON_chevron-right__</button></div></footer>
+  </main>
+</div>
+<dialog class="dialog" id="profile-dialog" aria-labelledby="profile-title"><header><h2 id="profile-title">Reviewer details</h2><button class="icon-only" data-close="profile-dialog" aria-label="Close reviewer details">__ICON_x__</button></header><div class="dialog-body"><p class="muted">Use a reviewer ID or pseudonym. Record prior exposure honestly; all declarations start blank.</p><div class="profile-fields" id="profile-fields"></div><div id="completion-message" class="notice" hidden></div><label class="check-label" style="margin-top:20px"><input type="checkbox" id="completion-checkbox"><span>I have personally reviewed all 90 cases and consider this independent review complete.</span></label></div><footer><button data-close="profile-dialog">Done</button></footer></dialog>
+<dialog class="dialog" id="rubric-dialog" aria-labelledby="rubric-title"><header><h2 id="rubric-title">Scoring guidance</h2><button class="icon-only" data-close="rubric-dialog" aria-label="Close scoring guidance">__ICON_x__</button></header><div class="dialog-body"><h3>Does expected equal actual mean a 4?</h3><p>A matching comparison is evidence that this check passed, not an automatic rating for every dimension. A 4 is appropriate when that dimension's exercised requirements are coherently fulfilled. Use NA when the dimension is unobserved, such as recovery with no demonstrated subsequent progress. Do not invent defects to avoid a 4, or infer untested capabilities from a pass.</p><h3>Unchanged frozen score anchors</h3><table class="rubric-table" id="rubric-table"><tbody></tbody></table><h3 style="margin-top:24px">Original scoring rules</h3><ul id="rubric-rules"></ul><p class="muted">The original JSON-only output instruction applies to the AI adapter. Human ratings are exported as CSV.</p><div id="edge-case-guidance" class="guidance-note"></div></div></dialog>
+<dialog class="dialog" id="export-dialog" aria-labelledby="export-title"><header><h2 id="export-title">Export your review</h2><button class="icon-only" data-close="export-dialog" aria-label="Close export">__ICON_x__</button></header><div class="dialog-body"><div id="export-summary"></div><div id="export-issues" class="export-issues"></div><div class="export-actions"><button class="primary" id="download-scores">__ICON_download__Download scores CSV</button><small>All 90 rows, including unfinished rows. Blank ratings remain blank.</small><button id="download-details">__ICON_user-round__Download reviewer details CSV</button><small>Return both CSV files to the coordinator. Keep the original ZIP unchanged.</small><button id="export-backup">__ICON_save__Download draft backup</button></div></div><footer><button data-close="export-dialog">Back to review</button></footer></dialog>
+<dialog class="dialog" id="new-dialog" aria-labelledby="new-title"><header><h2 id="new-title">Start a separate review?</h2></header><div class="dialog-body"><p>Your current draft will be replaced in this browser. Download a backup first to keep it. Other reviewers should use separate browser profiles and must not see your scores.</p></div><footer><button id="new-backup-button">Save current draft</button><button data-close="new-dialog">Cancel</button><button id="confirm-new-button" class="primary">Start blank review</button></footer></dialog>
+<dialog class="dialog" id="reuse-dialog" aria-labelledby="reuse-title"><header><h2 id="reuse-title">Reuse your own assessment</h2><button class="icon-only" data-close="reuse-dialog" aria-label="Close rating reuse">__ICON_x__</button></header><div class="dialog-body"><p id="reuse-summary"></p><div id="reuse-targets" class="reuse-targets"></div><p class="muted">Only untouched rows with identical requirements and final evidence are eligible. Earlier witnesses and retention history are not copied. The source and confirmation time are recorded in your CSV notes.</p></div><footer><button data-close="reuse-dialog">Cancel</button><button id="confirm-reuse-button" class="primary">Confirm reuse for selected cases</button></footer></dialog>
+<dialog class="dialog" id="abstain-dialog" aria-labelledby="abstain-title"><header><h2 id="abstain-title">Abstain on unavailable evidence</h2><button class="icon-only" data-close="abstain-dialog" aria-label="Close missing-evidence abstention">__ICON_x__</button></header><div class="dialog-body"><p id="abstain-summary"></p><label for="abstention-reason" class="field-label">Your abstention reason for all four dimensions</label><textarea id="abstention-reason" maxlength="20000"></textarea><label class="check-label" style="margin-top:16px"><input type="checkbox" id="abstention-confirmation"><span>I checked that these cases have no final execution evidence. I am abstaining, not assigning a failure score.</span></label></div><footer><button data-close="abstain-dialog">Cancel</button><button id="confirm-abstain-button" class="primary" disabled>Confirm NA for unavailable cases</button></footer></dialog>
+<input type="file" id="import-file" accept=".json,application/json" hidden>
+<div id="toast" class="toast" role="status" hidden></div>
+<script type="application/json" id="review-data">__REVIEW_DATA__</script>
+<script id="reviewer-app">
+"use strict";
+const data = JSON.parse(document.getElementById("review-data").textContent);
+const dimensions = data.dimensions;
+const byId = (identity) => document.getElementById(identity);
+const entries = data.rows.map((row) => {
+  const packet = data.packets.find((item) => item.specimen_id === row.specimen_id);
+  return {row, packet, scenario: packet.scenarios.find((item) => item.id === row.scenario_id)};
+});
+const storageKey = `blinded-human-review:v2:${data.guidance_version}:${data.packet_fingerprint}`;
+const groupsByIndex = entries.map((entry, index) => data.evidence_groups.find((group) => group.members.includes(index)));
+const choices = ["0", "1", "2", "3", "4", "NA"];
+const humanTitle = (value) => value.replaceAll("_", " ").replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+let toastTimer;
+let storageAvailable = true;
+let restored = false;
+function blankState() {
+  return {schema: "blinded-human-review-draft/v2", fingerprint: data.packet_fingerprint, guidance_version: data.guidance_version, current: 0, queue_mode: "all",
+    reviewer: Object.fromEntries(data.reviewer_columns.map((column) => [column, ""])),
+    responses: entries.map((entry) => ({specimen_id: entry.row.specimen_id, scenario_id: entry.row.scenario_id,
+      reviewed_at: "", notes: "", reuse_source: "", reuse_confirmed_at: "", edited_after_reuse: false,
+      scores: Object.fromEntries(dimensions.map((dimension) =>
+        [dimension, {score: "", evidence_ids: [], rationale: ""}]))}))};
+}
+function evidenceIds(entry) {
+  const identities = entry.scenario.final.observations.map((observation) => observation.id);
+  if (entry.scenario.final.error_type) identities.push(`${entry.scenario.id}:error`);
+  return identities;
+}
+function failedWorkflow(entry) {
+  return entry.scenario.final.status === "failed" || Boolean(entry.scenario.final.error_type) ||
+    entry.scenario.final.observations.some((observation) => observation.outcome === "failed");
+}
+function orderedIndexes() {
+  const indexes = entries.map((entry, index) => index);
+  if (state.queue_mode === "exceptions_first") indexes.sort((left, right) => {
+    const priority = (index) => failedWorkflow(entries[index]) ? 0 : entries[index].scenario.final.status === "unavailable" ? 1 : 2;
+    return priority(left) - priority(right) || left - right;
+  });
+  return indexes;
+}
+function navigateStep(direction) {
+  const order = orderedIndexes();
+  const position = order.indexOf(state.current);
+  navigate(order[Math.max(0, Math.min(order.length - 1, position + direction))]);
+}
+function boundedText(value) { return typeof value === "string" && value.length <= 20000; }
+function validateDraft(candidate) {
+  if (!candidate || candidate.schema !== "blinded-human-review-draft/v2" || candidate.fingerprint !== data.packet_fingerprint ||
+      candidate.guidance_version !== data.guidance_version ||
+      !["all", "exceptions_first"].includes(candidate.queue_mode) ||
+      !Number.isInteger(candidate.current) || candidate.current < 0 || candidate.current >= entries.length ||
+      !candidate.reviewer || !Array.isArray(candidate.responses) || candidate.responses.length !== entries.length ||
+      Object.keys(candidate.reviewer).sort().join() !== [...data.reviewer_columns].sort().join()) throw new Error("This draft does not match the frozen sample.");
+  for (const column of data.reviewer_columns) if (!boundedText(candidate.reviewer[column])) throw new Error("Invalid reviewer details.");
+  for (const [index, response] of candidate.responses.entries()) {
+    const entry = entries[index];
+    if (!response || response.specimen_id !== entry.row.specimen_id || response.scenario_id !== entry.row.scenario_id ||
+        !boundedText(response.reviewed_at) || !boundedText(response.notes) || !boundedText(response.reuse_source) ||
+        !boundedText(response.reuse_confirmed_at) || typeof response.edited_after_reuse !== "boolean" || !response.scores ||
+        Object.keys(response.scores).sort().join() !== [...dimensions].sort().join()) throw new Error("Draft case identities differ.");
+    for (const dimension of dimensions) {
+      const rating = response.scores[dimension];
+      if (!rating || !["", ...choices].includes(rating.score) || !boundedText(rating.rationale) ||
+          !Array.isArray(rating.evidence_ids) || new Set(rating.evidence_ids).size !== rating.evidence_ids.length ||
+          !rating.evidence_ids.every((identity) => evidenceIds(entry).includes(identity))) throw new Error("Invalid rating or evidence citation.");
+    }
+  }
+  for (const column of ["development_labels_known_before_review_yes_no", "ai_scores_seen_before_scoring_yes_no", "independent_scoring_yes_no", "review_completed_yes_no"])
+    if (!["", "yes", "no"].includes(candidate.reviewer[column])) throw new Error("Invalid reviewer declaration.");
+  if (candidate.reviewer.guidance_version !== data.guidance_version) throw new Error("Reviewer metadata uses a different guidance version.");
+  if (!["", "human", "ai_dry_run"].includes(candidate.reviewer.reviewer_kind) ||
+      !["", "not_started", "in_progress", "completed"].includes(candidate.reviewer.review_status)) throw new Error("Invalid reviewer role or review status.");
+  return structuredClone(candidate);
+}
+let state = blankState();
+state.reviewer.guidance_version = data.guidance_version;
+state.reviewer.review_status = "not_started";
+try {
+  const saved = localStorage.getItem(storageKey);
+  if (saved) { state = validateDraft(JSON.parse(saved)); restored = true; }
+} catch (error) {
+  storageAvailable = false;
+  byId("storage-warning").hidden = false;
+  byId("storage-warning").textContent = "The browser could not restore or store a local draft. Keep this page open and save a draft backup before leaving.";
+}
+function make(tag, text, className) {
+  const element = document.createElement(tag);
+  if (text !== undefined) element.textContent = text;
+  if (className) element.className = className;
+  return element;
+}
+function showToast(message) {
+  clearTimeout(toastTimer);
+  byId("toast").textContent = message;
+  byId("toast").hidden = false;
+  toastTimer = setTimeout(() => { byId("toast").hidden = true; }, 5500);
+}
+function dimensionIssues(entry, dimension, rating) {
+  const issues = [];
+  if (!rating.score) issues.push("Choose a score or NA.");
+  if (rating.score && !rating.rationale.trim()) issues.push("Add a rationale.");
+  if (rating.score && rating.score !== "NA" && !rating.evidence_ids.length) issues.push("Select final evidence.");
+  if (rating.score === "NA" && rating.evidence_ids.length) issues.push("NA must not cite final observations.");
+  if (entry.scenario.final.status === "unavailable" && rating.score && rating.score !== "NA") issues.push("Unavailable final evidence requires NA.");
+  if (dimension === "functional_completeness" && rating.score === "4" && failedWorkflow(entry)) issues.push("A failed workflow cannot receive 4 for functional completeness.");
+  return issues;
+}
+function rowIssues(index) {
+  const response = state.responses[index];
+  return dimensions.flatMap((dimension) => dimensionIssues(entries[index], dimension, response.scores[dimension])
+    .map((message) => `${humanTitle(dimension)}: ${message}`));
+}
+function complete(index) { return rowIssues(index).length === 0; }
+function completionCount() { return entries.reduce((count, entry, index) => count + Number(complete(index)), 0); }
+function profileIssues() {
+  const reviewer = state.reviewer;
+  const issues = [];
+  if (!reviewer.reviewer_id.trim()) issues.push("Add a reviewer ID.");
+  if (!["human", "ai_dry_run"].includes(reviewer.reviewer_kind)) issues.push("Declare whether this is a human review or an AI test run.");
+  if (reviewer.reviewer_kind === "human" && /^AI[-_ ]?DRY[-_ ]?RUN/i.test(reviewer.reviewer_id.trim())) issues.push("AI-DRYRUN cannot be declared a human reviewer.");
+  for (const column of ["prior_exposure_to_experiment_outputs", "development_labels_known_before_review_yes_no", "ai_scores_seen_before_scoring_yes_no", "independent_scoring_yes_no"])
+    if (!reviewer[column].trim()) issues.push(`Complete ${humanTitle(column)}.`);
+  return issues;
+}
+function invalidateCompletion() {
+  const started = state.responses.some((response) => response.reviewed_at);
+  state.reviewer.review_completed_yes_no = started ? "no" : "";
+  state.reviewer.review_completed_at_utc = "";
+  state.reviewer.review_status = started ? "in_progress" : "not_started";
+}
+function save() {
+  if (storageAvailable) {
+    try { localStorage.setItem(storageKey, JSON.stringify(state)); }
+    catch (error) {
+      storageAvailable = false;
+      byId("storage-warning").hidden = false;
+      byId("storage-warning").textContent = "Local saving is unavailable. Download a draft backup before closing this page.";
+    }
+  }
+  updateProgress();
+}
+function touch(index) {
+  invalidateCompletion();
+  const now = new Date().toISOString();
+  state.responses[index].reviewed_at = now;
+  if (state.responses[index].reuse_source) state.responses[index].edited_after_reuse = true;
+  if (!state.reviewer.review_started_at_utc) state.reviewer.review_started_at_utc = now;
+  state.reviewer.review_status = "in_progress";
+  state.reviewer.review_completed_yes_no = "no";
+  save();
+}
+function updateProgress() {
+  const count = completionCount();
+  byId("header-progress").textContent = `${count} / 90 cases complete`;
+  byId("progress-count").textContent = `${count} of 90 complete`;
+  byId("review-progress").value = count;
+  byId("save-status").textContent = storageAvailable ? "Draft saved on this browser" : "Use Save draft to keep a backup";
+  byId("footer-progress").textContent = `Case ${state.current + 1} of 90`;
+  byId("footer-status").textContent = complete(state.current) ? "All four dimensions complete" : `${rowIssues(state.current).length} required fields or checks remaining`;
+  byId("case-completeness").textContent = complete(state.current) ? "Complete" : "Not complete";
+  byId("reuse-button").disabled = !complete(state.current) || !reuseTargets(state.current).length;
+  byId("abstain-button").disabled = !unavailableTargets().length;
+  const group = groupsByIndex[state.current];
+  byId("group-context").textContent = `${group.id} / ${group.members.length} identical scoring-context row${group.members.length === 1 ? "" : "s"} / ${reuseTargets(state.current).length} untouched matches`;
+  byId("profile-label").textContent = state.reviewer.reviewer_id.trim() || "Reviewer details";
+  for (const [index, packet] of data.packets.entries()) {
+    const members = entries.flatMap((entry, rowIndex) => entry.packet.specimen_id === packet.specimen_id ? [rowIndex] : []);
+    const done = members.filter(complete).length;
+    byId(`specimen-count-${index}`).textContent = `${done}/${members.length}`;
+  }
+}
+function jsonView(value) { return make("pre", JSON.stringify(value, null, 2)); }
+function renderRequirements(entry) {
+  const holder = byId("requirements");
+  holder.replaceChildren();
+  for (const requirement of entry.scenario.requirements) {
+    const block = make("details", undefined, "requirement");
+    block.append(make("summary", `${requirement.id || "Requirement"}: ${requirement.story || "Supplied feature requirements"}`));
+    if (Array.isArray(requirement.rules)) {
+      const list = make("ul");
+      for (const rule of requirement.rules) list.append(make("li", typeof rule === "string" ? rule : JSON.stringify(rule)));
+      block.append(list);
+    }
+    const remainder = Object.fromEntries(Object.entries(requirement).filter(([key]) => !["id", "story", "rules"].includes(key)));
+    if (Object.keys(remainder).length) {
+      const details = make("details");
+      details.append(make("summary", "API and remaining requirements"), jsonView(remainder));
+      block.append(details);
+    }
+    holder.append(block);
+  }
+}
+function renderEvidence(entry) {
+  const final = entry.scenario.final;
+  const plan = data.workflow_context.scenarios[entry.scenario.id];
+  const warning = byId("final-warning");
+  warning.replaceChildren();
+  if (final.status === "unavailable") warning.append(make("p", `Final evidence unavailable: ${final.unavailable_reason || "not recorded"}. Earlier witnesses cannot replace this endpoint.`, "notice"));
+  if (final.error_type) warning.append(make("p", `Recorded candidate error: ${final.error_type}. Allowed citation: ${entry.scenario.id}:error`, "notice error"));
+  if (plan && final.observations.length < plan.checks.length) warning.append(make("p", `${final.observations.length} of ${plan.checks.length} planned checks have a recorded final observation. Unrecorded checks have no demonstrated outcome; the plan is not evidence that they ran.`, "notice"));
+  else if (final.status === "passed") warning.append(make("p", "All recorded comparisons passed. Assess each dimension from what the sequence demonstrates; matching values do not automatically establish unobserved recovery or capabilities outside this scenario.", "muted"));
+  const observations = byId("observations");
+  observations.replaceChildren();
+  for (const [index, observation] of final.observations.entries()) {
+    const details = make("details", undefined, "observation");
+    details.open = observation.outcome === "failed" || index === 0;
+    const summary = make("summary");
+    summary.append(make("strong", observation.id), make("span", observation.action, "action"), make("span", observation.outcome, `badge ${observation.outcome}`));
+    const comparison = make("div", undefined, "comparison");
+    const explanation = plan?.checks[index];
+    const context = make("div");
+    if (explanation) {
+      context.append(make("p", `Why this result is expected: ${explanation.why}`, "expected-reason"));
+      const basis = make("details", undefined, "rule-basis");
+      const rules = make("ul");
+      for (const [feature, positions] of Object.entries(explanation.rules)) {
+        const requirement = entry.scenario.requirements.find((item) => item.id === feature);
+        for (const position of positions) rules.append(make("li", `${feature} rule ${position}: ${requirement.rules[position - 1]}`));
+      }
+      basis.append(make("summary", "Public requirement basis"), rules);
+      context.append(basis);
+    }
+    for (const [label, value] of [["Expected by the requirement", observation.expected], ["Actual recorded result", observation.actual]]) {
+      const column = make("div");
+      column.append(make("h3", label), jsonView(value));
+      comparison.append(column);
+    }
+    details.append(summary, context, comparison);
+    observations.append(details);
+  }
+  if (!final.observations.length) observations.append(make("p", "No final observation rows were recorded.", "muted"));
+  byId("earlier-witness").replaceChildren(jsonView(entry.scenario.earlier_passing_witness));
+  byId("retention-label").textContent = `Recorded retention: ${entry.scenario.retention}`;
+  byId("expand-evidence").textContent = "Expand all";
+  byId("unavailable-rating-note").hidden = final.status !== "unavailable";
+}
+function renderRatings(entry) {
+  const holder = byId("ratings");
+  holder.replaceChildren();
+  const rowIndex = state.current;
+  for (const dimension of dimensions) {
+    const rating = state.responses[rowIndex].scores[dimension];
+    const fieldset = make("fieldset", undefined, "dimension");
+    fieldset.append(make("legend", humanTitle(dimension)), make("p", data.rubric.dimensions[dimension], "definition"));
+    const options = make("div", undefined, "score-options");
+    const anchor = make("p", "", "score-anchor");
+    anchor.id = `${dimension}-anchor`;
+    const citations = make("div", undefined, "citations");
+    const errors = make("p", "", "dimension-errors");
+    const updateRating = () => {
+      anchor.textContent = rating.score === "NA" ? "NA: the supplied evidence does not establish this dimension." : rating.score ? data.rubric.scale[rating.score] : "No score selected";
+      for (const input of citations.querySelectorAll("input")) {
+        input.disabled = !rating.score || rating.score === "NA";
+        input.checked = rating.evidence_ids.includes(input.value);
+      }
+      errors.textContent = rating.score ? dimensionIssues(entry, dimension, rating).join(" ") : "";
+    };
+    for (const choice of choices) {
+      const label = make("label", undefined, "score-option");
+      label.title = choice === "NA" ? "Not assessable from the supplied evidence" : data.rubric.scale[choice];
+      const input = make("input");
+      input.type = "radio";
+      input.name = `${dimension}-score`;
+      input.value = choice;
+      input.setAttribute("aria-label", `${humanTitle(dimension)}: ${choice}`);
+      input.setAttribute("aria-describedby", anchor.id);
+      input.checked = rating.score === choice;
+      input.disabled = (entry.scenario.final.status === "unavailable" && choice !== "NA") ||
+        (dimension === "functional_completeness" && choice === "4" && failedWorkflow(entry));
+      input.addEventListener("change", () => {
+        rating.score = choice;
+        if (choice === "NA") rating.evidence_ids = [];
+        touch(rowIndex);
+        updateRating();
+      });
+      label.append(input, make("span", choice));
+      options.append(label);
+    }
+    for (const identity of evidenceIds(entry)) {
+      const label = make("label", undefined, "citation");
+      const input = make("input");
+      input.type = "checkbox";
+      input.value = identity;
+      input.setAttribute("aria-label", `${humanTitle(dimension)} evidence ${identity}`);
+      input.addEventListener("change", () => {
+        rating.evidence_ids = [...citations.querySelectorAll("input:checked")].map((checkbox) => checkbox.value);
+        touch(rowIndex);
+        updateRating();
+      });
+      label.append(input, make("span", identity));
+      citations.append(label);
+    }
+    if (!evidenceIds(entry).length) citations.append(make("span", "No final evidence IDs available.", "muted"));
+    const rationaleLabel = make("label", "Rationale / abstention reason", "field-label");
+    rationaleLabel.htmlFor = `${dimension}-rationale`;
+    const rationale = make("textarea");
+    rationale.id = `${dimension}-rationale`;
+    rationale.maxLength = 20000;
+    rationale.value = rating.rationale;
+    rationale.placeholder = "Explain this dimension using the final evidence";
+    rationale.addEventListener("input", () => { rating.rationale = rationale.value; touch(rowIndex); updateRating(); });
+    fieldset.append(options, anchor, make("div", "Final evidence IDs", "field-label"), citations, rationaleLabel, rationale, errors);
+    holder.append(fieldset);
+    updateRating();
+  }
+}
+function renderCase(scroll = false) {
+  const entry = entries[state.current];
+  const plan = data.workflow_context.scenarios[entry.scenario.id];
+  const order = orderedIndexes();
+  byId("queue-mode").value = state.queue_mode;
+  const failures = entries.filter(failedWorkflow).length;
+  byId("queue-note").textContent = state.queue_mode === "exceptions_first"
+    ? `${failures} mismatch/error cases first, then unavailable cases and matching cases. All 90 rows still require a human assessment or explicit own-rating reuse.`
+    : "All 90 cases in their original order. Mismatches first changes navigation, not the sample or CSV rows.";
+  byId("workflow-purpose").textContent = plan?.purpose || "Review the supplied requirements and final evidence.";
+  byId("workflow-setup").textContent = plan?.setup || "The original packet contains the recorded scenario.";
+  byId("workflow-glossary").textContent = data.workflow_context.notice;
+  byId("specimen-select").value = entry.packet.specimen_id;
+  byId("case-select").replaceChildren();
+  for (const [index, candidate] of entries.entries()) {
+    if (candidate.packet.specimen_id !== entry.packet.specimen_id) continue;
+    const option = make("option", `${candidate.scenario.id}: ${candidate.scenario.title}`);
+    option.value = String(index);
+    byId("case-select").append(option);
+  }
+  byId("case-select").value = String(state.current);
+  for (const button of byId("specimen-list").querySelectorAll("button")) button.setAttribute("aria-current", String(button.dataset.specimen === entry.packet.specimen_id));
+  byId("case-position").textContent = `${entry.row.specimen_label} / ${entry.packet.endpoint.toUpperCase()} / Case ${state.current + 1} of 90`;
+  byId("execution-status").textContent = entry.scenario.final.status;
+  byId("execution-status").className = `badge ${entry.scenario.final.status}`;
+  byId("case-title").textContent = entry.scenario.title;
+  byId("case-meta").textContent = `${entry.scenario.id} / Feature dependencies: ${entry.scenario.features.join(", ")}`;
+  renderRequirements(entry);
+  renderEvidence(entry);
+  renderRatings(entry);
+  byId("reviewer-notes").value = state.responses[state.current].notes;
+  byId("previous-button").disabled = order.indexOf(state.current) === 0;
+  byId("next-button").disabled = order.indexOf(state.current) === order.length - 1;
+  updateProgress();
+  if (scroll) { byId("case-title").focus({preventScroll: true}); window.scrollTo({top: 0, behavior: "instant"}); }
+}
+function navigate(index) { state.current = index; save(); renderCase(true); }
+function openProfile() {
+  const fields = byId("profile-fields");
+  fields.replaceChildren();
+  const definitions = [
+    ["reviewer_id", "Reviewer ID / pseudonym", "text"],
+    ["reviewer_kind", "Reviewer kind", "select"],
+    ["prior_exposure_to_experiment_outputs", "Prior exposure to experiment outputs", "textarea"],
+    ["development_labels_known_before_review_yes_no", "Development model or treatment labels known?", "select"],
+    ["ai_scores_seen_before_scoring_yes_no", "Any AI scores or dry-run ratings seen before scoring?", "select"],
+    ["independent_scoring_yes_no", "Scoring independently before discussion?", "select"],
+    ["disclosures_or_limitations", "Disclosures or limitations (optional)", "textarea"]
+  ];
+  for (const [column, title, type] of definitions) {
+    const label = make("label", title, type === "textarea" ? "wide" : "");
+    const input = make(type === "textarea" ? "textarea" : type === "select" ? "select" : "input");
+    input.id = `profile-${column}`;
+    if (type === "select") {
+      const options = column === "reviewer_kind" ? [["", "Choose..."], ["human", "Human reviewer"], ["ai_dry_run", "AI test run (excluded from human calibration)"]] : [["", "Choose..."], ["yes", "Yes"], ["no", "No"]];
+      for (const [value, text] of options) { const option = make("option", text); option.value = value; input.append(option); }
+    } else { input.maxLength = 20000; }
+    input.value = state.reviewer[column];
+    input.addEventListener(type === "select" ? "change" : "input", () => {
+      state.reviewer[column] = input.value;
+      invalidateCompletion();
+      byId("completion-checkbox").checked = false;
+      save();
+      updateCompletionAvailability();
+    });
+    label.append(input);
+    fields.append(label);
+  }
+  updateCompletionAvailability();
+  byId("profile-dialog").showModal();
+}
+function updateCompletionAvailability() {
+  const issues = profileIssues();
+  const ready = completionCount() === entries.length && !issues.length && state.reviewer.reviewer_kind === "human";
+  byId("completion-checkbox").disabled = !ready;
+  byId("completion-checkbox").checked = state.reviewer.review_completed_yes_no === "yes";
+  byId("completion-message").hidden = ready;
+  byId("completion-message").textContent = `${completionCount()} of 90 cases complete. ${issues.join(" ")} Only a declared human reviewer can attest completion, after every case and disclosure is complete. Current status: ${state.reviewer.review_status}.`;
+}
+function safeCell(value) {
+  let text = String(value ?? "");
+  if (/^\s*[=+\-@]/.test(text) || /^[\t\r\n]/.test(text)) text = "'" + text;
+  return `"${text.replaceAll('"', '""')}"`;
+}
+function csvText(columns, rows) {
+  return "\ufeff" + [columns.map(safeCell).join(","), ...rows.map((row) => columns.map((column) => safeCell(row[column])).join(","))].join("\r\n") + "\r\n";
+}
+function exportedRows() {
+  return entries.map((entry, index) => {
+    const response = state.responses[index];
+    const row = {...entry.row, reviewer_id: state.reviewer.reviewer_id,
+      review_date_utc: response.reviewed_at, reviewer_notes: response.notes};
+    if (response.reuse_source) row.reviewer_notes += `${row.reviewer_notes ? "\n" : ""}[Own review action: ${response.reuse_source}; confirmed ${response.reuse_confirmed_at}; edited afterward: ${response.edited_after_reuse ? "yes" : "no"}]`;
+    for (const dimension of dimensions) {
+      const rating = response.scores[dimension];
+      row[`${dimension}_score`] = rating.score;
+      row[`${dimension}_evidence_ids`] = rating.evidence_ids.join(";");
+      row[`${dimension}_rationale`] = rating.rationale;
+    }
+    return row;
+  });
+}
+function fileSuffix() { return (state.reviewer.reviewer_id.trim() || "draft").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60); }
+function untouched(index) {
+  const response = state.responses[index];
+  return !response.reviewed_at && !response.notes && dimensions.every((dimension) => {
+    const rating = response.scores[dimension];
+    return !rating.score && !rating.rationale && !rating.evidence_ids.length;
+  });
+}
+function reuseTargets(index) { return groupsByIndex[index].members.filter((target) => target !== index && untouched(target)); }
+function unavailableTargets() { return entries.flatMap((entry, index) => entry.scenario.final.status === "unavailable" && untouched(index) ? [index] : []); }
+function openReuse() {
+  const source = state.current;
+  if (!complete(source)) return;
+  const targets = reuseTargets(source);
+  if (!targets.length) return;
+  byId("reuse-summary").textContent = `Copy your completed ${entries[source].row.specimen_label} / ${entries[source].scenario.id} assessment to selected exact matches. All 90 rows will remain in the CSV.`;
+  byId("reuse-targets").replaceChildren();
+  for (const target of targets) {
+    const label = make("label");
+    const input = make("input");
+    input.type = "checkbox";
+    input.value = String(target);
+    input.checked = false;
+    label.append(input, make("span", `${entries[target].row.specimen_label} / ${entries[target].packet.endpoint.toUpperCase()} / ${entries[target].scenario.id}`));
+    input.addEventListener("change", () => { byId("confirm-reuse-button").disabled = !byId("reuse-targets").querySelector("input:checked"); });
+    byId("reuse-targets").append(label);
+  }
+  byId("confirm-reuse-button").disabled = true;
+  byId("reuse-dialog").showModal();
+}
+function applyReuse() {
+  const source = state.current;
+  if (!complete(source)) return;
+  const targets = [...byId("reuse-targets").querySelectorAll("input:checked")].map((input) => Number(input.value));
+  const eligible = reuseTargets(source);
+  if (!targets.length || targets.some((target) => !eligible.includes(target))) return;
+  invalidateCompletion();
+  const now = new Date().toISOString();
+  for (const target of targets) {
+    Object.assign(state.responses[target], {scores: structuredClone(state.responses[source].scores), reviewed_at: now,
+      reuse_source: `${entries[source].row.specimen_label}/${entries[source].scenario.id} (identical requirements and final evidence)`, reuse_confirmed_at: now, edited_after_reuse: false});
+  }
+  save();
+  renderCase();
+  byId("reuse-dialog").close();
+  showToast(`Your assessment was reused for ${targets.length} selected matching cases. Existing edited cases were unchanged.`);
+}
+function openAbstention() {
+  const targets = unavailableTargets();
+  if (!targets.length) return;
+  byId("abstain-summary").textContent = `${targets.length} untouched cases have unavailable final evidence. This action records NA with your own reason in every dimension; it does not mark the human review complete.`;
+  byId("abstention-reason").value = "";
+  byId("abstention-confirmation").checked = false;
+  byId("confirm-abstain-button").disabled = true;
+  byId("abstain-dialog").showModal();
+}
+function applyAbstention() {
+  const reason = byId("abstention-reason").value.trim();
+  if (!reason || !byId("abstention-confirmation").checked) return;
+  const targets = unavailableTargets();
+  if (!targets.length) return;
+  invalidateCompletion();
+  const now = new Date().toISOString();
+  for (const target of targets) {
+    for (const dimension of dimensions) state.responses[target].scores[dimension] = {score: "NA", evidence_ids: [], rationale: reason};
+    Object.assign(state.responses[target], {reviewed_at: now, reuse_source: "explicit unavailable-evidence abstention", reuse_confirmed_at: now, edited_after_reuse: false});
+  }
+  if (!state.reviewer.review_started_at_utc) state.reviewer.review_started_at_utc = now;
+  state.reviewer.review_status = "in_progress";
+  state.reviewer.review_completed_yes_no = "no";
+  save();
+  renderCase();
+  byId("abstain-dialog").close();
+  showToast(`Your abstention was recorded for ${targets.length} unavailable cases.`);
+}
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], {type}));
+  const anchor = make("a");
+  anchor.href = url;
+  anchor.download = name;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+function backup() {
+  download(`REVIEW_DRAFT_${fileSuffix()}.json`, JSON.stringify(state, null, 2) + "\n", "application/json;charset=utf-8");
+  showToast("Draft backup downloaded. Keep it private from other reviewers.");
+}
+function openExport() {
+  const count = completionCount();
+  const ready = count === entries.length && profileIssues().length === 0 && state.reviewer.review_completed_yes_no === "yes" && state.reviewer.reviewer_kind === "human";
+  const summary = make("div", undefined, ready ? "notice success" : "notice");
+  summary.append(make("strong", ready ? "Review declared complete" : `Draft review: ${count} of 90 cases complete`),
+    make("p", ready ? "Download both CSV files. Preserve these independent scores before any comparison." : "You can export a draft at any time. Unfinished fields stay blank; exporting does not attest completion."));
+  byId("export-summary").replaceChildren(summary);
+  const issues = byId("export-issues");
+  issues.replaceChildren();
+  if (profileIssues().length || state.reviewer.review_completed_yes_no !== "yes") {
+    const profile = make("button", "Complete reviewer details and the human completion declaration");
+    profile.addEventListener("click", () => { byId("export-dialog").close(); openProfile(); });
+    issues.append(profile);
+  }
+  let shown = 0;
+  for (const [index, entry] of entries.entries()) {
+    if (complete(index) || shown >= 5) continue;
+    const button = make("button", `${entry.row.specimen_label} / ${entry.scenario.id}: ${rowIssues(index)[0]}`);
+    button.addEventListener("click", () => { byId("export-dialog").close(); navigate(index); byId("rating-section").scrollIntoView(); });
+    issues.append(button);
+    shown += 1;
+  }
+  byId("export-dialog").showModal();
+}
+for (const [index, packet] of data.packets.entries()) {
+  const first = entries.findIndex((entry) => entry.packet.specimen_id === packet.specimen_id);
+  const label = entries[first].row.specimen_label;
+  const button = make("button", undefined, "specimen-button");
+  button.dataset.specimen = packet.specimen_id;
+  const count = make("span", "", "count");
+  count.id = `specimen-count-${index}`;
+  button.append(make("strong", label), make("small", `${packet.endpoint.toUpperCase()} endpoint`), count);
+  button.addEventListener("click", () => navigate(first));
+  byId("specimen-list").append(button);
+  const option = make("option", `${label} / ${packet.endpoint.toUpperCase()}`);
+  option.value = packet.specimen_id;
+  byId("specimen-select").append(option);
+}
+for (const [score, meaning] of Object.entries(data.rubric.scale)) {
+  const row = make("tr");
+  row.append(make("th", score), make("td", meaning));
+  byId("rubric-table").querySelector("tbody").append(row);
+}
+for (const rule of data.rubric.rules) byId("rubric-rules").append(make("li", rule));
+byId("edge-case-guidance").append(make("h3", "Human guidance v3: evidence edge cases"));
+for (const item of data.edge_cases) byId("edge-case-guidance").append(make("h3", item.title), make("p", item.text));
+byId("edge-case-guidance").append(make("p", "Added after the AI usability dry run and after original AI scoring began. The original rubric above is unchanged.", "muted"));
+for (const button of document.querySelectorAll("[data-close]")) button.addEventListener("click", () => byId(button.dataset.close).close());
+byId("specimen-select").addEventListener("change", (event) => navigate(entries.findIndex((entry) => entry.packet.specimen_id === event.target.value)));
+byId("case-select").addEventListener("change", (event) => navigate(Number(event.target.value)));
+byId("queue-mode").addEventListener("change", (event) => {
+  state.queue_mode = event.target.value;
+  navigate(orderedIndexes()[0]);
+});
+byId("previous-button").addEventListener("click", () => navigateStep(-1));
+byId("next-button").addEventListener("click", () => navigateStep(1));
+byId("next-incomplete-button").addEventListener("click", () => {
+  const order = orderedIndexes();
+  const position = order.indexOf(state.current);
+  for (let offset = 1; offset <= order.length; offset += 1) { const index = order[(position + offset) % order.length]; if (!complete(index)) { navigate(index); return; } }
+  showToast("All 90 cases have complete ratings. Check reviewer details before exporting.");
+});
+byId("reviewer-notes").addEventListener("input", (event) => { state.responses[state.current].notes = event.target.value; touch(state.current); });
+byId("expand-evidence").addEventListener("click", () => {
+  const expand = byId("expand-evidence").textContent === "Expand all";
+  for (const details of byId("observations").querySelectorAll("details")) details.open = expand;
+  byId("expand-evidence").textContent = expand ? "Collapse all" : "Expand all";
+});
+byId("profile-button").addEventListener("click", openProfile);
+byId("reuse-button").addEventListener("click", openReuse);
+byId("confirm-reuse-button").addEventListener("click", applyReuse);
+byId("abstain-button").addEventListener("click", openAbstention);
+byId("confirm-abstain-button").addEventListener("click", applyAbstention);
+for (const identity of ["abstention-reason", "abstention-confirmation"]) byId(identity).addEventListener(identity === "abstention-reason" ? "input" : "change", () => {
+  byId("confirm-abstain-button").disabled = !byId("abstention-reason").value.trim() || !byId("abstention-confirmation").checked;
+});
+for (const identity of ["rubric-button", "inline-rubric-button"]) byId(identity).addEventListener("click", () => byId("rubric-dialog").showModal());
+for (const identity of ["backup-button", "export-backup", "new-backup-button"]) byId(identity).addEventListener("click", backup);
+byId("completion-checkbox").addEventListener("change", (event) => {
+  if (event.target.checked && completionCount() === entries.length && !profileIssues().length && state.reviewer.reviewer_kind === "human") {
+    state.reviewer.review_completed_yes_no = "yes";
+    state.reviewer.review_completed_at_utc = new Date().toISOString();
+    state.reviewer.review_status = "completed";
+  } else { invalidateCompletion(); }
+  save();
+});
+byId("export-button").addEventListener("click", openExport);
+byId("download-scores").addEventListener("click", () => {
+  download(`SCORING_${fileSuffix()}.csv`, csvText(data.columns, exportedRows()), "text/csv;charset=utf-8");
+  showToast("Scores CSV downloaded. Remember the reviewer details CSV too.");
+});
+byId("download-details").addEventListener("click", () => {
+  download(`REVIEWER_DETAILS_${fileSuffix()}.csv`, csvText(data.reviewer_columns, [state.reviewer]), "text/csv;charset=utf-8");
+  showToast("Reviewer details CSV downloaded.");
+});
+byId("import-button").addEventListener("click", () => byId("import-file").click());
+byId("import-file").addEventListener("change", async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    if (file.size > 4 * 1024 * 1024) throw new Error("Draft file is too large.");
+    const candidate = validateDraft(JSON.parse(await file.text()));
+    if (state.responses.some((response) => response.reviewed_at) && !window.confirm("Replace the current draft with this backup? Save your current draft first to retain both.")) return;
+    state = candidate;
+    if (state.reviewer.review_completed_yes_no === "yes" && (completionCount() !== entries.length || profileIssues().length || state.reviewer.reviewer_kind !== "human")) invalidateCompletion();
+    save();
+    renderCase(true);
+    showToast("Draft imported. Only your review fields were restored; the evidence is unchanged.");
+  } catch (error) { showToast(`Import refused: ${error.message}`); }
+  finally { event.target.value = ""; }
+});
+byId("new-review-button").addEventListener("click", () => byId("new-dialog").showModal());
+byId("confirm-new-button").addEventListener("click", () => {
+  state = blankState();
+  state.reviewer.guidance_version = data.guidance_version;
+  state.reviewer.review_status = "not_started";
+  save();
+  renderCase(true);
+  byId("new-dialog").close();
+  showToast("A blank review has started. No scores or declarations were carried over.");
+});
+byId("workspace").hidden = false;
+renderCase();
+if (restored) showToast("Your local draft was restored.");
+</script>
+</body>
+</html>

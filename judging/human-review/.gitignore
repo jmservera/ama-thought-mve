@@ -1,0 +1,9 @@
+# Keep generated evidence and responses outside version control.
+exports/
+responses/
+packets/
+*.zip
+*.zip.sha256
+SCORING_*.csv
+REVIEWER_DETAILS*.csv
+REVIEW_DRAFT_*.json

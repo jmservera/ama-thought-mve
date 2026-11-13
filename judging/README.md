@@ -339,6 +339,27 @@ calibration happened. Do not tune on study outcomes and present that tuning
 as prospective measurement. Human review and any paid judge smoke require
 separate operator action; no human attestations are generated.
 
+### Reproducible human-review tool
+
+The repository includes the [offline human-assessment workflow](human-review/README.md)
+and the [builder](human-review/build.py) for the guidance-v3 reviewer pack delivered
+on 13 November 2026. Its source, workflow explanations and licensed local icons
+allow the same blinded interface to be rebuilt without a session folder, npm,
+network connection or model call.
+
+The page displays scenario setup, requirement-grounded expected results, final
+observations and four separate scoring controls. It exports all 90 rows, supports
+private drafts and explicit reuse of the reviewer's own exact-context assessments,
+and keeps NA, partial review and human completion distinct. Mismatch-first ordering
+does not exclude passing cases or turn matches into automatic 4s.
+
+The workflow documentation specifies independent review, exposure disclosures,
+guidance lineage, freezing responses before AI comparison and preserving
+adjudication history. The original small, repeated sample remains limited for
+calibration. Code and blank templates document the instrument; only actual human
+responses establish completed assessment. Do not commit reviewer responses,
+AI dry-run scores, raw study packets or private mappings with this source.
+
 ## Paper-ready methods text
 
 > We added a supplementary exploratory post-collection assessment of the
