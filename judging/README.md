@@ -199,6 +199,26 @@ and accounting, not another full copy of every verdict. Resume and reporting
 verify these files against the ledger; a missing or changed response blocks
 further work rather than generating a replacement rating.
 
+The Copilot adapter revision `sdk1.0.28-cli1.0.105-judge3` serializes tool filters
+to plain string arrays before passing them to the SDK and passes a strict
+per-specimen `responseSchema` to `sendAndWait` so required verdict fields,
+rubric dimensions and allowed execution citations are grammar-constrained.
+It also writes a bounded private `diagnostic.json` containing failure stage,
+safe error classification, prompt-dispatch/cleanup flags and accounting, never
+specimen text, verdicts or raw provider messages. The controller retains bounded
+mode-600 `adapter.stdout`, `adapter.stderr` and `adapter-exit.json` on failure,
+records certified usage before semantic verdict checks, and supports optional
+bounded `workers` and `resilience` retry/quarantine limits in private config.
+Keep diagnostics private and inspect them before considering recovery.
+
+A revision-1 batch cannot silently resume with revision 2: configuration and
+evaluator hashes change. Preserve the old sealed bundle and blocked-call ledger,
+record the explicit replacement-assessment lineage and carry unresolved prior
+reservations against the overall approved budget. Reusing verified byte-identical
+execution packets does not permit changing the rubric, selecting new endpoints,
+discarding failed calls or claiming unknown charges were zero. Original and
+replacement costs and human-calibration status must remain separately visible.
+
 ### Report and handoff
 
 ```bash
@@ -321,6 +341,27 @@ and record who reviewed what and when. This software does not certify that
 calibration happened. Do not tune on study outcomes and present that tuning
 as prospective measurement. Human review and any paid judge smoke require
 separate operator action; no human attestations are generated.
+
+### Reproducible human-review tool
+
+The repository includes the [offline human-assessment workflow](human-review/README.md)
+and the [builder](human-review/build.py) for the guidance-v3 reviewer pack delivered
+on 13 November 2026. Its source, workflow explanations and licensed local icons
+allow the same blinded interface to be rebuilt without a session folder, npm,
+network connection or model call.
+
+The page displays scenario setup, requirement-grounded expected results, final
+observations and four separate scoring controls. It exports all 90 rows, supports
+private drafts and explicit reuse of the reviewer's own exact-context assessments,
+and keeps NA, partial review and human completion distinct. Mismatch-first ordering
+does not exclude passing cases or turn matches into automatic 4s.
+
+The workflow documentation specifies independent review, exposure disclosures,
+guidance lineage, freezing responses before AI comparison and preserving
+adjudication history. The original small, repeated sample remains limited for
+calibration. Code and blank templates document the instrument; only actual human
+responses establish completed assessment. Do not commit reviewer responses,
+AI dry-run scores, raw study packets or private mappings with this source.
 
 ## Paper-ready methods text
 

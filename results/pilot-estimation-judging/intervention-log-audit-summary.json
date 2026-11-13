@@ -1,0 +1,1174 @@
+{
+  "schema": "intervention-log-audit-summary/v1",
+  "study_state_sha256": "fb39a46fc36f33f62f3286fd517b63bb09787e9c7bcd7d276c4a362f256f2de1",
+  "why_attestation_absent": "harness/intervention_coverage.py requires an external post-collection operator attestation (intervention-coverage/v1) because the automated runner cannot infer the absence of out-of-band human edits or hints. Absent sidecar files leave all runs labeled 'unknown'.",
+  "total_cells": 315,
+  "completed_cells": 313,
+  "incomplete_or_quarantined_runs": [
+    "pilot-estimation-gemini-4-argon-E-15",
+    "pilot-estimation-gpt-6.1-sol-C-20"
+  ],
+  "total_attempts_in_state": 5357,
+  "attempt_statuses": {
+    "agent_returned": 5341,
+    "recovery_interrupted": 15,
+    "infra_failed": 1
+  },
+  "sdk_event_journals_found": 5357,
+  "sdk_event_journals_missing_count": 0,
+  "tool_calls_by_name": {
+    "isolated_exec": 42520,
+    "create": 53,
+    "edit": 21
+  },
+  "non_isolated_exec_tool_attempts_count": 74,
+  "non_isolated_exec_tool_attempts": [
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-C-01",
+      "arm": "C",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-01-f03-review-1",
+      "step": "f03-review",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-A-01",
+      "arm": "A",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-A-01-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-A-01",
+      "arm": "A",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-A-01-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-E-02",
+      "arm": "E",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-E-02-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-E-03",
+      "arm": "E",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-E-03-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-E-03",
+      "arm": "E",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-E-03-f03-repair-1",
+      "step": "f03-repair",
+      "tool_name": "edit",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-C-03",
+      "arm": "C",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-03-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-C-04",
+      "arm": "C",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-04-f01-review-1",
+      "step": "f01-review",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-C-04",
+      "arm": "C",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-04-f02-review-1",
+      "step": "f02-review",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-C-04",
+      "arm": "C",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-04-f05-review-1",
+      "step": "f05-review",
+      "tool_name": "edit",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-E-04",
+      "arm": "E",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-E-04-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-A-04",
+      "arm": "A",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-A-04-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-05",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-05-f01-consolidation-1",
+      "step": "f01-consolidation",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-C-05",
+      "arm": "C",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-05-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-06",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-06-f03-consolidation-1",
+      "step": "f03-consolidation",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-06",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-06-f10-consolidation-1",
+      "step": "f10-consolidation",
+      "tool_name": "edit",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-06",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-06-f10-consolidation-1",
+      "step": "f10-consolidation",
+      "tool_name": "edit",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-C-07",
+      "arm": "C",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-07-f01-review-1",
+      "step": "f01-review",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-C-07",
+      "arm": "C",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-07-f04-review-1",
+      "step": "f04-review",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-C-07",
+      "arm": "C",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-07-f07-review-1",
+      "step": "f07-review",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-C-07",
+      "arm": "C",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-07-cr1-change-1",
+      "step": "cr1-change",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-E-07",
+      "arm": "E",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-E-07-f05-repair-1",
+      "step": "f05-repair",
+      "tool_name": "edit",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-07",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-07-f02-consolidation-1",
+      "step": "f02-consolidation",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-08",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-08-f10-consolidation-1",
+      "step": "f10-consolidation",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-09",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-09-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-09",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-09-f09-consolidation-1",
+      "step": "f09-consolidation",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-C-10",
+      "arm": "C",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-10-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-10",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-10-f02-feature-1",
+      "step": "f02-feature",
+      "tool_name": "edit",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-10",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-10-f02-feature-1",
+      "step": "f02-feature",
+      "tool_name": "edit",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-10",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-10-f02-feature-1",
+      "step": "f02-feature",
+      "tool_name": "edit",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-10",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-10-f02-feature-1",
+      "step": "f02-feature",
+      "tool_name": "edit",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-11",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-11-f01-consolidation-1",
+      "step": "f01-consolidation",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-11",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-11-f02-consolidation-1",
+      "step": "f02-consolidation",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-11",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-11-f10-consolidation-1",
+      "step": "f10-consolidation",
+      "tool_name": "edit",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-D-12",
+      "arm": "D",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-D-12-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-D-12",
+      "arm": "D",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-D-12-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-A-13",
+      "arm": "A",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-A-13-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-13",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-13-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-13",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-13-f10-consolidation-1",
+      "step": "f10-consolidation",
+      "tool_name": "edit",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-14",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-14-f08-consolidation-1",
+      "step": "f08-consolidation",
+      "tool_name": "edit",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-C-14",
+      "arm": "C",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-14-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-C-14",
+      "arm": "C",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-14-f01-review-1",
+      "step": "f01-review",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-C-14",
+      "arm": "C",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-14-f03-review-1",
+      "step": "f03-review",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-A-14",
+      "arm": "A",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-A-14-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-C-15",
+      "arm": "C",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-15-f03-review-1",
+      "step": "f03-review",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-15",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-15-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-15",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-15-f10-consolidation-1",
+      "step": "f10-consolidation",
+      "tool_name": "edit",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-15",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-15-f10-consolidation-1",
+      "step": "f10-consolidation",
+      "tool_name": "edit",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-B-15",
+      "arm": "B",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-15-f10-consolidation-1",
+      "step": "f10-consolidation",
+      "tool_name": "edit",
+      "interactive_like": false
+    },
+    {
+      "run_id": "pilot-estimation-claude-sonnet-5.5-A-16",
+      "arm": "A",
+      "model": "claude-sonnet-5.5",
+      "attempt_id": "pilot-estimation-claude-sonnet-5.5-A-16-f01-feature-1",
+      "step": "f01-feature",
+      "tool_name": "create",
+      "interactive_like": false
+    }
+  ],
+  "user_input_or_elicitation_events_count": 0,
+  "permission_events": {},
+  "aborted_or_warning_events": {},
+  "event_types": {
+    "session.start": 5357,
+    "session.managed_settings_resolved": 5357,
+    "session.skills_loaded": 5357,
+    "session.info": 5401,
+    "session.tools_updated": 10714,
+    "pending_messages.modified": 10714,
+    "session.mcp_servers_loaded": 5357,
+    "user.message": 5357,
+    "system.message": 5357,
+    "model.turn_started": 41054,
+    "assistant.turn_start": 41054,
+    "session.usage_info": 41098,
+    "model.call_start": 41103,
+    "model.model_call_started": 41103,
+    "model.captured_assignment_context": 41079,
+    "assistant.usage": 41043,
+    "model.model_call_success": 41043,
+    "model.call_finished": 41095,
+    "model.message": 85992,
+    "assistant.message": 43400,
+    "tool.execution_start": 42594,
+    "model.call_final_result": 41043,
+    "permission.requested": 42520,
+    "permission.completed": 42519,
+    "external_tool.requested": 42515,
+    "external_tool.completed": 42514,
+    "tool.execution_complete": 42592,
+    "model.tool_execution": 42591,
+    "model.turn_ended": 41041,
+    "assistant.turn_end": 41041,
+    "prompt_cache_break": 15250,
+    "model.response": 5475,
+    "model.messages_snapshot": 5344,
+    "session.usage_checkpoint": 5344,
+    "assistant.idle": 5344,
+    "session.idle": 5344,
+    "session.shutdown": 5344,
+    "assistant.reasoning": 11164,
+    "model.call_failure": 58,
+    "model.model_call_failure": 58,
+    "model.turn_retry": 44,
+    "assistant.turn_retry": 44
+  },
+  "final_assistant_messages_inspected": 5357,
+  "final_messages_matching_clarification_phrases_count": 5,
+  "final_messages_ending_with_question_mark_only_count": 31,
+  "classified_agent_intervention_requests": {
+    "total_sessions_requesting_input_or_permission": 36,
+    "distinct_trajectories_affected": 29,
+    "by_category": {
+      "missing_edit_tool_or_bash_tcr_confirmation_halt": 18,
+      "f09_visibility_test_allowlist_permission_halt": 18
+    },
+    "by_model": {
+      "claude-sonnet-5.5": 18,
+      "gpt-6.1-sol": 18
+    },
+    "by_model_and_category": {
+      "claude-sonnet-5.5:missing_edit_tool_or_bash_tcr_confirmation_halt": 18,
+      "gpt-6.1-sol:f09_visibility_test_allowlist_permission_halt": 18
+    },
+    "by_category_and_head_changed": {
+      "missing_edit_tool_or_bash_tcr_confirmation_halt:head_changed=False": 16,
+      "missing_edit_tool_or_bash_tcr_confirmation_halt:head_changed=True": 2,
+      "f09_visibility_test_allowlist_permission_halt:head_changed=True": 18
+    },
+    "other_questions": [],
+    "records": [
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-06",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-06-f09-consolidation-1",
+        "step": "f09-consolidation",
+        "attempt_status": "agent_returned",
+        "ends_with_question": true,
+        "tail_excerpt": "`DESIGN.md`:** the known-debts notes are updated to match. I haven't done the full rewrite you asked for.\n\n**Quality before my edits:** `make check` passed all 35 tests. Max complexity is 9, duplication is 0.0%, and lint shows 1 warning (E501).\n\nDo you want me to install bash, or should I run the `tcr` steps with `sh`?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 114,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-C-07",
+        "arm": "C",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-07-f04-review-1",
+        "step": "f04-review",
+        "attempt_status": "agent_returned",
+        "ends_with_question": true,
+        "tail_excerpt": "f` discards its `reason`. `__init__.py` has six F401 warnings.\n- **Tests:** `test_f04_returns.py` uses the public API, but it hand-rolls the exception checks. It doesn't cover blank input, an unknown stage, `reopen` history, or a handoff being cleared.\n\nDo you want me to write REVIEW.md through the shell and commit it?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 51,
+        "hidden_total": 51,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-10",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-10-f02-feature-1",
+        "step": "f02-feature",
+        "attempt_status": "agent_returned",
+        "ends_with_question": false,
+        "tail_excerpt": "to make the changes through the shell anyway, or can you enable the edit tools?\n\nThe plan is ready:\n- **`Case`:** add `stage`, defaulting to `candidate`.\n- **`InvalidTransition`:** add it as a `ValidationError` subclass.\n- **`move()`:** add `move`, `history` and `stage_counts`.\n- **`list_cases`:** add a `stage` filter.",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": true,
+        "hidden_passed": 12,
+        "hidden_total": 24,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-13",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-13-f10-consolidation-1",
+        "step": "f10-consolidation",
+        "attempt_status": "agent_returned",
+        "ends_with_question": false,
+        "tail_excerpt": "le warning.\n- **`./tcr`:** its shebang is `#!/usr/bin/env bash` and this container has no `bash`. `sh ./tcr` does run the tests and reverts when there is nothing to commit.\n\nDo you want me to apply the edits through shell scripting anyway, or will you provide an edit tool? I'd also rewrite `DESIGN.md` at the same time.",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 127,
+        "hidden_total": 127,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-18",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-18-f05-consolidation-1",
+        "step": "f05-consolidation",
+        "attempt_status": "agent_returned",
+        "ends_with_question": true,
+        "tail_excerpt": "eded `# noqa: E402`;\n- extract a `_register` helper for the duplicate-UPRN check;\n- use a shared `_require` call in `move`;\n- rewrite DESIGN.md.\n\nEach change would go through `./tcr`.\n\nDo you want me to make these edits with shell commands anyway (`sed` or Python scripts), or would you rather enable an edit tool first?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 64,
+        "hidden_total": 64,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-01",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-01-f01-consolidation-1",
+        "step": "f01-consolidation",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "nly lint warning (E501).\n- **`DESIGN.md`:** new file; I haven't run the tests on it.\n\nThe quality budget is otherwise already met: max complexity 9, 0% duplication. There are no `feature-start`/`feature-end` tags, so I couldn't review the last feature's diff.\n\nShould I run `sh tcr \"<message>\"`, or can you install bash?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 12,
+        "hidden_total": 12,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-01",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-01-f07-consolidation-1",
+        "step": "f07-consolidation",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "lexity is at most 10, with no function above it. The 27 tests passed on the earlier `make check` run, before my edit.\n- **Not done:** the DESIGN.md rewrite, and the diff review, because `feature-start` and `feature-end` tags don't exist.\n\nShould I install bash, run `sh ./tcr` instead, or commit this change another way?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 89,
+        "hidden_total": 89,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-C-01",
+        "arm": "C",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-C-01-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "**Blocked; not committed.** Implemented ranking on Workbench and views, documentation, and new tests.\n`make test`: **1,631 passed, 4 failed**.\nThe immutable `tests/test_role_visibility.py` forbids `rank_cases` on views, contradicting Feature 9.\nMay its `READ_METHODS` allowlist be updated to include `rank_cases`?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-A-03",
+        "arm": "A",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-A-03-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "updated README, and added tests; all 120 ranking tests pass.\n\n**Commit blocked:** `make test` reports 902 passed, 4 failed. The immutable `tests/test_roles_and_visibility.py` allowlist forbids `rank_cases` on views, contradicting Feature 9. No commit made.\n\nMay I add `rank_cases` to that test\u2019s `READ_METHODS` constant?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-C-03",
+        "arm": "C",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-C-03-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "**Commit blocked:** `make test` reports 1,281 passed, 4 failed.\nRanking, view support, documentation, and new tests are implemented; all ranking tests pass.\nThe immutable visibility test forbids `rank_cases` on views, contradicting Feature 9.\nMay I add `rank_cases` to that test\u2019s `READ_METHODS` allowlist?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-D-05",
+        "arm": "D",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-D-05-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "**Implemented but not committed:** ranking on Workbench and views, documentation, and new tests.\n`make test`: 1,580 passed; four failures in immutable `tests/test_f08_validation.py:136`.\nThat test forbids `rank_cases` on views, directly conflicting with Feature 9.\nMay I add `rank_cases` to its allowed-method list?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-E-06",
+        "arm": "E",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-E-06-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "ews, with documentation and new tests.\n`make test`: **1125 passed, 4 failed**.\nThe immutable `tests/test_roles_visibility.py` treats `rank_cases` as forbidden on views, contradicting Feature 9.\nNo existing tests were changed; no commit was made.\nMay I update that test\u2019s `READ_METHODS` allowlist to include `rank_cases`?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-A-07",
+        "arm": "A",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-A-07-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "**Implemented but not committed:** deterministic ranking on Workbench and views, documentation, and new tests.\n\n`make test`: **1,855 passed, 4 failed**. The immutable visibility test\u2019s old allowlist incorrectly requires views to reject `rank_cases`.\n\nMay I update that allowlist to permit the required API?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-09",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-09-f01-consolidation-1",
+        "step": "f01-consolidation",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "d.\n\nDebts I'd record in DESIGN.md:\n- `core.py` mixes the domain model, validation and storage in one module.\n- `import_homes_csv` is the most complex function (9).\n- Case lookup and the duplicate-case check scan a list linearly.\n\nShould I write DESIGN.md through the shell anyway, or can you give me a file-editing tool?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 12,
+        "hidden_total": 12,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-09",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-09-f03-consolidation-1",
+        "step": "f03-consolidation",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "n `make check`.\n- **Remaining lint warnings:** `E501` is raised on the long import line in `src/workbench/__init__.py`. I haven't touched it.\n- **Not done:** I haven't rewritten `DESIGN.md`, which doesn't exist yet.\n\nCan you make `bash` available, or allow me to commit with plain `git commit` after running `make test`?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 39,
+        "hidden_total": 39,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-09",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-09-f04-consolidation-1",
+        "step": "f04-consolidation",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "hrough `./tcr`:\n- Split the filters in `list_cases` into a helper, and wrap its long signature.\n- Use `_name` in `_clean_home` and `move`, which repeat its check.\n- Add `_require_actor` and `_require_stage` helpers.\n- Write DESIGN.md.\n\nShould I make the edits through the shell instead, or can you enable the edit tools?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 51,
+        "hidden_total": 51,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-A-09",
+        "arm": "A",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-A-09-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "**Blocked from committing:** `make test` reports 1,630 passed, 4 failed.\nRanking, view support, documentation, and new tests are implemented.\nThe immutable visibility test forbids `rank_cases` on views, contradicting Feature 9.\nMay I add `rank_cases` to that test\u2019s `READ_METHODS` allowlist?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-D-09",
+        "arm": "D",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-D-09-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "**Blocked; not committed.** Ranking, view support, documentation, and new tests are implemented.\n`make test`: **1115 passed, 4 failed**.\nThe immutable `tests/test_roles_and_visibility.py` allowlist requires views to reject `rank_cases()`, contradicting feature 9.\nMay I update that allowlist to include `rank_cases`?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-E-11",
+        "arm": "E",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-E-11-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "**Blocked from committing:** ranking, view support, documentation and new tests are implemented.\n\n`make test`: **1,923 passed, 4 failed**. Immutable `tests/test_role_visibility.py` forbids `rank_cases` on views, contradicting feature 9.\n\nMay I add `rank_cases` to that test\u2019s read allowlist?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-A-11",
+        "arm": "A",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-A-11-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "**Blocked; not committed.** Ranking, view support, documentation, and new tests are implemented.\n\n`make test`: **1450 passed, 4 failed**. The immutable `tests/test_roles_and_visibility.py` requires views to reject `rank_cases`, contradicting Feature 9.\n\nMay I add `rank_cases` to that test\u2019s `READ_METHODS` allowlist?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-12",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-12-f05-consolidation-1",
+        "step": "f05-consolidation",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "ycle (`move`, `return_to`, `reopen`), the holds, and the notes.\n\n**Debt that remains:**\n- `core.py` mixes homes, cases, lifecycle, holds and handoffs.\n- Handoff and hold rules depend on lifecycle stages.\n- Cases are held in a list, so lookups are linear.\n\nShould I proceed by writing the files through the shell instead?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 64,
+        "hidden_total": 64,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-13",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-13-f06-consolidation-1",
+        "step": "f06-consolidation",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "didn't review the feature diff, and the remaining E501 warnings are untouched.\n- **Debt I saw:** each rule check repeats the same `_need` and `_set_*` replace-and-store pattern, and `import_homes_csv` sits at complexity 10.\n\nCan you either run this where bash is installed, or tell me to commit with plain `git` instead?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 77,
+        "hidden_total": 77,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-D-14",
+        "arm": "D",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-D-14-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "d:** `tests/test_roles_and_visibility.py` requires views to reject `rank_cases`, contradicting Feature 9.\n\nRanking, view support, documentation, and new tests are implemented. `make test`: **1,069 passed, 4 failed**. Nothing committed.\n\nMay I update the immutable test\u2019s `READ_METHODS` allowlist to include `rank_cases`?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-E-14",
+        "arm": "E",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-E-14-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "**Blocked from committing:** `make test` reports 1,359 passed and 4 failed.\nRanking, view delegation, documentation, and new tests are implemented.\nThe immutable visibility test requires views to reject `rank_cases`, contradicting Feature 9.\nMay I add `rank_cases` to that test\u2019s read allowlist?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-D-15",
+        "arm": "D",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-D-15-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "**Blocked from committing:** `make test` reports 1,365 passed and 4 failed.\nRanking, view support, documentation, and new tests are implemented.\nThe immutable visibility test forbids `rank_cases` on views, contradicting feature 9.\nMay I add `rank_cases` to that test\u2019s `READ_METHODS` allowlist?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-C-15",
+        "arm": "C",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-C-15-f03-review-1",
+        "step": "f03-review",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": " repeats the replace-and-reindex step from `move`.\n- **Complexity:** `list_cases` is at 12.\n- **Handoff behaviour:** `decline_handoff` discards its `reason`, and ownership changes are not written to `history`.\n- **Tests:** `test_rules` is one test that chains many scenarios.\n\nShould I write it through the shell anyway?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 39,
+        "hidden_total": 39,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-16",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-16-f01-consolidation-1",
+        "step": "f01-consolidation",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "port_homes_csv`.\n  - Case IDs are derived from the list length.\n  - Storage is in memory only.\n  - The tests cover only the f01 examples.\n  - There are no `feature-start` or `feature-end` tags, so I couldn't review the last feature's diff.\n\nShould I write DESIGN.md via the shell, or do you want to provide an edit tool?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": true,
+        "hidden_passed": 12,
+        "hidden_total": 12,
+        "src_diff": {
+          "added": 9,
+          "removed": 6
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-16",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-16-f07-consolidation-1",
+        "step": "f07-consolidation",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "* I haven't run the tests on these edits.\n- **Remaining debt:** one module holds every concern, case lookup is a linear scan, validation order differs between methods, and `move` and `reopen` couple lifecycle to consent and no-access.\n\nShould I install bash, or run tcr with another shell, so the edits can be committed?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 89,
+        "hidden_total": 89,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-E-16",
+        "arm": "E",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-E-16-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "**Blocked from committing:** ranking, view support, documentation and new tests are implemented.\n`make test`: 1,424 passed; 4 failed because the immutable view allowlist rejects `rank_cases`, contradicting feature 9.\nMay I add `rank_cases` to `READ_METHODS` in `tests/test_role_visibility.py` to resolve this conflict?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-A-16",
+        "arm": "A",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-A-16-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "Ranking, documentation and new tests are implemented, but **not committed**.\n`make test`: **1,686 passed, 4 failed**.\nThe immutable visibility test\u2019s old allowlist requires views to reject `rank_cases`, contradicting Feature 9.\nMay I update `READ_METHODS` in `tests/test_visibility.py` to include `rank_cases`?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-C-18",
+        "arm": "C",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-C-18-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "d; not committed.** Implemented deterministic ranking on Workbench and views, documentation, and new tests.\n\n`make test`: **1,321 passed, 4 failed**. Immutable `tests/test_role_visibility.py` requires views to reject `rank_cases`, contradicting Feature 9.\n\nMay I add `rank_cases` to that test\u2019s `READ_METHODS` allowlist?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-18",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-18-f08-consolidation-1",
+        "step": "f08-consolidation",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": " check` passes with 31 tests, 0 lint warnings, 0% duplication and a maximum complexity of 10. The tree is dirty because `tcr` never ran.\n- **Not done:** I haven't rewritten `DESIGN.md` yet. It also has to go through `tcr`.\n\nShould I commit these with a manual `make test && git commit`, or will you install `bash` first?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 101,
+        "hidden_total": 101,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-18",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-18-f09-consolidation-1",
+        "step": "f09-consolidation",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "d the DESIGN.md rewrite is not started. DESIGN.md is also out of date: it says about 80 code lines, but `core.py` now has 368.\n- **Quality budget:** complexity and duplication already meet it. The max complexity is 10 and duplication is 0%.\n\nCan you install bash, or tell me whether to run `sh ./tcr` or commit manually?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 114,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-claude-sonnet-5.5-B-19",
+        "arm": "B",
+        "model": "claude-sonnet-5.5",
+        "attempt_id": "pilot-estimation-claude-sonnet-5.5-B-19-f01-consolidation-1",
+        "step": "f01-consolidation",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": " couldn't review that diff.\n\nPlanned changes, once I have edit tools:\n1. Move the header list into a `_HOME_COLUMNS` constant, which fixes E501.\n2. Pull the CSV row parsing into a helper.\n3. Write `DESIGN.md`.\n\nEach change would go through `./tcr`.\n\nCan you either give me edit/create tools or approve shell-based edits?",
+        "category": "missing_edit_tool_or_bash_tcr_confirmation_halt",
+        "head_changed": false,
+        "hidden_passed": 12,
+        "hidden_total": 12,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-B-21",
+        "arm": "B",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-B-21-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "**Blocked from committing:** `make test` reports 1,585 passed, 4 failed.\n\nRanking, view support, documentation, and new tests are implemented. The immutable `tests/test_role_visibility.py` forbids ranking on views, contradicting feature 9. May I add `rank_cases` to its `READ_METHODS` allowlist?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      },
+      {
+        "run_id": "pilot-estimation-gpt-6.1-sol-D-21",
+        "arm": "D",
+        "model": "gpt-6.1-sol",
+        "attempt_id": "pilot-estimation-gpt-6.1-sol-D-21-f09-feature-1",
+        "step": "f09-feature",
+        "attempt_status": "agent_returned",
+        "tail_excerpt": "Implemented ranking on Workbench and views, with documentation and new tests. **Not committed:** `make test` reports 1,178 passed, 4 failed.\n\nThe immutable `tests/test_roles_and_visibility.py` allowlist excludes `rank_cases`, so it requires views to reject the newly required API. May I update that allowlist?",
+        "category": "f09_visibility_test_allowlist_permission_halt",
+        "head_changed": true,
+        "hidden_passed": 101,
+        "hidden_total": 114,
+        "src_diff": {
+          "added": 0,
+          "removed": 0
+        }
+      }
+    ],
+    "by_category_and_src_unchanged": {
+      "missing_edit_tool_or_bash_tcr_confirmation_halt:src_unchanged=True": 17,
+      "f09_visibility_test_allowlist_permission_halt:src_unchanged=True": 18,
+      "missing_edit_tool_or_bash_tcr_confirmation_halt:src_unchanged=False": 1
+    }
+  },
+  "non_review_unchanged_head_steps_count": 509
+}

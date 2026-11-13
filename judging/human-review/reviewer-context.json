@@ -1,0 +1,132 @@
+{
+  "schema": "blinded-workflow-context/v1",
+  "notice": "These are explanations of the fixed scenario plan and public requirements, not additional execution evidence or suggested ratings. An expected exception is a successful rejection of an invalid action. JSON null means no value; [] means an empty list; true/false are yes/no results. Every scenario starts with a fresh in-memory workbench: property 101 at 101 Example Road, postcode AB1 1AA, and its windows case C-0001. UPRN is the property's unique numeric reference; a case is one type of retrofit work for a property. A later successful case is C-0002. Role names such as officer, surveyor and installer are synthetic users.",
+  "scenarios": {
+    "registration": {
+      "purpose": "Can a programme officer register properties, open work cases, filter the work list and recover from a rejected bulk import without leaving partial records?",
+      "setup": "Property 101 is added with a windows case. The postcode was supplied with spaces and lowercase letters. A second file tries to add property 102 followed by an invalid non-numeric property reference 'bad'. That whole import must be rejected. A corrected file containing only property 102 is then imported and its first windows case is opened.",
+      "checks": [
+        {"action": "canonical home fields", "why": "The two output positions are [property reference, case identifier]. The case belongs to property '101'; it is the first successful case in this fresh workbench, so its ID is 'C-0001'. This observation does not directly read back the normalized postcode.", "rules": {"f01": [1, 4]}},
+        {"action": "combined filters", "why": "The list must apply both filters together: postcode starts with AB, and measure is windows. The one existing case meets both, so its ID appears once. The lowercase, space-padded input postcode must not prevent that match.", "rules": {"f01": [1, 5]}},
+        {"action": "duplicate measure rejected", "why": "The script tries to open another windows case for property 101. One property may not have two cases for the same measure, so ValidationError is the expected successful rejection, not an unexpected crash.", "rules": {"f01": [3]}},
+        {"action": "atomic CSV rejects invalid row", "why": "The CSV contains a valid property 102 followed by UPRN 'bad', which is not numeric. All-or-nothing import requires ValidationError and no imported properties, rather than silently accepting the valid first row.", "rules": {"f01": [1, 6]}},
+        {"action": "invalid import left no home", "why": "The script now tries to open a case for property 102. Because the previous import was atomic and rejected, property 102 must not exist; NotFoundError demonstrates that the valid first row did not leak into storage.", "rules": {"f01": [6]}},
+        {"action": "valid import works after rejection", "why": "The corrected CSV has one valid property row, for 102. import_homes_csv returns the number of homes imported, so 1 is the expected count. This is also the first observed valid progress after the rejected import.", "rules": {"f01": [6]}},
+        {"action": "next case id", "why": "A windows case is opened for the newly imported property 102. Only C-0001 was successfully created before it; failed duplicate and missing-property attempts did not create cases. The new successful case is therefore C-0002.", "rules": {"f01": [3, 4, 6]}}
+      ]
+    },
+    "lifecycle": {
+      "purpose": "Can a case advance one stage at a time, reject an invalid jump, and keep stage history and counts consistent?",
+      "setup": "The new case starts at candidate. The script first tries to jump directly to ready, then moves correctly to surveyed and designed.",
+      "checks": [
+        {"action": "cannot skip a stage", "why": "candidate cannot jump directly to ready. InvalidTransition is the specified rejection.", "rules": {"f02": [1, 2]}},
+        {"action": "failed move preserved stage", "why": "A failed move changes nothing, so the case must still be candidate.", "rules": {"f02": [3]}},
+        {"action": "history follows successful moves", "why": "Each history row is [old stage, new stage, person making the move]. Only the two successful moves appear, in order; the rejected jump does not.", "rules": {"f02": [3]}},
+        {"action": "stage counts include zeros", "why": "There is one case, now designed. All other stage counts are zero, and every stage must still be present in the result.", "rules": {"f02": [4]}}
+      ]
+    },
+    "handoff": {
+      "purpose": "Does responsibility change only when the intended recipient accepts a handoff?",
+      "setup": "The case is assigned to officer. officer requests a handoff to surveyor; an outsider attempts acceptance. surveyor declines, then accepts a fresh request.",
+      "checks": [
+        {"action": "pending request preserves owner", "why": "The output is [current owner, pending recipient]. A request alone does not transfer ownership: officer still owns it, while surveyor is pending.", "rules": {"f03": [3]}},
+        {"action": "wrong recipient cannot accept", "why": "outsider is not the pending recipient, so NotAllowed is the required rejection.", "rules": {"f03": [4]}},
+        {"action": "decline preserves owner", "why": "After surveyor declines, officer remains the owner and there is no pending recipient (null).", "rules": {"f03": [3, 4]}},
+        {"action": "accept changes ownership", "why": "After surveyor accepts the second request, filtering cases by owner surveyor returns the original case C-0001.", "rules": {"f03": [3, 7]}}
+      ]
+    },
+    "rework": {
+      "purpose": "Can a case be returned and reopened without losing its owner or reasons?",
+      "setup": "The script tries reopening too early, assigns officer, advances to ready, requests a handoff and returns to surveyed. It later advances to handed_over and reopens for a defect.",
+      "checks": [
+        {"action": "cannot reopen before handover", "why": "Only a handed_over case may reopen; a new candidate case must raise InvalidTransition.", "rules": {"f04": [2]}},
+        {"action": "return cancels handoff but keeps owner", "why": "The output is [stage, owner, pending recipient]. Returning goes to surveyed, preserves officer and removes the pending handoff (null).", "rules": {"f04": [1, 6]}},
+        {"action": "reopening retains reasons", "why": "The output is [stage, reason list]. Reopening returns handed_over to installed, and notes retain the successful return reason then the reopening reason. The rejected early reopen added no reason.", "rules": {"f04": [2, 4, 5]}}
+      ]
+    },
+    "safety": {
+      "purpose": "Does a hazard hold block unsafe progress while still permitting rework and an authorized release?",
+      "setup": "The case reaches surveyed and is put on hold. The script tries a forward move and handoff, performs allowed rework, tries an unauthorized release, then releases with building_safety and advances.",
+      "checks": [
+        {"action": "held transition blocked", "why": "Forward movement while held must raise OnHold.", "rules": {"f05": [2]}},
+        {"action": "held handoff blocked", "why": "Requesting a handoff while held must also raise OnHold.", "rules": {"f05": [2]}},
+        {"action": "rework does not clear hold", "why": "Returning for rework is allowed, but the hold must remain true.", "rules": {"f05": [3]}},
+        {"action": "only safety role releases", "why": "An officer-role release must raise NotAllowed and must not remove the hold.", "rules": {"f05": [4]}},
+        {"action": "release restores progress", "why": "After an authorized release, a valid move works. The output is [stage, still on hold], expected [surveyed, false].", "rules": {"f05": [4], "f02": [1, 2]}}
+      ]
+    },
+    "consent": {
+      "purpose": "Does installation respect consent, withdrawal and the higher-priority safety hold?",
+      "setup": "The case is ready and consent is required. After a blocked install, consent is recorded then withdrawn. A safety hold is added; finally the hold is released, consent restored and installation retried.",
+      "checks": [
+        {"action": "installation requires consent", "why": "Moving into installed while consent is required must raise ConsentRequired.", "rules": {"f06": [4]}},
+        {"action": "withdrawal pauses progress", "why": "Withdrawing given consent pauses movement, so Paused is the required rejection.", "rules": {"f06": [5]}},
+        {"action": "hold takes precedence over pause", "why": "When both paused and held, the specified error is OnHold, not Paused.", "rules": {"f06": [5]}},
+        {"action": "restored consent clears pause", "why": "The output is [consent state, paused flag, stage]. After restoring consent and installing, it must be [given, false, installed].", "rules": {"f06": [3, 5]}}
+      ]
+    },
+    "appointments": {
+      "purpose": "Can visits be confirmed, verified no-access attempts escalated, and a reopened case start a new counting period?",
+      "setup": "The date is 2026-01-05. The script first tries to confirm it before offering it, then offers/confirms it. It records one unverified and six verified visits, completes the case and reopens it.",
+      "checks": [
+        {"action": "unoffered confirmation rejected", "why": "A date must be offered before confirmation. ValidationError is the required rejection.", "rules": {"f07": [2]}},
+        {"action": "confirmed appointment", "why": "Each appointment row is [date, status]. The one offered date is now confirmed.", "rules": {"f07": [2, 3]}},
+        {"action": "only verified visits escalate", "why": "The output is [active verified count, escalated case IDs]. Only the six verified visits count; six is more than five, so C-0001 is escalated.", "rules": {"f07": [5, 6]}},
+        {"action": "reopening resets active count, not history", "why": "The output is [active count, history length, escalated IDs]. Reopening resets the active count to zero, keeps all seven recorded visits and removes the case from escalation.", "rules": {"f07": [7]}}
+      ]
+    },
+    "privacy": {
+      "purpose": "Can a contractor read a live restricted view without seeing protected contact or vulnerability fields?",
+      "setup": "A contractor view is created, then protected values are written through the workbench. The view is read again, a write through it is attempted, and its case list is checked.",
+      "checks": [
+        {"action": "live view hides protected fields", "why": "The output is [home vulnerability, home contact, case vulnerability, case contact]. All four must be null in the contractor view, even though the view existed before the values were set.", "rules": {"f08": [3, 4, 5]}},
+        {"action": "view leaves canonical data intact", "why": "Reading through a restricted view must not erase stored data. The workbench still reads the original synthetic contact value.", "rules": {"f08": [5]}},
+        {"action": "view cannot write", "why": "Opening a case is a write, and the contractor view is read-only. NotAllowed is the specified rejection.", "rules": {"f08": [4]}},
+        {"action": "view still lists cases", "why": "After the rejected write, the view still returns the one legitimate case, C-0001.", "rules": {"f08": [4]}}
+      ]
+    },
+    "ranking": {
+      "purpose": "Does the priority list use the specified points, reason ordering, stable reads and policy validation?",
+      "setup": "C-0001 is held, its home is vulnerable and consent is given. C-0002 has none of those flags. The workbench and contractor-view rankings are read, then policy v2 is deliberately requested even though only v1 is supported.",
+      "checks": [
+        {"action": "held cases lead and accumulate reasons", "why": "Each row is [case ID, points, reason codes]. C-0001 gets 50 for vulnerability plus 20 for consent: 70. HELD adds no points but puts it first. Its reasons must be HELD, VULNERABLE, CONSENT_GIVEN in that order. C-0002 has zero points and no reasons.", "rules": {"f09": [1, 2, 3, 4]}},
+        {"action": "ranking is stable and available on views", "why": "The contractor view must return the same priority rows for the same state. This is a second read, not a separately implemented ranking rule.", "rules": {"f09": [4, 5]}},
+        {"action": "unsupported policy rejected", "why": "Requesting v2 is deliberately invalid. ValidationError is expected. This is the last planned check, so a correct rejection alone does not show subsequent valid progress or a state read after rejection.", "rules": {"f09": [1]}}
+      ]
+    },
+    "audit-export": {
+      "purpose": "Are successful changes logged, failed operations omitted, tampering detected and contractor exports redacted?",
+      "setup": "The case and home exist and two protected fields have been set, giving four successful writes before the audit check. An invalid stage jump is attempted, the case list is read, the audit chain is verified, a copy is tampered with and a contractor export is examined.",
+      "checks": [
+        {"action": "invalid transition rejected", "why": "Jumping from candidate to ready is invalid and must raise InvalidTransition.", "rules": {"f02": [2]}},
+        {"action": "failed calls and reads append nothing", "why": "The expected count remains four: add home, open case and set two protected values. The failed move and list read must not create audit entries.", "rules": {"f10": [1]}},
+        {"action": "audit has independently verified chain", "why": "true means the observer's independent calculation verified every sequence number, previous-hash link and SHA-256 digest using the public encoding. It is not merely the candidate claiming its own trail is valid.", "rules": {"f10": [2, 3, 4]}},
+        {"action": "tampering detected without modifying stored audit", "why": "The output is [verification of changed copy, verification of original stored log]. The tampered copy must fail (false), while modifying that copy must leave the stored trail valid (true).", "rules": {"f10": [4]}},
+        {"action": "filtered export hides protected fields", "why": "Each shown row is [case ID, contact, vulnerability]. The one matching case is exported, but a contractor must receive empty CSV fields for both protected values.", "rules": {"f10": [5]}}
+      ]
+    },
+    "delivery-journey": {
+      "purpose": "Can one consent-controlled retrofit case be installed, handed over, reopened and returned to the priority list with coherent state?",
+      "setup": "officer owns the case and a visit is offered/confirmed. At ready, installation is tried without consent. Consent is then given, installer accepts ownership, and the case is installed and handed over. It is later reopened for a defect.",
+      "checks": [
+        {"action": "end-to-end installation guard", "why": "The first installation attempt has required but missing consent, so ConsentRequired is the expected rejection. Later checks, if recorded, establish whether valid work subsequently progresses.", "rules": {"f06": [4]}},
+        {"action": "completed cases excluded from priority list", "why": "The only case is handed_over. Completed cases are excluded from ranking, so the entire priority list must be empty ([]).", "rules": {"f09": [1]}},
+        {"action": "reopened case retains coherent state", "why": "The five output positions are [stage, owner, consent, active no-access count, audit verifies]. Reopening goes to installed, preserves installer and given consent, starts the no-access count at zero, and leaves a valid audit trail.", "rules": {"f04": [2, 6], "f06": [1], "f07": [7], "f10": [4]}},
+        {"action": "reopened case returns to ranking", "why": "The case is installed rather than handed_over again, so its ID C-0001 must reappear in the priority list.", "rules": {"f04": [2], "f09": [1]}}
+      ]
+    },
+    "regions": {
+      "purpose": "Do regional read permissions and manager-approved cross-region ownership transfers work together?",
+      "setup": "north matches AB postcodes and south matches CD. The existing property 101 is north; a second property/case is south. officer can access north, installer south, and manager both. A cross-region handoff from officer to installer is tried before and after manager approval.",
+      "checks": [
+        {"action": "region applies to previously added home", "why": "Property 101 already existed before north was defined. Its AB postcode must still resolve to north.", "rules": {"cr1": [2]}},
+        {"action": "lists and ranking respect scope", "why": "The output is [visible case IDs, ranked case IDs]. officer's north-only view must include C-0001 in both and omit the south case.", "rules": {"cr1": [4]}},
+        {"action": "out-of-region read rejected", "why": "The north-only officer view may not directly read the south case C-0002, so NotAllowed is expected.", "rules": {"cr1": [4]}},
+        {"action": "export respects scope", "why": "The regional export must contain the same accessible north case, not the south case.", "rules": {"cr1": [4]}},
+        {"action": "cross-region acceptance requires approval", "why": "installer is registered only for south but the requested case is north. Before approval, accepting must raise NotAllowed.", "rules": {"cr1": [5]}},
+        {"action": "unapproved acceptance preserves owner", "why": "The rejected acceptance must leave officer as owner; a failed transfer must not partially update responsibility.", "rules": {"cr1": [5], "f03": [3]}},
+        {"action": "approved handoff and audit", "why": "After manager approval, installer accepts. The output is [new owner, audit verifies], expected [installer, true].", "rules": {"cr1": [5, 6], "f10": [4]}}
+      ]
+    }
+  }
+}

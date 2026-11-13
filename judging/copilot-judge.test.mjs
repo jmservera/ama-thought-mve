@@ -5,20 +5,21 @@ import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { sessionConfig, noToolEvidence, readRequest, resolveCliPath, judgeSession,
-  encodeResponse, VERSION } from './copilot-judge.mjs';
+  encodeResponse, verdictSchema, VERSION } from './copilot-judge.mjs';
 
 class ToolSet {
   constructor() { this.entries = []; }
   addBuiltIn(name) { this.entries.push(['builtin', name]); return this; }
   addMcp(name) { this.entries.push(['mcp', name]); return this; }
+  toArray() { return this.entries.map(([source, name]) => `${source}:${name}`); }
 }
 
 test('session disables every tool and all discovery without modifying experiment config', () => {
   const config = sessionConfig({ judge: { model: 'pinned-model' }, max_ai_credits: 10 }, 'session', ToolSet, () => {});
   assert.equal(config.model, 'pinned-model');
   assert.equal(config.reasoningEffort, 'medium');
-  assert.deepEqual(config.availableTools.entries, []);
-  assert.deepEqual(config.excludedTools.entries, [['builtin', '*'], ['mcp', '*']]);
+  assert.deepEqual(config.availableTools, []);
+  assert.deepEqual(config.excludedTools, ['builtin:*', 'mcp:*']);
   assert.deepEqual(config.tools, []);
   assert.equal(config.enableConfigDiscovery, false);
   assert.equal(config.enableExperimentalMode, false);
@@ -64,6 +65,49 @@ test('serialized verdict preserves duplicate model keys for controller rejection
 const sdkInstalled = existsSync(new URL('../harness/copilot-sdk/node_modules/@github/copilot-sdk/package.json',
   import.meta.url));
 
+test('startup failure retains safe diagnostics without prompts, responses or provider messages', async () => {
+  const diagnostics = [];
+  let closed = 0;
+  class Evidence {
+    receipt() { return { usage: { credits_complete: false, totalNanoAiu: null }, protocol_error: 'judge_runtime_failure' }; }
+  }
+  await assert.rejects(judgeSession({ judge: { id: 'judge', model: 'pinned-model' },
+    timeout_seconds: 30, max_ai_credits: 30, specimen: { secret: 'private-specimen' } }, {
+    ToolSet, Evidence, cliPath: '/unused', assertRuntime: async () => {},
+    makeRuntime: async () => ({ close: async () => { closed++; }, client: {
+      createSession: async () => { throw new TypeError('list is not iterable'); },
+    } }), onDiagnostic: async value => { diagnostics.push(value); },
+  }), /reservation must be retained/);
+  assert.equal(closed, 1);
+  assert.equal(diagnostics[0].stage, 'session_create');
+  assert.deepEqual(diagnostics[0].failure, { name: 'TypeError', code: 'sdk_tool_filter_not_iterable' });
+  assert.equal(diagnostics[0].prompt_dispatched, false);
+  assert.equal(diagnostics[0].runtime_closed, true);
+  assert.equal(diagnostics[0].usage.totalNanoAiu, null);
+  assert.equal(JSON.stringify(diagnostics).includes('private-specimen'), false);
+});
+
+test('CommonJS SDK tool filters normalize in the ESM client without starting a runtime',
+  { skip: !sdkInstalled }, async () => {
+    const require = createRequire(import.meta.url);
+    const commonjs = await import(pathToFileURL(require.resolve('@github/copilot-sdk', {
+      paths: [new URL('../harness/copilot-sdk/', import.meta.url).pathname],
+    })).href);
+    const esm = await import(new URL('../harness/copilot-sdk/node_modules/@github/copilot-sdk/dist/index.js',
+      import.meta.url));
+    assert.notEqual(commonjs.ToolSet, esm.ToolSet);
+    const client = new esm.CopilotClient({ mode: 'empty', autoStart: false, autoRestart: false,
+      baseDirectory: new URL('../.study/offline-judge-config-test', import.meta.url).pathname });
+    const config = sessionConfig({ judge: { model: 'pinned-model' }, max_ai_credits: 30 },
+      'offline-session', commonjs.ToolSet, () => {});
+
+    assert.deepEqual(client.resolveToolFilterOptions(config), {
+      availableTools: [], excludedTools: ['builtin:*', 'mcp:*'], toolFilterPrecedence: 'excluded',
+    });
+    assert.equal(Boolean(client.connection), false);
+    assert.equal(Boolean(client.cliProcess), false);
+  });
+
 test('actual SDK evidence completes a no-tool judge session with correlated billing, without inference',
   { skip: !sdkInstalled }, async () => {
     const require = createRequire(import.meta.url);
@@ -77,6 +121,7 @@ test('actual SDK evidence completes a no-tool judge session with correlated bill
     const event = (type, data) => ({ id: crypto.randomUUID(), type, data });
     let closed = 0;
     let captured;
+    let capturedSchema;
     const makeRuntime = async () => ({
       close: async () => { closed++; },
       client: {
@@ -89,8 +134,9 @@ test('actual SDK evidence completes a no-tool judge session with correlated bill
             reasoningEffort: 'medium', copilotVersion: '1.0.105', sessionLimits: { maxAiCredits: 10 } }));
           return {
             sessionId: config.sessionId,
-            sendAndWait: async ({ prompt }) => {
+            sendAndWait: async ({ prompt, responseSchema }) => {
               captured = prompt;
+              capturedSchema = responseSchema;
               config.onEvent(event('assistant.message', { content: '{"scenarios":[]}' }));
               config.onEvent(event('assistant.usage', { model: 'pinned-model', reasoningEffort: 'medium',
                 aiCreditsStatus: 'complete',
@@ -115,4 +161,24 @@ test('actual SDK evidence completes a no-tool judge session with correlated bill
     assert.equal(closed, 1);
     assert.match(captured, /"specimen_id":"blind"/);
     assert.equal(captured.includes('cliPath'), false);
+    assert.deepEqual(capturedSchema.required, ['scenarios']);
+    assert.deepEqual(capturedSchema.properties.scenarios.items.required,
+      ['scenario_id', 'scores', 'evidence_ids', 'rationale']);
   });
+
+test('verdictSchema constrains required fields, dimensions, scenario IDs and allowed evidence IDs', () => {
+  const schema = verdictSchema({
+    scenarios: [
+      { id: 'registration', final: { observations: [{ id: 'registration:1' }], error_type: null } },
+      { id: 'ranking', final: { observations: [], error_type: 'AttributeError' } },
+    ],
+  });
+  const item = schema.properties.scenarios.items;
+  assert.equal(schema.additionalProperties, false);
+  assert.equal(item.additionalProperties, false);
+  assert.deepEqual(item.required, ['scenario_id', 'scores', 'evidence_ids', 'rationale']);
+  assert.deepEqual(item.properties.scenario_id.enum, ['registration', 'ranking']);
+  assert.deepEqual(item.properties.evidence_ids.items.enum, ['registration:1', 'ranking:error']);
+  assert.deepEqual(item.properties.scores.required,
+    ['functional_completeness', 'workflow_coherence', 'error_recovery', 'api_usability']);
+});

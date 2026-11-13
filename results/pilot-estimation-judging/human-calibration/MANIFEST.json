@@ -1,0 +1,21 @@
+{
+  "schema": "frozen-human-review-evidence/v1",
+  "sealed_at_utc": "2026-11-13T16:36:51.676259+00:00",
+  "reviewer_id": "jmservera",
+  "reviewer_kind": "human",
+  "review_status": "in_progress",
+  "review_completed_yes_no": "no",
+  "guidance_version": "human-calibration-guidance/v3",
+  "disclosures_or_limitations": "I used AI for identifying the cases with failures or mismatches instead of reviewing all the successful ones.",
+  "MethodologicalNote": "Reviewer disclosed AI-assisted triage to focus human inspection on failure/mismatch cases rather than manually reviewing every passing case, and recorded review_status='in_progress' (review_completed_yes_no='no'). Guidance v3 was authored after original AI scoring started.",
+  "specimens": 8,
+  "rows_validated": 90,
+  "distinct_scorable_contexts": 16,
+  "files": {
+    "REVIEWER_DETAILS_jmservera.csv": "52f08eb86843c76b1e56b7bad46920d04caa2427661872d15a1ab39b26a3185f",
+    "SCORING_jmservera.csv": "7767033f973a864d3e2fda615974ef621ddadd1586cd640dd50b7a99072c59e9",
+    "human-calibration-reviewer-pack-v3.zip": "abacba3b56a0bb19a09518cb3a4a50fe5f76beb5ac19423d28c269e40b076177",
+    "human-calibration-reviewer-pack-v3.zip.sha256": "ae3c46587a7af477cf4dba0abd9014a392eb8d39cf4e88583bab36a56cea9e25",
+    "human-vs-ai-comparison.json": "788780b2b761dd764821de25e798457f50aee94f0605392e1c21b1bf6c74a517"
+  }
+}

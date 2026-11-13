@@ -1,0 +1,264 @@
+{
+  "schema": "human-ai-calibration-comparison/v1",
+  "compared_at_utc": "2026-11-13T16:36:51.684816+00:00",
+  "human_reviewer": {
+    "reviewer_id": "jmservera",
+    "reviewer_kind": "human",
+    "review_status": "in_progress",
+    "review_completed_yes_no": "no",
+    "guidance_version": "human-calibration-guidance/v3",
+    "disclosures_or_limitations": "I used AI for identifying the cases with failures or mismatches instead of reviewing all the successful ones."
+  },
+  "ai_judge": {
+    "id": "gpt6-luna-judge-v3",
+    "model": "gpt-6-luna",
+    "version": "sdk1.0.28-cli1.0.105-judge3"
+  },
+  "repeats": 2,
+  "per_dimension": {
+    "functional_completeness": {
+      "unavailable_rows": 11,
+      "unavailable_both_abstained": 11,
+      "scorable_paired_judge_comparisons": 158,
+      "raw_row_exact_agreement_rate": 0.9873,
+      "raw_row_within_one_agreement_rate": 1.0,
+      "equal_context_16_exact_agreement_rate": 0.9688,
+      "equal_context_16_within_one_agreement_rate": 1.0,
+      "scorable_both_na_pairs": 0,
+      "scorable_na_vs_numeric_pairs": 0,
+      "distinct_contexts_covered": 16
+    },
+    "workflow_coherence": {
+      "unavailable_rows": 11,
+      "unavailable_both_abstained": 11,
+      "scorable_paired_judge_comparisons": 158,
+      "raw_row_exact_agreement_rate": 0.9747,
+      "raw_row_within_one_agreement_rate": 0.9873,
+      "equal_context_16_exact_agreement_rate": 0.9375,
+      "equal_context_16_within_one_agreement_rate": 0.9688,
+      "scorable_both_na_pairs": 0,
+      "scorable_na_vs_numeric_pairs": 2,
+      "distinct_contexts_covered": 16
+    },
+    "error_recovery": {
+      "unavailable_rows": 11,
+      "unavailable_both_abstained": 11,
+      "scorable_paired_judge_comparisons": 158,
+      "raw_row_exact_agreement_rate": 0.943,
+      "raw_row_within_one_agreement_rate": 0.9873,
+      "equal_context_16_exact_agreement_rate": 0.875,
+      "equal_context_16_within_one_agreement_rate": 0.9531,
+      "scorable_both_na_pairs": 5,
+      "scorable_na_vs_numeric_pairs": 2,
+      "distinct_contexts_covered": 16
+    },
+    "api_usability": {
+      "unavailable_rows": 11,
+      "unavailable_both_abstained": 11,
+      "scorable_paired_judge_comparisons": 158,
+      "raw_row_exact_agreement_rate": 0.981,
+      "raw_row_within_one_agreement_rate": 1.0,
+      "equal_context_16_exact_agreement_rate": 0.9219,
+      "equal_context_16_within_one_agreement_rate": 1.0,
+      "scorable_both_na_pairs": 0,
+      "scorable_na_vs_numeric_pairs": 0,
+      "distinct_contexts_covered": 16
+    }
+  },
+  "differences": [
+    {
+      "specimen_label": "S03",
+      "endpoint": "p10",
+      "scenario_id": "ranking",
+      "dimension": "functional_completeness",
+      "human": "0",
+      "ai_repeat": 1,
+      "ai": "1",
+      "abs_diff": 1,
+      "kind": "one_point_diff"
+    },
+    {
+      "specimen_label": "S03",
+      "endpoint": "p10",
+      "scenario_id": "delivery-journey",
+      "dimension": "functional_completeness",
+      "human": "1",
+      "ai_repeat": 1,
+      "ai": "2",
+      "abs_diff": 1,
+      "kind": "one_point_diff"
+    },
+    {
+      "specimen_label": "S02",
+      "endpoint": "p10",
+      "scenario_id": "ranking",
+      "dimension": "workflow_coherence",
+      "human": "0",
+      "ai_repeat": 1,
+      "ai": "NA",
+      "kind": "na_vs_numeric"
+    },
+    {
+      "specimen_label": "S02",
+      "endpoint": "p10",
+      "scenario_id": "ranking",
+      "dimension": "workflow_coherence",
+      "human": "0",
+      "ai_repeat": 2,
+      "ai": "NA",
+      "kind": "na_vs_numeric"
+    },
+    {
+      "specimen_label": "S03",
+      "endpoint": "p10",
+      "scenario_id": "ranking",
+      "dimension": "workflow_coherence",
+      "human": "0",
+      "ai_repeat": 1,
+      "ai": "1",
+      "abs_diff": 1,
+      "kind": "one_point_diff"
+    },
+    {
+      "specimen_label": "S03",
+      "endpoint": "p10",
+      "scenario_id": "delivery-journey",
+      "dimension": "workflow_coherence",
+      "human": "1",
+      "ai_repeat": 1,
+      "ai": "2",
+      "abs_diff": 1,
+      "kind": "one_point_diff"
+    },
+    {
+      "specimen_label": "S03",
+      "endpoint": "p10",
+      "scenario_id": "delivery-journey",
+      "dimension": "error_recovery",
+      "human": "1",
+      "ai_repeat": 1,
+      "ai": "NA",
+      "kind": "na_vs_numeric"
+    },
+    {
+      "specimen_label": "S04",
+      "endpoint": "cr1",
+      "scenario_id": "ranking",
+      "dimension": "error_recovery",
+      "human": "NA",
+      "ai_repeat": 1,
+      "ai": "1",
+      "kind": "na_vs_numeric"
+    },
+    {
+      "specimen_label": "S04",
+      "endpoint": "cr1",
+      "scenario_id": "delivery-journey",
+      "dimension": "error_recovery",
+      "human": "4",
+      "ai_repeat": 2,
+      "ai": "3",
+      "abs_diff": 1,
+      "kind": "one_point_diff"
+    },
+    {
+      "specimen_label": "S05",
+      "endpoint": "p10",
+      "scenario_id": "ranking",
+      "dimension": "error_recovery",
+      "human": "3",
+      "ai_repeat": 1,
+      "ai": "4",
+      "abs_diff": 1,
+      "kind": "one_point_diff"
+    },
+    {
+      "specimen_label": "S05",
+      "endpoint": "p10",
+      "scenario_id": "ranking",
+      "dimension": "error_recovery",
+      "human": "3",
+      "ai_repeat": 2,
+      "ai": "4",
+      "abs_diff": 1,
+      "kind": "one_point_diff"
+    },
+    {
+      "specimen_label": "S06",
+      "endpoint": "p10",
+      "scenario_id": "ranking",
+      "dimension": "error_recovery",
+      "human": "3",
+      "ai_repeat": 1,
+      "ai": "4",
+      "abs_diff": 1,
+      "kind": "one_point_diff"
+    },
+    {
+      "specimen_label": "S06",
+      "endpoint": "p10",
+      "scenario_id": "ranking",
+      "dimension": "error_recovery",
+      "human": "3",
+      "ai_repeat": 2,
+      "ai": "4",
+      "abs_diff": 1,
+      "kind": "one_point_diff"
+    },
+    {
+      "specimen_label": "S07",
+      "endpoint": "cr1",
+      "scenario_id": "ranking",
+      "dimension": "error_recovery",
+      "human": "3",
+      "ai_repeat": 1,
+      "ai": "4",
+      "abs_diff": 1,
+      "kind": "one_point_diff"
+    },
+    {
+      "specimen_label": "S08",
+      "endpoint": "p10",
+      "scenario_id": "ranking",
+      "dimension": "error_recovery",
+      "human": "3",
+      "ai_repeat": 1,
+      "ai": "4",
+      "abs_diff": 1,
+      "kind": "one_point_diff"
+    },
+    {
+      "specimen_label": "S03",
+      "endpoint": "p10",
+      "scenario_id": "ranking",
+      "dimension": "api_usability",
+      "human": "0",
+      "ai_repeat": 1,
+      "ai": "1",
+      "abs_diff": 1,
+      "kind": "one_point_diff"
+    },
+    {
+      "specimen_label": "S04",
+      "endpoint": "cr1",
+      "scenario_id": "delivery-journey",
+      "dimension": "api_usability",
+      "human": "3",
+      "ai_repeat": 1,
+      "ai": "2",
+      "abs_diff": 1,
+      "kind": "one_point_diff"
+    },
+    {
+      "specimen_label": "S04",
+      "endpoint": "cr1",
+      "scenario_id": "delivery-journey",
+      "dimension": "api_usability",
+      "human": "3",
+      "ai_repeat": 2,
+      "ai": "2",
+      "abs_diff": 1,
+      "kind": "one_point_diff"
+    }
+  ]
+}

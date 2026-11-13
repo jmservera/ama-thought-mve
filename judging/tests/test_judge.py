@@ -413,6 +413,78 @@ def test_given_edited_actual_charge_when_resuming_then_no_fresh_spend_is_admitte
         judge.run_judges(bundle, config(judge), caller=caller)
 
 
+def test_given_failed_adapter_when_invoked_then_bounded_private_diagnostics_are_retained(judge, tmp_path):
+    directory = tmp_path / "failed-adapter"
+    command = [sys.executable, "-c",
+               "import sys; print('partial output'); sys.stderr.write('safe startup diagnostic\\n'); sys.exit(2)"]
+
+    with pytest.raises(judge.StudyError, match="consumption must be reconciled"):
+        judge.invoke(command, {"diagnostic": True}, directory, 10)
+
+    assert (directory / "adapter.stdout").read_text() == "partial output\n"
+    assert (directory / "adapter.stderr").read_text() == "safe startup diagnostic\n"
+    saved = judge.read_json(directory / "adapter-exit.json")
+    assert saved["return_code"] == 2 and saved["response_recorded"] is False
+    assert saved["stdout_bytes"] <= judge.LIMIT and saved["stderr_bytes"] <= judge.LIMIT
+    assert (directory / "adapter.stderr").stat().st_mode & 0o777 == 0o600
+
+
+def test_given_resilience_policy_when_verdict_slip_recovers_then_all_attempt_charges_are_accounted(judge, bundle):
+    cfg = config(judge)
+    cfg["resilience"] = {
+        "max_attempts_per_call": 2, "max_quarantined_calls": 2,
+        "max_quarantined_credits": 20, "retry_backoff_seconds": 0,
+    }
+    cfg["workers"] = 4
+    first_seen = set()
+
+    def flaky(command, request, directory, timeout):
+        directory.mkdir(parents=True, exist_ok=True)
+        resp = response_for(request, credits=1)
+        spec_id = request["specimen"]["specimen_id"]
+        if spec_id not in first_seen and len(first_seen) == 0:
+            first_seen.add(spec_id)
+            resp["verdict"]["scenarios"][0].pop("evidence_ids")
+        return resp
+
+    result = judge.run_judges(bundle, cfg, caller=flaky)
+    summary = judge.report(bundle)
+
+    assert result["completed_calls"] == 20
+    assert result["quarantined_calls"] == 0
+    assert result["actual_nano"] == 21 * 1_000_000_000
+    assert summary["judging_consumption"]["known_actual_nano"] == 21 * 1_000_000_000
+    assert summary["judging_consumption"]["failed_retry_attempts"] == 1
+
+
+def test_given_persistent_malformed_call_under_resilience_when_within_bounds_then_it_quarantines_without_halting(
+        judge, bundle):
+    cfg = config(judge)
+    cfg["resilience"] = {
+        "max_attempts_per_call": 2, "max_quarantined_calls": 1,
+        "max_quarantined_credits": 20, "retry_backoff_seconds": 0,
+    }
+    target = next(iter(judge.frozen_bundle(bundle)[2]))
+
+    def quarantine_one(command, request, directory, timeout):
+        directory.mkdir(parents=True, exist_ok=True)
+        resp = response_for(request, credits=1)
+        if request["specimen"]["specimen_id"] == target and directory.name.endswith("-1") or (
+                request["specimen"]["specimen_id"] == target and "-1-attempt-" in directory.name):
+            resp["verdict"]["scenarios"][0].pop("evidence_ids")
+        return resp
+
+    result = judge.run_judges(bundle, cfg, caller=quarantine_one)
+    resumed = judge.run_judges(bundle, cfg, caller=lambda *args: pytest.fail("Quarantined calls must not auto-replay"))
+    summary = judge.report(bundle)
+
+    assert result == resumed
+    assert result["completed_calls"] == 19
+    assert result["quarantined_calls"] == 1
+    assert summary["judging_consumption"]["complete"] is False
+    assert summary["judging_consumption"]["quarantined_calls"] == 1
+
+
 def test_given_real_json_command_adapter_when_running_then_stdin_and_report_work(judge, bundle, tmp_path):
     script = tmp_path / "adapter.py"
     script.write_text(
