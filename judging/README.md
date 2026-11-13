@@ -199,14 +199,17 @@ and accounting, not another full copy of every verdict. Resume and reporting
 verify these files against the ledger; a missing or changed response blocks
 further work rather than generating a replacement rating.
 
-The Copilot adapter revision `sdk1.0.28-cli1.0.105-judge2` serializes tool filters
-to plain string arrays before passing them to the SDK. This preserves an empty
-allowlist and source-qualified exclusions across CommonJS/ES-module boundaries.
+The Copilot adapter revision `sdk1.0.28-cli1.0.105-judge3` serializes tool filters
+to plain string arrays before passing them to the SDK and passes a strict
+per-specimen `responseSchema` to `sendAndWait` so required verdict fields,
+rubric dimensions and allowed execution citations are grammar-constrained.
 It also writes a bounded private `diagnostic.json` containing failure stage,
 safe error classification, prompt-dispatch/cleanup flags and accounting, never
 specimen text, verdicts or raw provider messages. The controller retains bounded
-mode-600 `adapter.stdout`, `adapter.stderr` and `adapter-exit.json` on failure.
-Keep these private and inspect them before considering recovery.
+mode-600 `adapter.stdout`, `adapter.stderr` and `adapter-exit.json` on failure,
+records certified usage before semantic verdict checks, and supports optional
+bounded `workers` and `resilience` retry/quarantine limits in private config.
+Keep diagnostics private and inspect them before considering recovery.
 
 A revision-1 batch cannot silently resume with revision 2: configuration and
 evaluator hashes change. Preserve the old sealed bundle and blocked-call ledger,

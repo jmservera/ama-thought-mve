@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { sessionConfig, noToolEvidence, readRequest, resolveCliPath, judgeSession,
-  encodeResponse, VERSION } from './copilot-judge.mjs';
+  encodeResponse, verdictSchema, VERSION } from './copilot-judge.mjs';
 
 class ToolSet {
   constructor() { this.entries = []; }
@@ -121,6 +121,7 @@ test('actual SDK evidence completes a no-tool judge session with correlated bill
     const event = (type, data) => ({ id: crypto.randomUUID(), type, data });
     let closed = 0;
     let captured;
+    let capturedSchema;
     const makeRuntime = async () => ({
       close: async () => { closed++; },
       client: {
@@ -133,8 +134,9 @@ test('actual SDK evidence completes a no-tool judge session with correlated bill
             reasoningEffort: 'medium', copilotVersion: '1.0.105', sessionLimits: { maxAiCredits: 10 } }));
           return {
             sessionId: config.sessionId,
-            sendAndWait: async ({ prompt }) => {
+            sendAndWait: async ({ prompt, responseSchema }) => {
               captured = prompt;
+              capturedSchema = responseSchema;
               config.onEvent(event('assistant.message', { content: '{"scenarios":[]}' }));
               config.onEvent(event('assistant.usage', { model: 'pinned-model', reasoningEffort: 'medium',
                 aiCreditsStatus: 'complete',
@@ -159,4 +161,24 @@ test('actual SDK evidence completes a no-tool judge session with correlated bill
     assert.equal(closed, 1);
     assert.match(captured, /"specimen_id":"blind"/);
     assert.equal(captured.includes('cliPath'), false);
+    assert.deepEqual(capturedSchema.required, ['scenarios']);
+    assert.deepEqual(capturedSchema.properties.scenarios.items.required,
+      ['scenario_id', 'scores', 'evidence_ids', 'rationale']);
   });
+
+test('verdictSchema constrains required fields, dimensions, scenario IDs and allowed evidence IDs', () => {
+  const schema = verdictSchema({
+    scenarios: [
+      { id: 'registration', final: { observations: [{ id: 'registration:1' }], error_type: null } },
+      { id: 'ranking', final: { observations: [], error_type: 'AttributeError' } },
+    ],
+  });
+  const item = schema.properties.scenarios.items;
+  assert.equal(schema.additionalProperties, false);
+  assert.equal(item.additionalProperties, false);
+  assert.deepEqual(item.required, ['scenario_id', 'scores', 'evidence_ids', 'rationale']);
+  assert.deepEqual(item.properties.scenario_id.enum, ['registration', 'ranking']);
+  assert.deepEqual(item.properties.evidence_ids.items.enum, ['registration:1', 'ranking:error']);
+  assert.deepEqual(item.properties.scores.required,
+    ['functional_completeness', 'workflow_coherence', 'error_recovery', 'api_usability']);
+});

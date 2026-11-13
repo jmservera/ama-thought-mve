@@ -4,7 +4,7 @@
     {
       "id": "independent-judge",
       "model": "PIN-AN-ENTITLED-MODEL-ID",
-      "version": "sdk1.0.28-cli1.0.105-judge2",
+      "version": "sdk1.0.28-cli1.0.105-judge3",
       "command": ["node", "{root}/judging/copilot-judge.mjs"]
     }
   ],

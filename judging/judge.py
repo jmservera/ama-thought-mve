@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import concurrent.futures
 import csv
 import datetime as dt
 import fcntl
@@ -16,6 +17,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
@@ -414,14 +416,34 @@ def frozen_bundle(output: Path) -> tuple[dict, dict, dict[str, dict]]:
     return manifest, mapping, packets
 
 
+def validate_resilience(policy: object) -> dict | None:
+    if policy is None:
+        return None
+    keys = {"max_attempts_per_call", "max_quarantined_calls",
+            "max_quarantined_credits", "retry_backoff_seconds"}
+    if not isinstance(policy, dict) or set(policy) != keys:
+        raise StudyError("Invalid judging resilience policy")
+    bounds = (("max_attempts_per_call", 1, 5), ("max_quarantined_calls", 0, 200),
+              ("max_quarantined_credits", 0, 300000), ("retry_backoff_seconds", 0, 120))
+    for name, low, high in bounds:
+        if type(policy[name]) is not int or not low <= policy[name] <= high:
+            raise StudyError(f"Invalid resilience field: {name}")
+    return policy
+
+
 def validate_config(config: dict) -> None:
     required = {"schema", "judges", "repeats", "timeout_seconds", "per_call_credits", "ceiling_credits"}
-    if set(config) != required or config["schema"] != SCHEMA:
+    optional = {"workers", "resilience"}
+    if not isinstance(config, dict) or not required <= set(config) <= required | optional or config["schema"] != SCHEMA:
         raise StudyError("Invalid judging configuration")
     for name, low, high in (("repeats", 2, 10), ("timeout_seconds", 1, 600),
                             ("per_call_credits", 1, 1000), ("ceiling_credits", 1, 300000)):
         if type(config[name]) is not int or not low <= config[name] <= high:
             raise StudyError(f"Invalid configuration field: {name}")
+    workers = config.get("workers", 1)
+    if type(workers) is not int or not 1 <= workers <= 16:
+        raise StudyError("Invalid configuration field: workers")
+    validate_resilience(config.get("resilience"))
     judges = config["judges"]
     if not isinstance(judges, list) or not 1 <= len(judges) <= 10:
         raise StudyError("At least one separately pinned judge is required")
@@ -483,8 +505,9 @@ def validate_verdict(verdict: dict, packet: dict) -> None:
             raise StudyError("Perfect functional fulfilment contradicts a demonstrated workflow failure")
 
 
-def validate_response(response: dict, judge: dict, packet: dict) -> int:
-    if (set(response) != {"judge_id", "judge_version", "model", "usage", "verdict"}
+def validate_usage_envelope(response: dict, judge: dict) -> int:
+    if (not isinstance(response, dict)
+            or set(response) != {"judge_id", "judge_version", "model", "usage", "verdict"}
             or response["judge_id"] != judge["id"] or response["judge_version"] != judge["version"]
             or response["model"] != judge["model"]):
         raise StudyError("Adapter identity differs from the pinned judge")
@@ -493,8 +516,52 @@ def validate_response(response: dict, judge: dict, packet: dict) -> int:
             or usage["credits_complete"] is not True or type(usage["totalNanoAiu"]) is not int
             or usage["totalNanoAiu"] < 0):
         raise StudyError("Judge consumption is unknown; reservation retained")
-    validate_verdict(response["verdict"], packet)
     return usage["totalNanoAiu"]
+
+
+def validate_response(response: dict, judge: dict, packet: dict) -> int:
+    actual = validate_usage_envelope(response, judge)
+    validate_verdict(response["verdict"], packet)
+    return actual
+
+
+def call_known_nano(call: dict) -> int:
+    prior = sum(item["actual_nano"] for item in call.get("failed_attempts", [])
+                if item.get("actual_nano") is not None)
+    current = (call["actual_nano"] if call.get("status") != "running"
+               and call.get("actual_nano") is not None else 0)
+    return prior + current
+
+
+def call_unknown_reserved_nano(call: dict) -> int:
+    prior = sum(item["reserved_nano"] for item in call.get("failed_attempts", [])
+                if item.get("actual_nano") is None)
+    current = (call["reserved_nano"] if call.get("status") == "running"
+               or (call.get("actual_nano") is None
+                   and call.get("status") in ("blocked", "quarantined")) else 0)
+    return prior + current
+
+
+def settled_unknown_hold_nano(ledger: dict) -> int:
+    total = 0
+    for call in ledger["calls"].values():
+        total += sum(item["reserved_nano"] for item in call.get("failed_attempts", [])
+                     if item.get("actual_nano") is None)
+        if call.get("status") in ("blocked", "quarantined") and call.get("actual_nano") is None:
+            total += call["reserved_nano"]
+    return total
+
+
+def adapter_safety_violation(attempt_dir: Path) -> bool:
+    path = attempt_dir / "diagnostic.json"
+    if path.is_symlink() or not path.is_file():
+        return False
+    try:
+        diag = read_json(path)
+    except StudyError:
+        return True
+    failure = diag.get("failure")
+    return isinstance(failure, dict) and failure.get("safety_violation") is True
 
 
 def invoke(command: list[str], request: dict, directory: Path, timeout: int) -> dict:
@@ -569,6 +636,8 @@ def run_judges(output: Path, config: dict, *, caller=invoke) -> dict:
 
 def _run_judges(output: Path, config: dict, *, caller=invoke) -> dict:
     validate_config(config)
+    policy = validate_resilience(config.get("resilience"))
+    workers = config.get("workers", 1)
     manifest, _, packets = frozen_bundle(output)
     private = output / "private"
     ledger_path = private / "judges.json"
@@ -581,6 +650,13 @@ def _run_judges(output: Path, config: dict, *, caller=invoke) -> dict:
         ledger = {"schema": SCHEMA, "binding": binding, "config": config, "calls": {}}
         atomic_json(ledger_path, ledger)
     validate_ledger(output, ledger, config, packets)
+    reserve = config["per_call_credits"] * 1_000_000_000
+    ceiling_nano = config["ceiling_credits"] * 1_000_000_000
+    max_attempts = policy["max_attempts_per_call"] if policy else 1
+    max_quarantined_nano = policy["max_quarantined_credits"] * 1_000_000_000 if policy else 0
+    lock = threading.Lock()
+    stop_event = threading.Event()
+    pending_work = []
     for specimen, packet in packets.items():
         if all(item["final"]["status"] == "unavailable" for item in packet["scenarios"]):
             continue
@@ -592,37 +668,124 @@ def _run_judges(output: Path, config: dict, *, caller=invoke) -> dict:
                 if existing:
                     if existing["request_sha256"] != digest(request):
                         raise StudyError("Frozen judge request changed")
-                    if existing["status"] != "complete":
-                        raise StudyError("Prior judge call needs manual reconciliation; no automatic retry")
-                    validate_response(load_response(output, key, existing), judge, packet)
-                    continue
-                spent = sum(call["actual_nano"] if call["actual_nano"] is not None else call["reserved_nano"]
-                            for call in ledger["calls"].values())
-                reserve = config["per_call_credits"] * 1_000_000_000
-                if spent + reserve > config["ceiling_credits"] * 1_000_000_000:
+                    if existing["status"] == "complete":
+                        validate_response(load_response(output, key, existing), judge, packet)
+                        continue
+                    if policy and existing["status"] == "quarantined":
+                        continue
+                    raise StudyError("Prior judge call needs manual reconciliation; no automatic retry")
+                pending_work.append((key, packet, judge, request))
+
+    def execute_item(item: tuple[str, dict, dict, dict]) -> None:
+        key, packet, judge, request = item
+        req_digest = digest(request)
+        failed_attempts: list[dict] = []
+        for attempt_no in range(1, max_attempts + 1):
+            attempt_rel = key if attempt_no == 1 else f"{key}-attempt-{attempt_no}"
+            attempt_dir = private / attempt_rel
+            with lock:
+                if stop_event.is_set():
+                    return
+                prior_self = sum(
+                    item["actual_nano"] if item["actual_nano"] is not None else item["reserved_nano"]
+                    for item in failed_attempts
+                )
+                spent = prior_self + sum(
+                    call_known_nano(c) + call_unknown_reserved_nano(c)
+                    for k, c in ledger["calls"].items() if k != key
+                )
+                if spent + reserve > ceiling_nano:
+                    stop_event.set()
                     raise StudyError("Separate judging credit ceiling would be exceeded")
-                call = {"status": "running", "request_sha256": digest(request),
+                call = {"status": "running", "request_sha256": req_digest,
                         "reserved_nano": reserve, "actual_nano": None, "response_sha256": None}
+                if failed_attempts:
+                    call["failed_attempts"] = list(failed_attempts)
+                if attempt_no > 1:
+                    call["attempt"] = attempt_no
+                    call["attempt_directory"] = attempt_rel
                 ledger["calls"][key] = call
                 atomic_json(ledger_path, ledger)
+            attempt_actual = None
+            overspent = False
+            identity_fault = False
+            try:
+                response = caller(judge["command"], request, attempt_dir, config["timeout_seconds"])
                 try:
-                    response = caller(judge["command"], request, private / key, config["timeout_seconds"])
-                    actual = validate_response(response, judge, packet)
-                    call["actual_nano"] = actual
-                    if actual > reserve:
-                        raise StudyError("Judge consumption exceeded its reservation; stop admission")
+                    attempt_actual = validate_usage_envelope(response, judge)
+                except StudyError as env_err:
+                    if str(env_err) == "Adapter identity differs from the pinned judge":
+                        identity_fault = True
+                    raise
+                if attempt_actual > reserve:
+                    overspent = True
+                    raise StudyError("Judge consumption exceeded its reservation; stop admission")
+                validate_verdict(response["verdict"], packet)
+                with lock:
                     path = no_links(private / key / "validated-response.json")
                     if path.exists():
+                        stop_event.set()
                         raise StudyError("Unexpected pre-existing validated response")
+                    path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
                     atomic_json(path, response)
+                    call["actual_nano"] = attempt_actual
                     call["response_sha256"] = digest(response)
                     call["status"] = "complete"
                     atomic_json(ledger_path, ledger)
-                except (StudyError, OSError, subprocess.SubprocessError) as error:
-                    call.update(status="blocked", error=type(error).__name__)
-                    atomic_json(ledger_path, ledger)
-                    raise
-    return {"completed_calls": len(ledger["calls"]), "actual_nano": sum(call["actual_nano"] for call in ledger["calls"].values())}
+                return
+            except (StudyError, OSError, subprocess.SubprocessError) as error:
+                safety_fault = overspent or identity_fault or adapter_safety_violation(attempt_dir)
+                with lock:
+                    if not policy or safety_fault:
+                        call.update(status="blocked", actual_nano=attempt_actual, error=type(error).__name__)
+                        atomic_json(ledger_path, ledger)
+                        stop_event.set()
+                        raise
+                    current_unknown = settled_unknown_hold_nano(ledger)
+                    added_unknown = reserve if attempt_actual is None else 0
+                    can_hold_unknown = current_unknown + added_unknown <= max_quarantined_nano
+                    if attempt_no < max_attempts and can_hold_unknown:
+                        failed_attempts.append({
+                            "attempt": attempt_no, "directory": attempt_rel,
+                            "reserved_nano": reserve, "actual_nano": attempt_actual,
+                            "error": type(error).__name__,
+                        })
+                        call["failed_attempts"] = list(failed_attempts)
+                        atomic_json(ledger_path, ledger)
+                    else:
+                        quarantined_now = sum(c["status"] == "quarantined" for k, c in ledger["calls"].items() if k != key)
+                        if quarantined_now + 1 <= policy["max_quarantined_calls"] and can_hold_unknown:
+                            call.update(status="quarantined", actual_nano=attempt_actual, error=type(error).__name__)
+                            atomic_json(ledger_path, ledger)
+                            return
+                        call.update(status="blocked", actual_nano=attempt_actual, error=type(error).__name__)
+                        atomic_json(ledger_path, ledger)
+                        stop_event.set()
+                        raise StudyError("Judging quarantine limit exceeded") from error
+                if policy["retry_backoff_seconds"] > 0 and not stop_event.is_set():
+                    time.sleep(policy["retry_backoff_seconds"])
+
+    if workers == 1:
+        for item in pending_work:
+            execute_item(item)
+    elif pending_work:
+        first_error: BaseException | None = None
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(execute_item, item) for item in pending_work]
+            for future in concurrent.futures.as_completed(futures):
+                exc = future.exception()
+                if exc is not None and first_error is None:
+                    first_error = exc
+        if first_error is not None:
+            raise first_error
+    result = {
+        "completed_calls": sum(call["status"] == "complete" for call in ledger["calls"].values()),
+        "actual_nano": sum(call_known_nano(call) for call in ledger["calls"].values()),
+    }
+    if policy:
+        result["quarantined_calls"] = sum(call["status"] == "quarantined" for call in ledger["calls"].values())
+        result["unknown_reserved_nano"] = sum(call_unknown_reserved_nano(call) for call in ledger["calls"].values())
+    return result
 
 
 def mean(values: list[float]) -> float | None:
@@ -643,6 +806,9 @@ def validate_ledger(output: Path, ledger: dict, config: dict, packets: dict[str,
     if (set(ledger) != {"schema", "binding", "config", "calls"} or ledger["schema"] != SCHEMA
             or ledger["config"] != config or not isinstance(ledger["calls"], dict)):
         raise StudyError("Invalid frozen judging ledger")
+    policy = validate_resilience(config.get("resilience"))
+    reserve = config["per_call_credits"] * 1_000_000_000
+    allowed_statuses = ("running", "blocked", "quarantined", "complete") if policy else ("running", "blocked", "complete")
     expected = {f"{specimen}-{judge['id']}-{repeat}": (packet, judge)
                 for specimen, packet in packets.items() for judge in config["judges"]
                 for repeat in range(1, config["repeats"] + 1)}
@@ -651,15 +817,34 @@ def validate_ledger(output: Path, ledger: dict, config: dict, packets: dict[str,
             raise StudyError("Foreign call in judging ledger")
         packet, judge = expected[key]
         actual = call.get("actual_nano")
-        if (call.get("reserved_nano") != config["per_call_credits"] * 1_000_000_000
+        if (call.get("reserved_nano") != reserve
                 or call.get("request_sha256") != digest(request_for(packet, judge, config))
                 or actual is not None and (type(actual) is not int or actual < 0)
-                or call.get("status") not in ("running", "blocked", "complete")):
+                or call.get("status") not in allowed_statuses):
             raise StudyError("Judging ledger reservation/request changed")
+        failed = call.get("failed_attempts")
+        if failed is not None:
+            if (not policy or not isinstance(failed, list) or not 1 <= len(failed) < policy["max_attempts_per_call"]):
+                raise StudyError("Invalid failed judge attempt history")
+            for idx, item in enumerate(failed, 1):
+                expected_dir = key if idx == 1 else f"{key}-attempt-{idx}"
+                item_actual = item.get("actual_nano")
+                if (not isinstance(item, dict)
+                        or set(item) != {"attempt", "directory", "reserved_nano", "actual_nano", "error"}
+                        or item["attempt"] != idx or item["directory"] != expected_dir
+                        or item["reserved_nano"] != reserve
+                        or item_actual is not None and (type(item_actual) is not int or not 0 <= item_actual <= reserve)
+                        or not isinstance(item["error"], str)):
+                    raise StudyError("Invalid failed judge attempt record")
         if call["status"] == "complete":
             measured = validate_response(load_response(output, key, call), judge, packet)
             if actual != measured or measured > call["reserved_nano"]:
                 raise StudyError("Judging ledger actual consumption changed")
+    if policy and not any(c["status"] == "blocked" for c in ledger["calls"].values()):
+        if sum(c["status"] == "quarantined" for c in ledger["calls"].values()) > policy["max_quarantined_calls"]:
+            raise StudyError("Quarantined call count exceeds configured limit")
+        if settled_unknown_hold_nano(ledger) > policy["max_quarantined_credits"] * 1_000_000_000:
+            raise StudyError("Quarantined unknown credit holds exceed configured limit")
 
 
 def report(output: Path) -> dict:
@@ -739,12 +924,15 @@ def _report(output: Path) -> dict:
                "warnings": mapping["warnings"], "judges": [{key: judge[key] for key in ("id", "model", "version")}
                                                           for judge in config["judges"]],
                "judging_consumption": {
-                   "known_actual_nano": sum(call["actual_nano"] for call in ledger["calls"].values()
-                                            if call["actual_nano"] is not None),
-                   "unknown_reserved_nano": sum(call["reserved_nano"] for call in ledger["calls"].values()
-                                                if call["actual_nano"] is None),
-                   "complete": all(call["actual_nano"] is not None for call in ledger["calls"].values()),
-                   "calls": len(ledger["calls"])},
+                   "known_actual_nano": sum(call_known_nano(call) for call in ledger["calls"].values()),
+                   "unknown_reserved_nano": sum(call_unknown_reserved_nano(call) for call in ledger["calls"].values()),
+                   "complete": all(call["status"] == "complete" and call_unknown_reserved_nano(call) == 0
+                                   for call in ledger["calls"].values()),
+                   "calls": len(ledger["calls"]),
+                   **({"quarantined_calls": sum(call["status"] == "quarantined" for call in ledger["calls"].values()),
+                       "failed_retry_attempts": sum(len(call.get("failed_attempts", []))
+                                                    for call in ledger["calls"].values())}
+                      if config.get("resilience") else {})},
                "limitations": ["AI-rated API workflows, not a human usability study.",
                                "Ordinal score means and contrasts are descriptive; no inferential verdict.",
                                "No observed scenario loss is not proof of no functional drift.",
