@@ -2311,7 +2311,10 @@ def fallback_quarantine_incident(resilience_bootstrap_incident, tmp_path, monkey
         state["ledger"]["entries"][identity] = entry
     prior_cell = next(cell for cell in state["cells"] if cell["assigned_model"] == "gemini-4-argon"
                       and cell["arm"] == "E" and cell["replicate"] == 15)
-    prior = failed_operational_attempt(study, current, prior_cell)
+    prior_cell["checkpoint"] = {"step": "f06-feature", "head": "763a9a36eb7191d023601c35fcfa049e1c1894b5"}
+    prior = current.new_attempt(prior_cell, "f06-feature")
+    write_quarantined_timeout_attempt(study, source, case["new"]["commit"], prior)
+    current.settle_attempt(prior["id"], prior["usage"])
     current.supervise_failure(prior_cell, prior)
     cell = next(cell for cell in state["cells"] if cell["assigned_model"] == "gpt-6.1-sol"
                 and cell["arm"] == "C" and cell["replicate"] == 20)
@@ -2433,6 +2436,189 @@ def test_given_changed_fallback_quarantine_when_copying_then_recovery_is_refused
             records[-1]["receipt"]["outcome"]["quiescent"] = False
         else:
             records[1]["event"]["data"]["model"] = "other"
+        case["journal"].write_text("".join(json.dumps(record) + "\n" for record in records))
+
+    with pytest.raises(study.StudyError):
+        prepare_http_timeout_incident(case)
+
+    assert not (case["target_root"] / ".study/pilot-estimation").exists()
+    assert (case["source"] / "state.json").read_bytes() == case["original"]
+
+
+def write_quarantined_timeout_attempt(study, source: Path, commit: str, attempt: dict) -> Path:
+    directory = source / "runs/pilot-estimation-gemini-4-argon-E-15/attempts" / attempt["id"]
+    usage = {"credits_complete": False, "totalNanoAiu": None, "aiCreditsStatus": "partial"}
+    outcome = {"schema": "study-attempt-outcome/v1", "work": "unavailable", "safety": "valid",
+               "accounting": "unknown", "quiescent": True, "native_calls": 7, "native_failures": 1,
+               "failure": {"kind": "transport", "stage": "session_send", "retry_after_seconds": None}}
+    failure = {"model": "gemini-4-argon", "reasoningEffort": "medium", "failureKind": "transport",
+               "transport": "http", "apiEndpoint": "/chat/completions", "source": "top_level",
+               "errorMessage": '"Native model HTTP stream timed out"', "durationMs": 600002,
+               "retryAttempt": 0, "rte": False, "isAuto": False, "isByok": False, "fusion": None}
+    mirror = {"kind": "model_call_failure", "turn": 6, "reasoningEffort": "medium", "rte": False,
+              "modelCallDurationMs": 600002, "modelCall": {
+                  "model": "gemini-4-argon", "request_id": "", "api_endpoint": "/chat/completions",
+                  "transport": "http", "failure_kind": "transport",
+                  "error": '"Native model HTTP stream timed out"', "rte": False, "retry_attempt": 0}}
+    result = {"type": "complete", "exit_code": 1, "receipt": {
+        "session_id": "quarantine-timeout-session", "sdk_version": "1.0.28", "cli_version": "1.0.105",
+        "protocol_version": 3, "protocol_error": "provider_operational_failure",
+        "failure_stage": "session_send", "actual_models": ["gemini-4-argon"],
+        "actual_reasoning_efforts": ["medium"], "routing_changes": [], "usage": usage,
+        "outcome": outcome, "usage_lower_bound": None}}
+    records = [
+        {"type": "event", "sessionId": "quarantine-timeout-session", "event": {
+            "type": "model.call_start", "data": {"model": "gemini-4-argon", "turnId": "6"}}},
+        {"type": "event", "sessionId": "quarantine-timeout-session", "event": {
+            "type": "model.call_failure", "data": failure}},
+        {"type": "event", "sessionId": "quarantine-timeout-session", "event": {
+            "type": "model.model_call_failure", "data": mirror}},
+        {"type": "event", "sessionId": "quarantine-timeout-session", "event": {
+            "type": "model.call_finished", "data": {"turnId": "6", "outcome": "error"}}},
+        result,
+    ]
+    journal = directory / "transport/events.jsonl"
+    journal.parent.mkdir(parents=True, exist_ok=True)
+    journal.write_text("".join(json.dumps(record) + "\n" for record in records))
+    request = {"model": "gemini-4-argon", "reasoningEffort": "medium",
+               "resiliencePolicy": "study-resilience-policy/v1", "remainingSeconds": 1800,
+               "maxAiCredits": 270, "prompt": "offline fixture"}
+    study.atomic_json(directory / "request.json", request)
+    request_sha = hashlib.sha256((directory / "request.json").read_bytes()).hexdigest()
+    terminal_path = directory / "terminal.json"
+    study.atomic_json(terminal_path, {
+        "schema": "study-transport-terminal/v1", "attempt_id": attempt["id"],
+        "source_commit": commit, "request_sha256": request_sha,
+        "events_sha256": hashlib.sha256(journal.read_bytes()).hexdigest(), "seconds": 874.2625,
+        "result": result})
+    attempt.update(step="f06-feature", status="infra_failed", usage=usage, outcome=outcome,
+                   seconds=874.2625, started=1769644800, seconds_limit=1800,
+                   credit_limit_nano=270 * study.NANO,
+                   directory=str(directory.relative_to(source)), request_sha256=request_sha,
+                   terminal_sha256=hashlib.sha256(terminal_path.read_bytes()).hexdigest())
+    return journal
+
+
+@pytest.fixture
+def quarantine_completion_incident(fallback_quarantine_incident, tmp_path, monkeypatch):
+    case = fallback_quarantine_incident
+    study, recovery = case["study"], case["recovery"]
+    source = prepare_http_timeout_incident(case)
+    source_root = case["target_root"]
+    current = study.Controller(source, case["config"], smoke=False, phase="pilot-estimation",
+                               study_id="pilot-estimation", replicates=21,
+                               unregistered=case["new"], handoff=case["handoff"])
+    state = current.state
+    e15_cell = next(cell for cell in state["cells"] if cell["run_id"] == "pilot-estimation-gemini-4-argon-E-15")
+    e15_attempt = next(item for item in e15_cell["attempts"] if item["id"] == case["prior_quarantine"])
+    journal = source / e15_attempt["directory"] / "transport/events.jsonl"
+    known = sum(entry["actual_nano"] if entry["status"] == "complete" else entry.get("lower_bound_nano", 0)
+                for entry in state["ledger"]["entries"].values() if entry["status"] in ("complete", "retry_hold"))
+    quotient, remainder = divmod(study.credits("62835.76876") - known, 426)
+    healthy_cells = [cell for cell in state["cells"]
+                     if cell["run_id"] not in ("pilot-estimation-gemini-4-argon-E-15",
+                                               "pilot-estimation-gpt-6.1-sol-C-20")]
+    for index in range(426):
+        cell = healthy_cells[index % len(healthy_cells)]
+        identity = f"completion-step-{index}"
+        amount = quotient + (index < remainder)
+        usage = {"credits_complete": True, "totalNanoAiu": amount}
+        cell["completed_steps"] = cell.get("completed_steps", 0) + 1
+        cell["attempts"].append({"id": identity, "step": f"completion-step-{index}", "status": "agent_returned",
+                                 "source_commit": case["new"]["commit"], "seconds": 1, "usage": usage})
+        state["ledger"]["entries"][identity] = {"status": "complete", "reserved_nano": 300 * study.NANO,
+                                                "actual_nano": amount}
+    for cell in healthy_cells:
+        cell["status"] = "completed"
+    current.update(state, status="partial", oracle_halt=False, stop_requested=False)
+    original = current.path.read_bytes()
+    target_root = tmp_path / "quarantine-completion-new"
+    target_root.mkdir()
+    shutil.copytree(source_root / "protocol", target_root / "protocol")
+    shutil.copytree(source_root / "harness", target_root / "harness")
+    new_commit = "c9" * 20
+    new = {**case["new"], "commit": new_commit, "inputs_sha256": "ca" * 32,
+           "public_disclosure_url": f"https://github.com/jmservera/ama-thought-mve/commit/{new_commit}",
+           "disclosed_at": "2026-02-03T00:00:00Z"}
+    monkeypatch.setattr(study, "QUARANTINE_COMPLETION_SOURCE", case["new"]["commit"])
+    monkeypatch.setattr(study, "QUARANTINE_COMPLETION_STATE_SHA256", hashlib.sha256(original).hexdigest())
+    monkeypatch.setattr(study, "QUARANTINE_COMPLETION_ATTEMPT", e15_attempt["id"])
+    monkeypatch.setattr(study, "QUARANTINE_COMPLETION_JOURNAL_SHA256",
+                        hashlib.sha256(journal.read_bytes()).hexdigest())
+    monkeypatch.setattr(study, "QUARANTINE_COMPLETION_RELEASED", (e15_attempt["id"], case["attempt"]["id"]))
+    monkeypatch.setattr(study, "ROOT", target_root)
+    monkeypatch.setattr(recovery, "ROOT", target_root)
+    monkeypatch.setattr(study, "fingerprint", lambda *args: new["inputs_sha256"])
+    prior_roots = [*case["prior_roots"], case["source_root"]]
+    commits = {root: study.read_json(root / ".study/pilot-estimation/state.json")["identity"]["commit"]
+               for root in [*prior_roots, source_root]}
+    monkeypatch.setattr(study, "command", lambda args, **kwargs: commits.get(kwargs.get("cwd"), new_commit))
+    approval = {**case["approval"], "original_state_sha256": study.QUARANTINE_COMPLETION_STATE_SHA256,
+                "original_commit": case["new"]["commit"], "target_commit": new_commit,
+                "attempt_id": e15_attempt["id"], "accept_fresh_retry_reservation": True,
+                "accept_fresh_retry_time_allowance": True, "accept_quarantine_release": True,
+                "approved_at": "2026-02-04T00:00:00Z", "disclosure_url": new["public_disclosure_url"]}
+    approval.pop("accept_quarantine_only", None)
+    return {**case, "source_root": source_root, "source": source, "target_root": target_root,
+            "old": case["new"], "new": new, "approval": approval, "original": original,
+            "journal": journal, "attempt": e15_attempt, "c20_attempt": case["attempt"],
+            "prior_roots": prior_roots}
+
+
+def test_given_quarantine_completion_when_copying_then_both_quarantined_cells_unlock_fresh_retries(
+        quarantine_completion_incident):
+    case, study = quarantine_completion_incident, quarantine_completion_incident["study"]
+    before = study.read_json(case["source"] / "state.json")
+
+    target = prepare_http_timeout_incident(case)
+    state = study.read_json(target / "state.json")
+
+    assert len(study.recovery_records(state)) == 14
+    assert len(state["ledger"]["entries"]) == 5357
+    assert sum(cell.get("completed_steps", 0) for cell in state["cells"]) == 5341
+    assert sum(entry["status"] == "recovery_hold" for entry in state["ledger"]["entries"].values()) == 16
+    assert sum(entry["status"] == "quarantine_hold" for entry in state["ledger"]["entries"].values()) == 0
+    assert state["deadline"] == before["deadline"] and state["identity"]["config"] == before["identity"]["config"]
+    controller = study.Controller(target, case["config"], smoke=False, phase="pilot-estimation",
+                                  study_id="pilot-estimation", replicates=21,
+                                  unregistered=case["new"], handoff=case["handoff"])
+    e15 = next(cell for cell in controller.state["cells"] if cell["run_id"] == "pilot-estimation-gemini-4-argon-E-15")
+    c20 = next(cell for cell in controller.state["cells"] if cell["run_id"] == "pilot-estimation-gpt-6.1-sol-C-20")
+    assert e15["status"] == "partial" and "error" not in e15 and "stop_reason" not in e15
+    assert c20["status"] == "partial" and "error" not in c20 and "stop_reason" not in c20
+    retry_e15 = controller.new_attempt(e15, "f06-feature")
+    retry_c20 = controller.new_attempt(c20, "f10-feature")
+    assert retry_e15["id"].endswith("-f06-feature-2")
+    assert retry_c20["id"].endswith("-f10-feature-2")
+    assert controller.state["ledger"]["entries"][case["attempt"]["id"]]["status"] == "recovery_hold"
+    assert controller.state["ledger"]["entries"][case["c20_attempt"]["id"]]["status"] == "recovery_hold"
+    study.validate_recovery_evidence(target, controller.state, case["new"])
+    study.validate_supervisor_state(target, controller.state, case["new"])
+    assert (case["source"] / "state.json").read_bytes() == case["original"]
+
+
+@pytest.mark.parametrize("damage", ["release_flag", "fresh_retry", "duration", "terminal", "c20_checkpoint"])
+def test_given_changed_quarantine_completion_when_copying_then_recovery_is_refused(
+        quarantine_completion_incident, damage):
+    case, study = quarantine_completion_incident, quarantine_completion_incident["study"]
+    if damage == "release_flag":
+        case["approval"]["accept_quarantine_release"] = False
+    elif damage == "fresh_retry":
+        case["approval"]["accept_fresh_retry_reservation"] = False
+    elif damage == "terminal":
+        path = case["journal"].parent.parent / "terminal.json"
+        path.write_bytes(path.read_bytes() + b"\n")
+    elif damage == "c20_checkpoint":
+        state = study.read_json(case["source"] / "state.json")
+        c20 = next(cell for cell in state["cells"] if cell["run_id"] == "pilot-estimation-gpt-6.1-sol-C-20")
+        c20["checkpoint"] = {"step": "f09-review", "head": "wrong"}
+        study.atomic_json(case["source"] / "state.json", state)
+        case["original"] = (case["source"] / "state.json").read_bytes()
+        case["approval"]["original_state_sha256"] = hashlib.sha256(case["original"]).hexdigest()
+        study.QUARANTINE_COMPLETION_STATE_SHA256 = case["approval"]["original_state_sha256"]
+    else:
+        records = [json.loads(line) for line in case["journal"].read_bytes().splitlines()]
+        records[1]["event"]["data"]["durationMs"] = 600000
         case["journal"].write_text("".join(json.dumps(record) + "\n" for record in records))
 
     with pytest.raises(study.StudyError):

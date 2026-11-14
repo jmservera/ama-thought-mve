@@ -145,6 +145,14 @@ FALLBACK_RECOVERY_STATE_SHA256 = "e15ef046d01b323b2ae66aa1055572dd0754817b320787
 FALLBACK_RECOVERY_SOURCE = "0c35eff0e345d04c41722a43420d19b892c7fb8c"
 FALLBACK_RECOVERY_ATTEMPT = "pilot-estimation-gpt-6.1-sol-C-20-f10-feature-1"
 FALLBACK_RECOVERY_JOURNAL_SHA256 = "e6704ca2f50b50dbf79d04f039673076bae1228a9572619d561ebc5fb8e7b26a"
+QUARANTINE_COMPLETION_STATE_SHA256 = "fb39a46fc36f33f62f3286fd517b63bb09787e9c7bcd7d276c4a362f256f2de1"
+QUARANTINE_COMPLETION_SOURCE = "a9d76bb6dbb118c43315fb2a13b7bcdb732d946d"
+QUARANTINE_COMPLETION_ATTEMPT = "pilot-estimation-gemini-4-argon-E-15-f06-feature-1"
+QUARANTINE_COMPLETION_JOURNAL_SHA256 = "4c98996736ad590f49b1518330bc21a9eb544bf6137637a1ef75ff64e1dbfb22"
+QUARANTINE_COMPLETION_RELEASED = (
+    QUARANTINE_COMPLETION_ATTEMPT,
+    FALLBACK_RECOVERY_ATTEMPT,
+)
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
@@ -540,8 +548,11 @@ def validate_supervisor_state(directory: Path, state: dict, manifest: dict | Non
                 raise StudyError("Invalid persistent provider route state")
     quarantine_exposure(state["ledger"], policy)
     entries = state["ledger"]["entries"]
+    records = recovery_records(state)
     authorized_sources = {state["identity"]["commit"],
-                          *(record["original_commit"] for record in recovery_records(state))}
+                          *(record["original_commit"] for record in records)}
+    released_quarantine = {identity for record in records if "original_state_sha256" in record
+                           for identity in recovery_incident(record["original_state_sha256"]).get("released", ())}
     if supervisor is not None or any(entry["status"] == "quarantine_hold" for entry in entries.values()):
         ids = [attempt["id"] for cell in state["cells"] for attempt in cell["attempts"]]
         if len(set(ids)) != len(ids) or set(ids) != set(entries):
@@ -565,10 +576,17 @@ def validate_supervisor_state(directory: Path, state: dict, manifest: dict | Non
                     or type(observation["observed_at"]) not in (int, float)
                     or not math.isfinite(observation["observed_at"]) or observation["observed_at"] < 0):
                 raise StudyError("Persistent recovery action differs from its source and route")
-            if (not policy or attempt.get("status") != "infra_failed" or attempt.get("measurement")
+            expected_status = "recovery_interrupted" if attempt["id"] in released_quarantine else "infra_failed"
+            if (not policy or attempt.get("status") != expected_status or attempt.get("measurement")
                     or outcome["work"] == "complete"
                     or outcome["failure"]["kind"] not in ("provider_transient", "transport", "timeout")):
                 raise StudyError("Persistent operational recovery is not an unmeasured infrastructure failure")
+            if attempt["id"] in released_quarantine and (
+                    entries[attempt["id"]]["status"] != "recovery_hold"
+                    or outcome["accounting"] == "final"
+                    or attempt.get("cost_included_in_step")
+                    or observation["action"] != "quarantine_cell"):
+                raise StudyError("Released quarantine hold differs from its preserved recovery reservation")
             if entries[attempt["id"]]["status"] == "quarantine_hold" and (
                     cell.get("status") != "quarantined" or outcome["accounting"] == "final"
                     or attempt.get("cost_included_in_step")
@@ -1014,6 +1032,12 @@ def recovery_incident(state_sha256: str) -> dict:
                 "journal_sha256": FALLBACK_RECOVERY_JOURNAL_SHA256,
                 "steps": 4915, "attempts": 4931, "known_nano": credits("58019.93185"),
                 "kind": "fallback_metadata_quarantine", "reserved_nano": 300 * NANO}
+    if state_sha256 == QUARANTINE_COMPLETION_STATE_SHA256:
+        return {"source": QUARANTINE_COMPLETION_SOURCE, "attempt": QUARANTINE_COMPLETION_ATTEMPT,
+                "journal_sha256": QUARANTINE_COMPLETION_JOURNAL_SHA256,
+                "steps": 5341, "attempts": 5357, "known_nano": credits("62835.76876"),
+                "kind": "quarantine_completion", "reserved_nano": 300 * NANO,
+                "released": QUARANTINE_COMPLETION_RELEASED}
     raise StudyError("Recovery state is not one of the disclosed estimation interruptions")
 
 
@@ -1045,7 +1069,7 @@ def recovery_state_hashes() -> tuple[str, ...]:
             SERVICE_RECOVERY_STATE_SHA256, TRANSPORT_RECOVERY_STATE_SHA256, CLOSE_RECOVERY_STATE_SHA256,
             MIXED_RECOVERY_STATE_SHA256, UNACCOUNTED_RECOVERY_STATE_SHA256, PAIRED_RECOVERY_STATE_SHA256,
             HTTP_RECOVERY_STATE_SHA256, HTTP_TIMEOUT_RECOVERY_STATE_SHA256, RESILIENCE_BOOTSTRAP_STATE_SHA256,
-            FALLBACK_RECOVERY_STATE_SHA256)
+            FALLBACK_RECOVERY_STATE_SHA256, QUARANTINE_COMPLETION_STATE_SHA256)
 
 
 def recovery_records(state: dict) -> list[dict]:
@@ -1077,13 +1101,17 @@ def validate_recovery_state(state: dict) -> None:
     incidents = [recovery_incident(record["original_state_sha256"]) for record in records]
     expected_holds = {identity: hold["reserved_nano"] for incident in incidents
                       for identity, hold in incident_holds(incident).items()}
-    quarantine_only = {identity for incident in incidents if incident["kind"] == "fallback_metadata_quarantine"
-                       for identity in incident_holds(incident)}
+    partial_usage_holds = {identity for incident in incidents
+                           if incident["kind"] in ("fallback_metadata_quarantine", "quarantine_completion")
+                           for identity in incident_holds(incident)}
+    released = {identity for incident in incidents for identity in incident.get("released", ())}
+    quarantine_only = ({identity for incident in incidents if incident["kind"] == "fallback_metadata_quarantine"
+                        for identity in incident_holds(incident)} - released)
     if (len(set(ids)) != len(ids) or set(ids) != set(entries) or set(holds) != set(expected_holds)
             or len(interrupted) != len(expected_holds)
             or {attempt["id"] for attempt in interrupted} != set(expected_holds)
             or any(attempt.get("usage") is not None and (
-                attempt["id"] not in quarantine_only or not isinstance(attempt["usage"], dict)
+                attempt["id"] not in partial_usage_holds or not isinstance(attempt["usage"], dict)
                 or attempt["usage"].get("credits_complete") is not False
                 or attempt["usage"].get("totalNanoAiu") is not None) for attempt in interrupted)
             or any(entries[key].get("actual_nano") is not None
@@ -1222,12 +1250,18 @@ def validate_recovery_evidence(directory: Path, state: dict, unregistered: dict 
                 or len(original["cells"]) != len(current_state["cells"])):
             raise StudyError("Recovery changed the original allocation, budget or deadline")
         prior_ids = []
+        released_ids = set(incident.get("released", ()))
         for old_cell, new_cell in zip(original["cells"], current_state["cells"]):
             if (old_cell["run_id"] != new_cell["run_id"]
                     or new_cell.get("completed_steps", 0) < old_cell.get("completed_steps", 0)
                     or (old_cell["status"] == "completed" and new_cell["status"] != "completed")
                     or len(new_cell["attempts"]) < len(old_cell["attempts"])):
                 raise StudyError("Recovery lost a completed step or original attempt")
+            if any(item["id"] in released_ids for item in old_cell["attempts"]) and (
+                    old_cell.get("status") != "quarantined" or new_cell.get("status") == "quarantined"
+                    or (len(new_cell["attempts"]) == len(old_cell["attempts"])
+                        and ("error" in new_cell or "stop_reason" in new_cell))):
+                raise StudyError("Quarantine completion did not release the quarantined cell")
             for old_attempt, current in zip(old_cell["attempts"], new_cell["attempts"]):
                 prior_ids.append(old_attempt["id"])
                 before, after = dict(old_attempt), dict(current)
@@ -1238,11 +1272,11 @@ def validate_recovery_evidence(directory: Path, state: dict, unregistered: dict 
                 if old_included and not new_included:
                     raise StudyError("Recovery removed a previously included attempt cost")
                 if old_attempt["id"] in holds:
-                    after["status"] = "interrupted"
+                    after["status"] = "infra_failed" if incident["kind"] == "quarantine_completion" else "interrupted"
                 old_entry = dict(original["ledger"]["entries"][old_attempt["id"]])
                 new_entry = dict(current_state["ledger"]["entries"][old_attempt["id"]])
                 if old_attempt["id"] in holds:
-                    new_entry["status"] = "unknown"
+                    new_entry["status"] = "quarantine_hold" if incident["kind"] == "quarantine_completion" else "unknown"
                 if before != after or old_entry != new_entry:
                     raise StudyError("Recovery changed an original attempt or ledger entry")
         if prior_ids != recovery["prior_attempt_ids"]:

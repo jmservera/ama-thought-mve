@@ -991,6 +991,40 @@ retain the original calibration, allocation, budget and absolute deadline.
 Do not edit the old receipt, clear the original halt or replay the unfinished
 request. Paid launch is a separate action from deployment and preparation.
 
+#### Specific 5341-step quarantine-completion recovery
+
+After the 4915-step fallback-metadata recovery, all 313 non-quarantined
+trajectories completed cleanly (`5341 / 5355` steps, `5357` attempts, known
+charges plus certified floors `62835.76876` credits). The stopped state
+`fb39a46fc36f33f62f3286fd517b63bb09787e9c7bcd7d276c4a362f256f2de1` at source
+`a9d76bb6dbb118c43315fb2a13b7bcdb732d946d` leaves only the two quarantined
+trajectories unexecuted (`14` remaining steps):
+
+* `pilot-estimation-gemini-4-argon-E-15` (`6 / 17` steps completed), quarantined
+  at `pilot-estimation-gemini-4-argon-E-15-f06-feature-1` (journal
+  `4c98996736ad590f49b1518330bc21a9eb544bf6137637a1ef75ff64e1dbfb22`, HTTP
+  stream timeout after `600002` milliseconds at pre-failure checkpoint
+  `763a9a36eb7191d023601c35fcfa049e1c1894b5`).
+* `pilot-estimation-gpt-6.1-sol-C-20` (`14 / 17` steps completed), quarantined
+  at `pilot-estimation-gpt-6.1-sol-C-20-f10-feature-1` (journal
+  `e6704ca2f50b50dbf79d04f039673076bae1228a9572619d561ebc5fb8e7b26a`, already
+  held in `recovery_hold` at pre-failure checkpoint
+  `81e23369f6125314bab89ac52361b44da8339f60`).
+
+The fourteenth approved copy (`kind=quarantine_completion`) preserves the
+`313 / 315` (`fb39a46...`) baseline untouched, transitions
+`pilot-estimation-gemini-4-argon-E-15-f06-feature-1` from `quarantine_hold` /
+`infra_failed` to `recovery_hold` / `recovery_interrupted` (`300` credits
+retained, bringing total `recovery_hold` reservations to `16` or `5700` nominal
+credits alongside all `38` `retry_hold` reservations), and releases both
+quarantined cells (`E-15` and `C-20`) from `quarantined` to `partial` (`error`
+and `stop_reason` cleared) with `accept_quarantine_release=true`,
+`accept_fresh_retry_reservation=true` and
+`accept_fresh_retry_time_allowance=true`. Both steps retry from their verified
+pre-failure Git checkpoints with fresh `300`-credit / `1800`-second feature
+allowances while keeping both prior `300`-credit unknown-charge holds
+permanently charged against the `105000`-credit study ceiling.
+
 #### Specific 2722-step paired unaccounted-retry interruption
 
 The stopped state
