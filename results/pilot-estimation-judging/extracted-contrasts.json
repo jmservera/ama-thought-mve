@@ -1,0 +1,1626 @@
+{
+  "schema": "extracted-complete-pair-and-judging-contrasts/v1",
+  "bootstrap_seed": 2027,
+  "bootstrap_draws": 10000,
+  "note": "Companion extraction from frozen collected study and v3 judging artifacts (zero new model calls). Preserves strict whole-frame gates while supplying exact [0,100]% and [0,4] Manski identification bounds for the 2 quarantined trajectories (gemini-4-argon-E-15 and gpt-6.1-sol-C-20) and observed-scenario run-mean contrasts paired with NA-abstention counts.",
+  "main_benchmark_pooled_equal_weight": {
+    "B-D": {
+      "complete_unassisted_pair_63_vs_63": true,
+      "h1_pass_rate_diff_pct_points": 1.1874,
+      "h1_bootstrap_95_ci": [
+        0.1,
+        2.2247
+      ],
+      "h1_full_allocation_identification_bounds_pct_points": [
+        1.1874,
+        1.1874
+      ]
+    },
+    "B-A": {
+      "complete_unassisted_pair_63_vs_63": true,
+      "h1_pass_rate_diff_pct_points": 1.4123,
+      "h1_bootstrap_95_ci": [
+        0.325,
+        2.4497
+      ],
+      "h1_full_allocation_identification_bounds_pct_points": [
+        1.4123,
+        1.4123
+      ]
+    },
+    "B-C": {
+      "complete_unassisted_pair_63_vs_63": false,
+      "h1_pass_rate_diff_pct_points": null,
+      "h1_bootstrap_95_ci": [
+        null,
+        null
+      ],
+      "h1_full_allocation_identification_bounds_pct_points": [
+        0.6624,
+        2.2497
+      ]
+    },
+    "E-B": {
+      "complete_unassisted_pair_63_vs_63": false,
+      "h1_pass_rate_diff_pct_points": null,
+      "h1_bootstrap_95_ci": [
+        null,
+        null
+      ],
+      "h1_full_allocation_identification_bounds_pct_points": [
+        -1.5498,
+        0.0375
+      ]
+    }
+  },
+  "main_benchmark_within_model": {
+    "claude-sonnet-5.5": {
+      "B-D": {
+        "complete_unassisted_pair_21_vs_21": true,
+        "h1_diff": 0.2625,
+        "h1_ci": [
+          -0.15,
+          0.7499
+        ],
+        "h1_identification_bounds": [
+          0.2625,
+          0.2625
+        ],
+        "h6_cr1_complete_boolean_pair": true,
+        "h6_cr1_diff_points": 4.7619,
+        "h6_cr1_exact_ci": [
+          -18.7736,
+          26.7692
+        ],
+        "h6_cr1_identification_bounds_points": [
+          4.7619,
+          4.7619
+        ]
+      },
+      "B-A": {
+        "complete_unassisted_pair_21_vs_21": true,
+        "h1_diff": 0.225,
+        "h1_ci": [
+          -0.1875,
+          0.7124
+        ],
+        "h1_identification_bounds": [
+          0.225,
+          0.225
+        ],
+        "h6_cr1_complete_boolean_pair": true,
+        "h6_cr1_diff_points": 0.0,
+        "h6_cr1_exact_ci": [
+          -18.8335,
+          18.8335
+        ],
+        "h6_cr1_identification_bounds_points": [
+          0.0,
+          0.0
+        ]
+      },
+      "B-C": {
+        "complete_unassisted_pair_21_vs_21": true,
+        "h1_diff": 0.075,
+        "h1_ci": [
+          -0.225,
+          0.4124
+        ],
+        "h1_identification_bounds": [
+          0.075,
+          0.075
+        ],
+        "h6_cr1_complete_boolean_pair": true,
+        "h6_cr1_diff_points": 0.0,
+        "h6_cr1_exact_ci": [
+          -18.8335,
+          18.8335
+        ],
+        "h6_cr1_identification_bounds_points": [
+          0.0,
+          0.0
+        ]
+      },
+      "E-B": {
+        "complete_unassisted_pair_21_vs_21": true,
+        "h1_diff": 0.075,
+        "h1_ci": [
+          -0.2625,
+          0.375
+        ],
+        "h1_identification_bounds": [
+          0.075,
+          0.075
+        ],
+        "h6_cr1_complete_boolean_pair": true,
+        "h6_cr1_diff_points": -4.7619,
+        "h6_cr1_exact_ci": [
+          -26.7692,
+          18.7736
+        ],
+        "h6_cr1_identification_bounds_points": [
+          -4.7619,
+          -4.7619
+        ]
+      }
+    },
+    "gemini-4-argon": {
+      "B-D": {
+        "complete_unassisted_pair_21_vs_21": true,
+        "h1_diff": 0.15,
+        "h1_ci": [
+          -0.15,
+          0.5249
+        ],
+        "h1_identification_bounds": [
+          0.15,
+          0.15
+        ],
+        "h6_cr1_complete_boolean_pair": true,
+        "h6_cr1_diff_points": 4.7619,
+        "h6_cr1_exact_ci": [
+          -43.8776,
+          51.6701
+        ],
+        "h6_cr1_identification_bounds_points": [
+          4.7619,
+          4.7619
+        ]
+      },
+      "B-A": {
+        "complete_unassisted_pair_21_vs_21": true,
+        "h1_diff": 0.3375,
+        "h1_ci": [
+          -0.075,
+          0.8249
+        ],
+        "h1_identification_bounds": [
+          0.3375,
+          0.3375
+        ],
+        "h6_cr1_complete_boolean_pair": true,
+        "h6_cr1_diff_points": 9.5238,
+        "h6_cr1_exact_ci": [
+          -39.1648,
+          54.7328
+        ],
+        "h6_cr1_identification_bounds_points": [
+          9.5238,
+          9.5238
+        ]
+      },
+      "B-C": {
+        "complete_unassisted_pair_21_vs_21": true,
+        "h1_diff": -0.1875,
+        "h1_ci": [
+          -0.4874,
+          0.1875
+        ],
+        "h1_identification_bounds": [
+          -0.1875,
+          -0.1875
+        ],
+        "h6_cr1_complete_boolean_pair": true,
+        "h6_cr1_diff_points": -38.0952,
+        "h6_cr1_exact_ci": [
+          -77.0464,
+          14.6925
+        ],
+        "h6_cr1_identification_bounds_points": [
+          -38.0952,
+          -38.0952
+        ]
+      },
+      "E-B": {
+        "complete_unassisted_pair_21_vs_21": false,
+        "h1_diff": null,
+        "h1_ci": [
+          null,
+          null
+        ],
+        "h1_identification_bounds": [
+          -4.7244,
+          0.0375
+        ],
+        "h6_cr1_complete_boolean_pair": false,
+        "h6_cr1_diff_points": null,
+        "h6_cr1_exact_ci": [
+          null,
+          null
+        ],
+        "h6_cr1_identification_bounds_points": [
+          9.5238,
+          14.2857
+        ]
+      }
+    },
+    "gpt-6.1-sol": {
+      "B-D": {
+        "complete_unassisted_pair_21_vs_21": true,
+        "h1_diff": 3.1496,
+        "h1_ci": [
+          0.0,
+          6.2992
+        ],
+        "h1_identification_bounds": [
+          3.1496,
+          3.1496
+        ],
+        "h6_cr1_complete_boolean_pair": false,
+        "h6_cr1_diff_points": null,
+        "h6_cr1_exact_ci": [
+          null,
+          null
+        ],
+        "h6_cr1_identification_bounds_points": [
+          -9.5238,
+          -4.7619
+        ]
+      },
+      "B-A": {
+        "complete_unassisted_pair_21_vs_21": true,
+        "h1_diff": 3.6745,
+        "h1_ci": [
+          0.5249,
+          6.8241
+        ],
+        "h1_identification_bounds": [
+          3.6745,
+          3.6745
+        ],
+        "h6_cr1_complete_boolean_pair": false,
+        "h6_cr1_diff_points": null,
+        "h6_cr1_exact_ci": [
+          null,
+          null
+        ],
+        "h6_cr1_identification_bounds_points": [
+          -9.5238,
+          -4.7619
+        ]
+      },
+      "B-C": {
+        "complete_unassisted_pair_21_vs_21": false,
+        "h1_diff": null,
+        "h1_ci": [
+          null,
+          null
+        ],
+        "h1_identification_bounds": [
+          2.0997,
+          6.8616
+        ],
+        "h6_cr1_complete_boolean_pair": false,
+        "h6_cr1_diff_points": null,
+        "h6_cr1_exact_ci": [
+          null,
+          null
+        ],
+        "h6_cr1_identification_bounds_points": [
+          -4.7619,
+          9.5238
+        ]
+      },
+      "E-B": {
+        "complete_unassisted_pair_21_vs_21": true,
+        "h1_diff": 0.0,
+        "h1_ci": [
+          -3.1496,
+          3.1496
+        ],
+        "h1_identification_bounds": [
+          0.0,
+          0.0
+        ],
+        "h6_cr1_complete_boolean_pair": false,
+        "h6_cr1_diff_points": null,
+        "h6_cr1_exact_ci": [
+          null,
+          null
+        ],
+        "h6_cr1_identification_bounds_points": [
+          9.5238,
+          14.2857
+        ]
+      }
+    }
+  },
+  "ai_judging_table12_extracted": {
+    "p10:B-D": {
+      "functional_completeness": {
+        "strict_complete_frame_diff": 0.0577,
+        "observed_scenario_run_mean_diff": 0.0577,
+        "observed_scenario_bootstrap_95_ci": [
+          0.0007,
+          0.1097
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0577,
+          0.0577
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0087,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.1645
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0087,
+            0.0087
+          ],
+          "gemini-4-argon": [
+            0.0,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.1645,
+            0.1645
+          ]
+        }
+      },
+      "workflow_coherence": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.018,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0327,
+          0.0663
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.018,
+          0.018
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 2,
+          "comparator": 8
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0087,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.0452
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0087,
+            0.0087
+          ],
+          "gemini-4-argon": [
+            0.0,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.0452,
+            0.0452
+          ]
+        }
+      },
+      "error_recovery": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0039,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0234,
+          0.0307
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0039,
+          0.0039
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 9,
+          "comparator": 16
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0093,
+          "gemini-4-argon": -0.0043,
+          "gpt-6.1-sol": 0.0067
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0093,
+            0.0093
+          ],
+          "gemini-4-argon": [
+            -0.0043,
+            -0.0043
+          ],
+          "gpt-6.1-sol": [
+            0.0067,
+            0.0067
+          ]
+        }
+      },
+      "api_usability": {
+        "strict_complete_frame_diff": 0.0599,
+        "observed_scenario_run_mean_diff": 0.0599,
+        "observed_scenario_bootstrap_95_ci": [
+          0.0,
+          0.1154
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0599,
+          0.0599
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.013,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.1667
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.013,
+            0.013
+          ],
+          "gemini-4-argon": [
+            0.0,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.1667,
+            0.1667
+          ]
+        }
+      }
+    },
+    "p10:B-A": {
+      "functional_completeness": {
+        "strict_complete_frame_diff": 0.0729,
+        "observed_scenario_run_mean_diff": 0.0729,
+        "observed_scenario_bootstrap_95_ci": [
+          0.0173,
+          0.1248
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0729,
+          0.0729
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.013,
+          "gemini-4-argon": 0.0087,
+          "gpt-6.1-sol": 0.197
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.013,
+            0.013
+          ],
+          "gemini-4-argon": [
+            0.0087,
+            0.0087
+          ],
+          "gpt-6.1-sol": [
+            0.197,
+            0.197
+          ]
+        }
+      },
+      "workflow_coherence": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0559,
+        "observed_scenario_bootstrap_95_ci": [
+          0.0019,
+          0.106
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0559,
+          0.0559
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 2,
+          "comparator": 4
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0087,
+          "gemini-4-argon": 0.0065,
+          "gpt-6.1-sol": 0.1526
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0087,
+            0.0087
+          ],
+          "gemini-4-argon": [
+            0.0065,
+            0.0065
+          ],
+          "gpt-6.1-sol": [
+            0.1526,
+            0.1526
+          ]
+        }
+      },
+      "error_recovery": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0068,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0213,
+          0.0355
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0068,
+          0.0068
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 9,
+          "comparator": 17
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0022,
+          "gemini-4-argon": 0.0195,
+          "gpt-6.1-sol": -0.0013
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0022,
+            0.0022
+          ],
+          "gemini-4-argon": [
+            0.0195,
+            0.0195
+          ],
+          "gpt-6.1-sol": [
+            -0.0013,
+            -0.0013
+          ]
+        }
+      },
+      "api_usability": {
+        "strict_complete_frame_diff": 0.0722,
+        "observed_scenario_run_mean_diff": 0.0722,
+        "observed_scenario_bootstrap_95_ci": [
+          0.0137,
+          0.1263
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0722,
+          0.0722
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.013,
+          "gemini-4-argon": 0.0087,
+          "gpt-6.1-sol": 0.1948
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.013,
+            0.013
+          ],
+          "gemini-4-argon": [
+            0.0087,
+            0.0087
+          ],
+          "gpt-6.1-sol": [
+            0.1948,
+            0.1948
+          ]
+        }
+      }
+    },
+    "p10:B-C": {
+      "functional_completeness": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0442,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0136,
+          0.0993
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0382,
+          0.1017
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 62,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": -0.0022,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.1347
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            -0.0022,
+            -0.0022
+          ],
+          "gemini-4-argon": [
+            0.0,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.1169,
+            0.3074
+          ]
+        }
+      },
+      "workflow_coherence": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0288,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.025,
+          0.0809
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.024,
+          0.0875
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 62,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 2,
+          "comparator": 5
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.0864
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0,
+            0.0
+          ],
+          "gemini-4-argon": [
+            0.0,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.0721,
+            0.2626
+          ]
+        }
+      },
+      "error_recovery": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0009,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0265,
+          0.0275
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          -0.0009,
+          0.0626
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 62,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 9,
+          "comparator": 13
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0,
+          "gemini-4-argon": 0.0022,
+          "gpt-6.1-sol": 0.0004
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0,
+            0.0
+          ],
+          "gemini-4-argon": [
+            0.0022,
+            0.0022
+          ],
+          "gpt-6.1-sol": [
+            -0.0048,
+            0.1857
+          ]
+        }
+      },
+      "api_usability": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0437,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0166,
+          0.1021
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0375,
+          0.101
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 62,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.1311
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0,
+            0.0
+          ],
+          "gemini-4-argon": [
+            0.0,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.1126,
+            0.303
+          ]
+        }
+      }
+    },
+    "p10:E-B": {
+      "functional_completeness": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": -0.0036,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0628,
+          0.0548
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          -0.0671,
+          -0.0036
+        ],
+        "evaluable_trajectories": {
+          "focal": 62,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0022,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": -0.013
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0022,
+            0.0022
+          ],
+          "gemini-4-argon": [
+            -0.1905,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            -0.013,
+            -0.013
+          ]
+        }
+      },
+      "workflow_coherence": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0024,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0509,
+          0.0547
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          -0.0611,
+          0.0024
+        ],
+        "evaluable_trajectories": {
+          "focal": 62,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 2,
+          "comparator": 2
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.0071
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0,
+            0.0
+          ],
+          "gemini-4-argon": [
+            -0.1905,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.0071,
+            0.0071
+          ]
+        }
+      },
+      "error_recovery": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0116,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0131,
+          0.0361
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          -0.0514,
+          0.0121
+        ],
+        "evaluable_trajectories": {
+          "focal": 62,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 11,
+          "comparator": 9
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": -0.013,
+          "gemini-4-argon": 0.0006,
+          "gpt-6.1-sol": 0.0471
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            -0.013,
+            -0.013
+          ],
+          "gemini-4-argon": [
+            -0.1883,
+            0.0022
+          ],
+          "gpt-6.1-sol": [
+            0.0471,
+            0.0471
+          ]
+        }
+      },
+      "api_usability": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0051,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0534,
+          0.0628
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          -0.0584,
+          0.0051
+        ],
+        "evaluable_trajectories": {
+          "focal": 62,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.0152
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0,
+            0.0
+          ],
+          "gemini-4-argon": [
+            -0.1905,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.0152,
+            0.0152
+          ]
+        }
+      }
+    },
+    "cr1:B-D": {
+      "functional_completeness": {
+        "strict_complete_frame_diff": 0.0351,
+        "observed_scenario_run_mean_diff": 0.0351,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0046,
+          0.0741
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0351,
+          0.0351
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0159,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.0893
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0159,
+            0.0159
+          ],
+          "gemini-4-argon": [
+            0.0,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.0893,
+            0.0893
+          ]
+        }
+      },
+      "workflow_coherence": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0376,
+        "observed_scenario_bootstrap_95_ci": [
+          0.0016,
+          0.0728
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0376,
+          0.0376
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 2,
+          "comparator": 1
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0139,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.0988
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0139,
+            0.0139
+          ],
+          "gemini-4-argon": [
+            0.0,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.0988,
+            0.0988
+          ]
+        }
+      },
+      "error_recovery": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": -0.0112,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0265,
+          0.0022
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          -0.0113,
+          -0.0113
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 8,
+          "comparator": 16
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0045,
+          "gemini-4-argon": -0.006,
+          "gpt-6.1-sol": -0.0323
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0045,
+            0.0045
+          ],
+          "gemini-4-argon": [
+            -0.006,
+            -0.006
+          ],
+          "gpt-6.1-sol": [
+            -0.0323,
+            -0.0323
+          ]
+        }
+      },
+      "api_usability": {
+        "strict_complete_frame_diff": 0.0357,
+        "observed_scenario_run_mean_diff": 0.0357,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.004,
+          0.0747
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0357,
+          0.0357
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0159,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.0913
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0159,
+            0.0159
+          ],
+          "gemini-4-argon": [
+            0.0,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.0913,
+            0.0913
+          ]
+        }
+      }
+    },
+    "cr1:B-A": {
+      "functional_completeness": {
+        "strict_complete_frame_diff": 0.0357,
+        "observed_scenario_run_mean_diff": 0.0357,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0013,
+          0.0728
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0357,
+          0.0357
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0099,
+          "gemini-4-argon": 0.0079,
+          "gpt-6.1-sol": 0.0893
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0099,
+            0.0099
+          ],
+          "gemini-4-argon": [
+            0.0079,
+            0.0079
+          ],
+          "gpt-6.1-sol": [
+            0.0893,
+            0.0893
+          ]
+        }
+      },
+      "workflow_coherence": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0425,
+        "observed_scenario_bootstrap_95_ci": [
+          0.0073,
+          0.0767
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0425,
+          0.0425
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 2,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0099,
+          "gemini-4-argon": 0.0079,
+          "gpt-6.1-sol": 0.1097
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0099,
+            0.0099
+          ],
+          "gemini-4-argon": [
+            0.0079,
+            0.0079
+          ],
+          "gpt-6.1-sol": [
+            0.1097,
+            0.1097
+          ]
+        }
+      },
+      "error_recovery": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": -0.0069,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0227,
+          0.0079
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          -0.0069,
+          -0.0069
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 8,
+          "comparator": 18
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": -0.0096,
+          "gemini-4-argon": 0.0099,
+          "gpt-6.1-sol": -0.0211
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            -0.0096,
+            -0.0096
+          ],
+          "gemini-4-argon": [
+            0.0099,
+            0.0099
+          ],
+          "gpt-6.1-sol": [
+            -0.0211,
+            -0.0211
+          ]
+        }
+      },
+      "api_usability": {
+        "strict_complete_frame_diff": 0.037,
+        "observed_scenario_run_mean_diff": 0.037,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0007,
+          0.0747
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.037,
+          0.037
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0099,
+          "gemini-4-argon": 0.0079,
+          "gpt-6.1-sol": 0.0933
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0099,
+            0.0099
+          ],
+          "gemini-4-argon": [
+            0.0079,
+            0.0079
+          ],
+          "gpt-6.1-sol": [
+            0.0933,
+            0.0933
+          ]
+        }
+      }
+    },
+    "cr1:B-C": {
+      "functional_completeness": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0258,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0152,
+          0.0653
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0218,
+          0.0853
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 62,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.0773
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0,
+            0.0
+          ],
+          "gemini-4-argon": [
+            0.0,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.0655,
+            0.256
+          ]
+        }
+      },
+      "workflow_coherence": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0278,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0096,
+          0.0646
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0242,
+          0.0877
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 62,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 2,
+          "comparator": 1
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.0835
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0,
+            0.0
+          ],
+          "gemini-4-argon": [
+            0.0,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.0727,
+            0.2632
+          ]
+        }
+      },
+      "error_recovery": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": -0.0035,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.021,
+          0.0134
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          -0.0043,
+          0.0592
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 62,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 8,
+          "comparator": 13
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": -0.0038,
+          "gemini-4-argon": -0.0079,
+          "gpt-6.1-sol": 0.0011
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            -0.0038,
+            -0.0038
+          ],
+          "gemini-4-argon": [
+            -0.0079,
+            -0.0079
+          ],
+          "gpt-6.1-sol": [
+            -0.0011,
+            0.1894
+          ]
+        }
+      },
+      "api_usability": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0271,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0137,
+          0.0667
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          0.0231,
+          0.0866
+        ],
+        "evaluable_trajectories": {
+          "focal": 63,
+          "comparator": 62,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": 0.0,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.0813
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            0.0,
+            0.0
+          ],
+          "gemini-4-argon": [
+            0.0,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.0694,
+            0.2599
+          ]
+        }
+      }
+    },
+    "cr1:E-B": {
+      "functional_completeness": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.004,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0351,
+          0.0417
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          -0.0595,
+          0.004
+        ],
+        "evaluable_trajectories": {
+          "focal": 62,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": -0.0079,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.0198
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            -0.0079,
+            -0.0079
+          ],
+          "gemini-4-argon": [
+            -0.1905,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.0198,
+            0.0198
+          ]
+        }
+      },
+      "workflow_coherence": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0001,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.034,
+          0.0339
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          -0.0634,
+          0.0001
+        ],
+        "evaluable_trajectories": {
+          "focal": 62,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 1,
+          "comparator": 2
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": -0.0079,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.0083
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            -0.0079,
+            -0.0079
+          ],
+          "gemini-4-argon": [
+            -0.1905,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.0083,
+            0.0083
+          ]
+        }
+      },
+      "error_recovery": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0067,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0104,
+          0.024
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          -0.0563,
+          0.0072
+        ],
+        "evaluable_trajectories": {
+          "focal": 62,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 9,
+          "comparator": 8
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": -0.002,
+          "gemini-4-argon": 0.0005,
+          "gpt-6.1-sol": 0.0216
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            -0.002,
+            -0.002
+          ],
+          "gemini-4-argon": [
+            -0.1885,
+            0.002
+          ],
+          "gpt-6.1-sol": [
+            0.0216,
+            0.0216
+          ]
+        }
+      },
+      "api_usability": {
+        "strict_complete_frame_diff": null,
+        "observed_scenario_run_mean_diff": 0.0046,
+        "observed_scenario_bootstrap_95_ci": [
+          -0.0344,
+          0.0423
+        ],
+        "full_allocation_63_vs_63_bounds_0_to_4": [
+          -0.0589,
+          0.0046
+        ],
+        "evaluable_trajectories": {
+          "focal": 62,
+          "comparator": 63,
+          "allocated_each": 63
+        },
+        "trajectories_with_any_na_scenario": {
+          "focal": 0,
+          "comparator": 0
+        },
+        "within_model_observed_diffs": {
+          "claude-sonnet-5.5": -0.0079,
+          "gemini-4-argon": 0.0,
+          "gpt-6.1-sol": 0.0218
+        },
+        "within_model_21_vs_21_bounds_0_to_4": {
+          "claude-sonnet-5.5": [
+            -0.0079,
+            -0.0079
+          ],
+          "gemini-4-argon": [
+            -0.1905,
+            0.0
+          ],
+          "gpt-6.1-sol": [
+            0.0218,
+            0.0218
+          ]
+        }
+      }
+    }
+  }
+}

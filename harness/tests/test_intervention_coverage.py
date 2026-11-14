@@ -127,3 +127,21 @@ def test_record_keeps_state_immutable_and_refuses_overwrite(coverage_case, tmp_p
     assert module.apply(directory, state, coverage_case[-1])[1]["status"] == "owner-attested"
     with pytest.raises(module.StudyError, match="never overwrite"):
         module.record(directory, source)
+
+
+def test_given_model_stratified_five_arm_run_ids_when_validating_then_dots_and_arm_codes_are_accepted(
+        coverage_case):
+    module, _, state, _, coverage, _ = coverage_case
+    ids = ["pilot-estimation-claude-sonnet-5.5-A-01", "pilot-estimation-gpt-6.1-sol-D-21"]
+    state["cells"][0]["run_id"], state["cells"][1]["run_id"] = ids
+    payload = json.dumps(state).encode()
+    coverage["state_sha256"] = hashlib.sha256(payload).hexdigest()
+    coverage["unassisted_run_ids"] = ids
+    coverage["assisted_run_ids"] = []
+
+    mapping = module.validate(coverage, payload, state)
+
+    assert mapping == {ids[0]: False, ids[1]: False}
+    coverage["unassisted_run_ids"] = ["pilot-estimation-..-A-01"]
+    with pytest.raises(module.StudyError, match="trajectory inventory"):
+        module.validate(coverage, payload, state)

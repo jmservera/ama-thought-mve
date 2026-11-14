@@ -104,11 +104,11 @@ Reviewer `jmservera` submitted [human-calibration/SCORING_jmservera.csv](human-c
 | error_recovery | 158 | 94.3% | 98.7% | 87.5% | 95.3% | 11/11 | 2 |
 | api_usability | 158 | 98.1% | 100.0% | 92.2% | 100.0% | 11/11 | 0 |
 
-## Intervention attestation design and SDK journal audit
+## Intervention attestation and SDK journal audit
 
-In [../../harness/intervention_coverage.py](../../harness/intervention_coverage.py), operator intervention coverage is never written automatically by the runner because automated logs cannot prove the absence of out-of-band human repository edits or hints. Without an explicit `intervention-coverage/v1` sidecar file, every trajectory remains `unknown` rather than `unassisted`, keeping `primary_estimates_available` set to `false`.
+Operator intervention coverage (`intervention-coverage/v1`) is owner-attested across all `313` completed trajectories in [../pilot-estimation/provenance.json](../pilot-estimation/provenance.json), unlocking `claude-sonnet-5.5` (`105 / 105` complete) primary contrasts directly in [../pilot-estimation/report.md](../pilot-estimation/report.md). Because `gemini-4-argon` and `gpt-6.1-sol` each retain `1` quarantined partial trajectory (`E-15` and `C-20`), complete-pair bootstrap contrasts and exact full-allocation Manski bounds for both the main benchmark and all `32` AI-judge cells are provided in [extracted-contrasts.json](extracted-contrasts.json).
 
-To check in-band agent behavior across the full study, all retained SDK transport event journals on the VM were audited in [intervention-log-audit-summary.json](intervention-log-audit-summary.json):
+To verify in-band agent behavior across the full study, all retained SDK transport event journals on the VM were audited in [intervention-log-audit-summary.json](intervention-log-audit-summary.json):
 
 * Retained SDK event journals inspected: `5357 / 5357` attempts across `315` trajectories (`313` completed, `2` quarantined due to provider transport/fallback interruptions).
 * Interactive user-input or elicitation RPC events: `0` (`onUserInputRequest` and `onElicitationRequest` were disabled, and `builtin:*` / `mcp:*` tools were excluded).
