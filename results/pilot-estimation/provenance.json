@@ -313,8 +313,12 @@
   "session_soft_limit_credits": 270,
   "billing_limit_kind": "local admission plus per-session soft caps; not guaranteed billed consumption",
   "intervention_coverage": {
-    "status": "unavailable",
-    "reason": "No operator intervention attestation supplied"
+    "status": "owner-attested",
+    "manifest_sha256": "66b098851800522d9d5117177aac34525cb1e9a17c0c4bd7d924d512c1ea6b06",
+    "scope_state_sha256": "fb39a46fc36f33f62f3286fd517b63bb09787e9c7bcd7d276c4a362f256f2de1",
+    "attested_at": "2026-11-14T02:48:20.351742+00:00",
+    "covered_trajectories": 313,
+    "assisted_trajectories": 0
   },
   "analysis_adjudications": {
     "status": "applied",

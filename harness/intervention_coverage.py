@@ -52,7 +52,8 @@ def validate(coverage: dict, payload: bytes, current: dict) -> dict[str, bool]:
     for key, assisted in (("unassisted_run_ids", False), ("assisted_run_ids", True)):
         values = coverage[key]
         if (not isinstance(values, list) or any(not isinstance(value, str)
-                or not re.fullmatch(r"[a-z][a-z0-9-]{0,127}", value) for value in values)):
+                or ".." in value
+                or not re.fullmatch(r"[a-z][A-Za-z0-9.-]{0,127}", value) for value in values)):
             raise StudyError("Invalid intervention trajectory inventory")
         for value in values:
             if value in mapping:

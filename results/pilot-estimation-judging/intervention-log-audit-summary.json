@@ -1,7 +1,14 @@
 {
   "schema": "intervention-log-audit-summary/v1",
   "study_state_sha256": "fb39a46fc36f33f62f3286fd517b63bb09787e9c7bcd7d276c4a362f256f2de1",
-  "why_attestation_absent": "harness/intervention_coverage.py requires an external post-collection operator attestation (intervention-coverage/v1) because the automated runner cannot infer the absence of out-of-band human edits or hints. Absent sidecar files leave all runs labeled 'unknown'.",
+  "operator_intervention_coverage": {
+    "status": "owner-attested",
+    "manifest_sha256": "66b098851800522d9d5117177aac34525cb1e9a17c0c4bd7d924d512c1ea6b06",
+    "scope_state_sha256": "fb39a46fc36f33f62f3286fd517b63bb09787e9c7bcd7d276c4a362f256f2de1",
+    "attested_at": "2026-11-14T02:48:20.351742+00:00",
+    "covered_trajectories": 313,
+    "assisted_trajectories": 0
+  },
   "total_cells": 315,
   "completed_cells": 313,
   "incomplete_or_quarantined_runs": [
