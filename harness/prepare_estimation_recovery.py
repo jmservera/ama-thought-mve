@@ -29,8 +29,11 @@ def verify_approval(approval: dict, new_manifest: dict) -> None:
                 "approved_at", "disclosure_url"}
     incident = study.recovery_incident(approval.get("original_state_sha256"))
     quarantine_only = incident["kind"] == "fallback_metadata_quarantine"
+    quarantine_completion = incident["kind"] == "quarantine_completion"
     if quarantine_only:
         expected.add("accept_quarantine_only")
+    if quarantine_completion:
+        expected.add("accept_quarantine_release")
     if (set(approval) != expected or approval["schema"] != "estimation-incident-approval/v1"
             or approval["original_commit"] != incident["source"]
             or approval["target_commit"] != new_manifest.get("commit")
@@ -43,6 +46,7 @@ def verify_approval(approval: dict, new_manifest: dict) -> None:
                  or any(approval[key] is not (not quarantine_only) for key in (
                   "accept_fresh_retry_reservation", "accept_fresh_retry_time_allowance"))
                  or (quarantine_only and approval["accept_quarantine_only"] is not True)
+                 or (quarantine_completion and approval["accept_quarantine_release"] is not True)
             or approval["disclosure_url"] != new_manifest.get("public_disclosure_url")):
         raise StudyError("Recovery approval must explicitly authorize the exact incident and source change")
     try:
@@ -124,6 +128,54 @@ def verify_fallback_quarantine(directory: Path, attempt: dict, receipt: dict, ev
         raise StudyError("Fallback quarantine terminal or request differs from the original evidence")
 
 
+def verify_quarantine_completion(directory: Path, attempt: dict, receipt: dict, events: list[dict]) -> None:
+    """Verify the quarantined HTTP stream timeout before moving its hold to recovery_hold."""
+    study.supervised_terminal(directory, attempt, "gemini-4-argon",
+                              attempt.get("source_commit") or study.FALLBACK_RECOVERY_SOURCE,
+                              expected_sha256=attempt.get("terminal_sha256"))
+    failures = [(index, event["data"]) for index, event in enumerate(events)
+                if event["type"] == "model.call_failure"]
+    mirrors = [(index, event["data"]) for index, event in enumerate(events)
+               if event["type"] == "model.model_call_failure"]
+    outcome = study.validate_attempt_outcome(receipt.get("outcome"))
+    if len(failures) != 1 or len(mirrors) != 1:
+        raise StudyError("Quarantined HTTP timeout lacks a unique failure and mirror")
+    (failure_index, failure), (mirror_index, mirror) = failures[0], mirrors[0]
+    call = mirror.get("modelCall")
+    turn = str(mirror.get("turn"))
+    starts = [index for index, event in enumerate(events) if event["type"] == "model.call_start"
+              and event["data"].get("turnId") == turn and event["data"].get("model") == "gemini-4-argon"]
+    finishes = [(index, event["data"]) for index, event in enumerate(events)
+                if event["type"] == "model.call_finished" and event["data"].get("turnId") == turn]
+    if (failure.get("model") != "gemini-4-argon" or failure.get("reasoningEffort") != "medium"
+            or failure.get("failureKind") != "transport" or failure.get("transport") != "http"
+            or failure.get("apiEndpoint") != "/chat/completions" or failure.get("source") != "top_level"
+            or failure.get("errorMessage") != '"Native model HTTP stream timed out"'
+            or failure.get("durationMs") != 600002 or failure.get("retryAttempt") != 0
+            or failure.get("rte") is not False or failure.get("isAuto") is not False
+            or failure.get("isByok") is not False or failure.get("fusion")
+            or any(key in failure for key in ("providerCallId", "apiCallId", "serviceRequestId",
+                                              "statusCode", "errorCode", "errorType"))
+            or mirror.get("kind") != "model_call_failure" or mirror.get("reasoningEffort") != "medium"
+            or mirror.get("rte") is not False or mirror.get("modelCallDurationMs") != 600002
+            or not isinstance(call, dict) or call.get("model") != failure["model"]
+            or call.get("request_id") != "" or call.get("api_endpoint") != failure["apiEndpoint"]
+            or call.get("transport") != "http" or call.get("failure_kind") != "transport"
+            or call.get("error") != failure["errorMessage"]
+            or call.get("rte") is not False or call.get("retry_attempt") != 0
+            or any(key in call for key in ("api_id", "service_request_id", "status", "errorCode", "errorType"))
+            or len(starts) != 1 or len(finishes) != 1 or finishes[0][1].get("outcome") != "error"
+            or not starts[0] < failure_index < mirror_index < finishes[0][0]
+            or finishes[0][0] != len(events) - 1
+            or any(event["type"] in ("session.idle", "session.shutdown") for event in events)
+            or receipt.get("protocol_error") != "provider_operational_failure"
+            or receipt.get("usage_lower_bound") is not None
+            or outcome["work"] != "unavailable" or outcome["safety"] != "valid"
+            or outcome["quiescent"] is not True or outcome["accounting"] != "unknown"
+            or outcome["failure"] != {"kind": "transport", "stage": "session_send", "retry_after_seconds": None}):
+        raise StudyError("Quarantined HTTP timeout differs from its pinned supervised timeout signature")
+
+
 def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = False) -> str:
     incidents = [study.recovery_incident(value) for value in study.recovery_state_hashes()]
     incident = next((item for item in incidents if attempt.get("id") in study.incident_holds(item)), None)
@@ -202,6 +254,8 @@ def verify_journal(directory: Path, attempt: dict, *, preserved_broker: bool = F
     events = [record["event"] for record in records if "event" in record]
     if incident["kind"] == "fallback_metadata_quarantine":
         verify_fallback_quarantine(directory, attempt, receipt, events, complete[0])
+    elif incident["kind"] == "quarantine_completion":
+        verify_quarantine_completion(directory, attempt, receipt, events)
     elif incident["kind"] == "missing_edit":
         starts = [event["data"] for event in events if event["type"] == "tool.execution_start"
                   and event["data"].get("toolName") == "edit"]
@@ -518,6 +572,7 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
     incident = study.recovery_incident(approval["original_state_sha256"])
     holds = study.incident_holds(incident)
     quarantine_only = incident["kind"] == "fallback_metadata_quarantine"
+    quarantine_completion = incident["kind"] == "quarantine_completion"
     original_paid_lock, source = study.recovery_source_paths(
         source_root, expected_state_sha256=approval["original_state_sha256"])
     prior_roots = ([] if prior_source_root is None else [prior_source_root]
@@ -566,13 +621,15 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
             raise StudyError("Original state differs from the disclosed stopped state")
         state = json.loads(original)
         identity = state["identity"]
+        expected_state_status = "partial" if quarantine_completion else "oracle_halt"
         if (identity["commit"] != incident["source"] or identity["study_id"] != source.name
                 or identity["phase"] != "pilot-estimation" or identity["smoke"] is not False
                 or identity.get("replicates_per_model_arm") != 21
                 or identity.get("source_provenance") != study.source_provenance(old_manifest)
                 or old_manifest.get("commit") != incident["source"]
                 or old_manifest.get("inputs_sha256") != identity["inputs_sha256"]
-                or state.get("status") != "oracle_halt" or state.get("oracle_halt") is not True
+                or state.get("status") != expected_state_status
+                or state.get("oracle_halt") is not (not quarantine_completion)
                 or state.get("stop_requested") or state.get("writer_pending") or state.get("writers")
                 or state.get("writer_pid") or state["deadline"] <= time.time()):
             raise StudyError("Original study is not the expected stopped, inactive estimation")
@@ -599,31 +656,46 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
         cells = state["cells"]
         attempts = [item for cell in cells for item in cell["attempts"]]
         entries = state["ledger"]["entries"]
+        expected_unknown = 0 if quarantine_completion else len(holds)
+        expected_quarantine_holds = len(holds) if quarantine_completion else sum(
+            item["status"] == "quarantine_hold" for item in entries.values())
         if (len(cells) != 315 or sum(cell.get("completed_steps", 0) for cell in cells) != incident["steps"]
                 or len(attempts) != incident["attempts"]
                 or len({item["id"] for item in attempts}) != incident["attempts"]
                 or set(entries) != {item["id"] for item in attempts}
                 or sum(item["status"] in ("complete", study.RETRY_HOLD) for item in entries.values())
                 != incident["steps"]
-                or sum(item["status"] == "unknown" for item in entries.values()) != len(holds)
+                or sum(item["status"] == "unknown" for item in entries.values()) != expected_unknown
+                or sum(item["status"] == "quarantine_hold" for item in entries.values()) != expected_quarantine_holds
                 or sum(item["status"] == "recovery_hold" for item in entries.values()) != previous_holds
                 or sum(item["actual_nano"] if item["status"] == "complete" else item.get("lower_bound_nano", 0)
                        for item in entries.values()
                        if item["status"] in ("complete", study.RETRY_HOLD)) != incident["known_nano"]):
             raise StudyError("Original attempt inventory differs from the disclosed interruption")
         held_attempts = {}
+        expected_attempt_status = "infra_failed" if quarantine_completion else "interrupted"
+        expected_entry_status = "quarantine_hold" if quarantine_completion else "unknown"
         for held_id, hold in holds.items():
             attempt = next(item for item in attempts if item["id"] == held_id)
             cell = next(cell for cell in cells if attempt in cell["attempts"])
-            if (attempt.get("status") != "interrupted"
-                    or (attempt.get("usage") is not None and not quarantine_only)
+            if (attempt.get("status") != expected_attempt_status
+                    or (attempt.get("usage") is not None and not (quarantine_only or quarantine_completion))
                     or attempt.get("measurement") or entries[held_id] != {
-                        "status": "unknown", "actual_nano": None, "reserved_nano": hold["reserved_nano"]}
+                        "status": expected_entry_status, "actual_nano": None, "reserved_nano": hold["reserved_nano"]}
                     or (cell.get("checkpoint") or {}).get("step") != attempt["step"]
                     or any(item["status"] == "running" for item in attempts)):
                 raise StudyError("Failed attempt or held reservation is not recoverable")
             verify_approval_after_attempt(approval, attempt)
             held_attempts[held_id] = attempt
+        for released_id in incident.get("released", ()):
+            released_attempt = next((item for item in attempts if item["id"] == released_id), None)
+            released_cell = next((cell for cell in cells if released_attempt in cell["attempts"]), None)
+            if (released_attempt is None or released_cell is None
+                    or released_cell.get("status") != "quarantined"
+                    or released_cell["attempts"][-1] is not released_attempt
+                    or (released_cell.get("checkpoint") or {}).get("step") != released_attempt["step"]):
+                raise StudyError("Quarantined cell cannot be released without its terminal pre-failure checkpoint")
+            verify_journal(source, released_attempt)
         verified = {held_id: verify_journal(source, held) for held_id, held in held_attempts.items()}
         journal_sha = study.incident_journal_digest(incident, verified)
         require_regular_tree(source)
@@ -672,6 +744,11 @@ def prepare(source_root: Path, old_manifest: dict, new_manifest: dict, approval:
             if quarantine_only:
                 cell = next(cell for cell in cells if held_attempts[held_id] in cell["attempts"])
                 cell["status"] = "quarantined"
+        for released_id in incident.get("released", ()):
+            cell = next(cell for cell in cells if any(item["id"] == released_id for item in cell["attempts"]))
+            cell["status"] = "partial"
+            cell.pop("error", None)
+            cell.pop("stop_reason", None)
         identity["commit"] = new_manifest["commit"]
         identity["inputs_sha256"] = new_manifest["inputs_sha256"]
         identity["source_provenance"] = study.source_provenance(new_manifest)
