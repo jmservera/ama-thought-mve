@@ -2,7 +2,7 @@
   "schema": "extracted-complete-pair-and-judging-contrasts/v1",
   "bootstrap_seed": 2027,
   "bootstrap_draws": 10000,
-  "note": "Companion extraction from frozen collected study and v3 judging artifacts (zero new model calls). Preserves strict whole-frame gates while supplying exact [0,100]% and [0,4] Manski identification bounds for the 2 quarantined trajectories (gemini-4-argon-E-15 and gpt-6.1-sol-C-20) and observed-scenario run-mean contrasts paired with NA-abstention counts.",
+  "note": "Companion extraction from completed 315/315 study and frozen v3 judging artifacts (zero new model calls). All 315/315 benchmark trajectories are complete and owner-attested unassisted; the frozen v3 judging batch was captured at the 313/315 snapshot before quarantine completion of gemini-4-argon-E-15 and gpt-6.1-sol-C-20 (both subsequently completed at 100% P10 and 100% CR1 hidden pass rates) and reports exact [0,4] Manski identification bounds alongside observed-scenario contrasts and NA counts.",
   "main_benchmark_pooled_equal_weight": {
     "B-D": {
       "complete_unassisted_pair_63_vs_63": true,
@@ -29,26 +29,26 @@
       ]
     },
     "B-C": {
-      "complete_unassisted_pair_63_vs_63": false,
-      "h1_pass_rate_diff_pct_points": null,
+      "complete_unassisted_pair_63_vs_63": true,
+      "h1_pass_rate_diff_pct_points": 0.6624,
       "h1_bootstrap_95_ci": [
-        null,
-        null
+        -0.4499,
+        1.7498
       ],
       "h1_full_allocation_identification_bounds_pct_points": [
         0.6624,
-        2.2497
+        0.6624
       ]
     },
     "E-B": {
-      "complete_unassisted_pair_63_vs_63": false,
-      "h1_pass_rate_diff_pct_points": null,
+      "complete_unassisted_pair_63_vs_63": true,
+      "h1_pass_rate_diff_pct_points": 0.0375,
       "h1_bootstrap_95_ci": [
-        null,
-        null
+        -1.0749,
+        1.1374
       ],
       "h1_full_allocation_identification_bounds_pct_points": [
-        -1.5498,
+        0.0375,
         0.0375
       ]
     }
@@ -212,24 +212,24 @@
         ]
       },
       "E-B": {
-        "complete_unassisted_pair_21_vs_21": false,
-        "h1_diff": null,
+        "complete_unassisted_pair_21_vs_21": true,
+        "h1_diff": 0.0375,
         "h1_ci": [
-          null,
-          null
+          -0.225,
+          0.3
         ],
         "h1_identification_bounds": [
-          -4.7244,
+          0.0375,
           0.0375
         ],
-        "h6_cr1_complete_boolean_pair": false,
-        "h6_cr1_diff_points": null,
+        "h6_cr1_complete_boolean_pair": true,
+        "h6_cr1_diff_points": 14.2857,
         "h6_cr1_exact_ci": [
-          null,
-          null
+          -37.2441,
+          60.6678
         ],
         "h6_cr1_identification_bounds_points": [
-          9.5238,
+          14.2857,
           14.2857
         ]
       }
@@ -280,15 +280,15 @@
         ]
       },
       "B-C": {
-        "complete_unassisted_pair_21_vs_21": false,
-        "h1_diff": null,
+        "complete_unassisted_pair_21_vs_21": true,
+        "h1_diff": 2.0997,
         "h1_ci": [
-          null,
-          null
+          -1.0499,
+          5.2493
         ],
         "h1_identification_bounds": [
           2.0997,
-          6.8616
+          2.0997
         ],
         "h6_cr1_complete_boolean_pair": false,
         "h6_cr1_diff_points": null,
@@ -298,7 +298,7 @@
         ],
         "h6_cr1_identification_bounds_points": [
           -4.7619,
-          9.5238
+          4.7619
         ]
       },
       "E-B": {

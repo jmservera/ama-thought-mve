@@ -1,15 +1,15 @@
 ---
 title: "Pilot estimation, blind S1 judging, and human-calibration evidence"
 description: "Sanitized results, accounting lineage, human-vs-AI calibration comparison, and SDK log intervention audit"
-ms.date: 2026-11-13
+ms.date: 2026-11-15
 ---
 
 ## Scope and exploratory posture
 
 This directory records the supplementary post-collection S1 judging outputs, the frozen human-calibration bundle, and the SDK event-journal intervention audit accompanying [../pilot-estimation/report.md](../pilot-estimation/report.md).
 
-* The active five-arm pilot-estimation run (`315` allocated trajectories across three models and five arms, `5,341 / 5,355` measured steps, `313 / 315` completed trajectories) uses an unregistered changed design disclosed after the historical OSF registration.
-* Supplementary workflow replay and AI judging were frozen and executed after collection and remain exploratory rather than confirmatory.
+* The active five-arm pilot-estimation run (`315` allocated trajectories across three models and five arms, `5,355 / 5,355` measured steps, `315 / 315` completed trajectories) uses an unregistered changed design disclosed after the historical OSF registration.
+* Supplementary workflow replay and AI judging (`judging-v3`, `626 / 630` evaluable endpoints across `313` trajectories prior to the quarantine-completion recovery of `gpt-6.1-sol-C-20` and `gemini-4-argon-E-15`) were frozen and executed after collection and remain exploratory rather than confirmatory.
 * Raw execution packets, private specimen-to-trajectory mappings, and per-call runtime workspaces remain stored off-Git in the checksummed local vault (`.study/evidence-vault-2026-11-13/`).
 
 ## Deterministic S1 workflow replay and retention
@@ -106,12 +106,12 @@ Reviewer `jmservera` submitted [human-calibration/SCORING_jmservera.csv](human-c
 
 ## Intervention attestation and SDK journal audit
 
-Operator intervention coverage (`intervention-coverage/v1`) is owner-attested across all `313` completed trajectories in [../pilot-estimation/provenance.json](../pilot-estimation/provenance.json), unlocking `claude-sonnet-5.5` (`105 / 105` complete) primary contrasts directly in [../pilot-estimation/report.md](../pilot-estimation/report.md). Because `gemini-4-argon` and `gpt-6.1-sol` each retain `1` quarantined partial trajectory (`E-15` and `C-20`), complete-pair bootstrap contrasts and exact full-allocation Manski bounds for both the main benchmark and all `32` AI-judge cells are provided in [extracted-contrasts.json](extracted-contrasts.json).
+Operator intervention coverage (`intervention-coverage/v1`) is owner-attested across all `315 / 315` completed trajectories in [../pilot-estimation/provenance.json](../pilot-estimation/provenance.json), unlocking primary and secondary estimates across all three models directly in [../pilot-estimation/report.md](../pilot-estimation/report.md). Pooled `63 vs 63` bootstrap contrasts across all four arm comparisons (`B - D`, `B - A`, `B - C`, `E - B`) and exact `[0, 4]` Manski bounds / observed-scenario contrasts for all `32` AI-judge cells are provided in [extracted-contrasts.json](extracted-contrasts.json).
 
 To verify in-band agent behavior across the full study, all retained SDK transport event journals on the VM were audited in [intervention-log-audit-summary.json](intervention-log-audit-summary.json):
 
-* Retained SDK event journals inspected: `5357 / 5357` attempts across `315` trajectories (`313` completed, `2` quarantined due to provider transport/fallback interruptions).
+* Retained SDK event journals inspected: `5372 / 5372` attempts across `315` trajectories (`315` completed, `0` incomplete or quarantined).
 * Interactive user-input or elicitation RPC events: `0` (`onUserInputRequest` and `onElicitationRequest` were disabled, and `builtin:*` / `mcp:*` tools were excluded).
-* Attempts to invoke any tool other than `isolated_exec`: `74` (`53` `create` and `21` `edit` calls, all rejected as nonexistent tools; `0` interactive question-tool calls out of `42594` total tool invocations).
-* Sessions ending with a human permission or clarification question: `36` out of `5357` sessions across `29` distinct trajectories (`18` `claude-sonnet-5.5` sessions asking to confirm shell/TCR edits without built-in edit tools or `bash`, and `18` `gpt-6.1-sol` `f09-feature` sessions halting uncommitted to ask permission to add `rank_cases` to their own `f08` view allowlist test; `0` `gemini-4-argon` sessions).
-* Non-review measured steps leaving `HEAD` unchanged: `509`.
+* Attempts to invoke any tool other than `isolated_exec`: `50` (`53` `create` and `21` `edit` calls, all rejected as nonexistent tools; `0` interactive question-tool calls out of `42952` total tool invocations).
+* Sessions ending with a human permission or clarification question: `36` out of `5387` sessions across `29` distinct trajectories (`18` `claude-sonnet-5.5` sessions asking to confirm shell/TCR edits without built-in edit tools or `bash`, and `18` `gpt-6.1-sol` `f09-feature` sessions halting uncommitted to ask permission to add `rank_cases` to their own `f08` view allowlist test; `0` `gemini-4-argon` sessions).
+* Non-review measured steps leaving `HEAD` unchanged: `513`.

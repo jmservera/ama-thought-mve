@@ -153,6 +153,13 @@ QUARANTINE_COMPLETION_RELEASED = (
     QUARANTINE_COMPLETION_ATTEMPT,
     FALLBACK_RECOVERY_ATTEMPT,
 )
+FINAL_E15_TIMEOUT_STATE_SHA256 = "65db661c8308409954f64e3d5f4e09e1089e838708bb19ec594c497b860c5f21"
+FINAL_E15_TIMEOUT_SOURCE = "075102667af7b2e8aac926163cd0bcd726b40190"
+FINAL_E15_TIMEOUT_ATTEMPT = "pilot-estimation-gemini-4-argon-E-15-f09-feature-1"
+FINAL_E15_TIMEOUT_JOURNAL_SHA256 = "a17a4ca2f30ec7d7fae2511d57cb7e1894ae49c5e3eae70adae5cc5e4a3f75e1"
+FINAL_E15_TIMEOUT_RELEASED = (
+    FINAL_E15_TIMEOUT_ATTEMPT,
+)
 INPUTS = ("protocol", "harness", "skeleton", "suites", "run-study.sh", "run-experiment.sh", "scripts")
 GATES = (
     "independent_suite_review", "access_probe", "local_runtime_evidence",
@@ -584,7 +591,9 @@ def validate_supervisor_state(directory: Path, state: dict, manifest: dict | Non
             if attempt["id"] in released_quarantine and (
                     entries[attempt["id"]]["status"] != "recovery_hold"
                     or outcome["accounting"] == "final"
-                    or attempt.get("cost_included_in_step")
+                    or (attempt.get("cost_included_in_step")
+                        and not any(other["step"] == attempt["step"] and other["status"] == "agent_returned"
+                                    for other in cell["attempts"]))
                     or observation["action"] != "quarantine_cell"):
                 raise StudyError("Released quarantine hold differs from its preserved recovery reservation")
             if entries[attempt["id"]]["status"] == "quarantine_hold" and (
@@ -1038,6 +1047,12 @@ def recovery_incident(state_sha256: str) -> dict:
                 "steps": 5341, "attempts": 5357, "known_nano": credits("62835.76876"),
                 "kind": "quarantine_completion", "reserved_nano": 300 * NANO,
                 "released": QUARANTINE_COMPLETION_RELEASED}
+    if state_sha256 == FINAL_E15_TIMEOUT_STATE_SHA256:
+        return {"source": FINAL_E15_TIMEOUT_SOURCE, "attempt": FINAL_E15_TIMEOUT_ATTEMPT,
+                "journal_sha256": FINAL_E15_TIMEOUT_JOURNAL_SHA256,
+                "steps": 5350, "attempts": 5367, "known_nano": credits("62974.04710"),
+                "kind": "quarantine_completion", "reserved_nano": 300 * NANO,
+                "released": FINAL_E15_TIMEOUT_RELEASED}
     raise StudyError("Recovery state is not one of the disclosed estimation interruptions")
 
 
@@ -1069,7 +1084,7 @@ def recovery_state_hashes() -> tuple[str, ...]:
             SERVICE_RECOVERY_STATE_SHA256, TRANSPORT_RECOVERY_STATE_SHA256, CLOSE_RECOVERY_STATE_SHA256,
             MIXED_RECOVERY_STATE_SHA256, UNACCOUNTED_RECOVERY_STATE_SHA256, PAIRED_RECOVERY_STATE_SHA256,
             HTTP_RECOVERY_STATE_SHA256, HTTP_TIMEOUT_RECOVERY_STATE_SHA256, RESILIENCE_BOOTSTRAP_STATE_SHA256,
-            FALLBACK_RECOVERY_STATE_SHA256, QUARANTINE_COMPLETION_STATE_SHA256)
+            FALLBACK_RECOVERY_STATE_SHA256, QUARANTINE_COMPLETION_STATE_SHA256, FINAL_E15_TIMEOUT_STATE_SHA256)
 
 
 def recovery_records(state: dict) -> list[dict]:
@@ -1258,9 +1273,10 @@ def validate_recovery_evidence(directory: Path, state: dict, unregistered: dict 
                     or len(new_cell["attempts"]) < len(old_cell["attempts"])):
                 raise StudyError("Recovery lost a completed step or original attempt")
             if any(item["id"] in released_ids for item in old_cell["attempts"]) and (
-                    old_cell.get("status") != "quarantined" or new_cell.get("status") == "quarantined"
+                    old_cell.get("status") != "quarantined"
                     or (len(new_cell["attempts"]) == len(old_cell["attempts"])
-                        and ("error" in new_cell or "stop_reason" in new_cell))):
+                        and (new_cell.get("status") == "quarantined"
+                             or "error" in new_cell or "stop_reason" in new_cell))):
                 raise StudyError("Quarantine completion did not release the quarantined cell")
             for old_attempt, current in zip(old_cell["attempts"], new_cell["attempts"]):
                 prior_ids.append(old_attempt["id"])

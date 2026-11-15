@@ -2034,11 +2034,11 @@ pilot-estimation-gemini-4-argon-E-15,E,gemini-4-argon,15,2,repair,100.0,0,142.0,
 pilot-estimation-gemini-4-argon-E-15,E,gemini-4-argon,15,3,repair,100.0,0,198.0,106.0,3.579,0.0,0.0,0.0
 pilot-estimation-gemini-4-argon-E-15,E,gemini-4-argon,15,4,repair,100.0,0,223.0,106.0,3.304,0.0,0.0,0.0
 pilot-estimation-gemini-4-argon-E-15,E,gemini-4-argon,15,5,repair,100.0,0,260.0,106.0,3.385,0.0,0.0,0.0
-pilot-estimation-gemini-4-argon-E-15,E,gemini-4-argon,15,6,,,,,,,,,
-pilot-estimation-gemini-4-argon-E-15,E,gemini-4-argon,15,7,,,,,,,,,
-pilot-estimation-gemini-4-argon-E-15,E,gemini-4-argon,15,8,,,,,,,,,
-pilot-estimation-gemini-4-argon-E-15,E,gemini-4-argon,15,9,,,,,,,,,
-pilot-estimation-gemini-4-argon-E-15,E,gemini-4-argon,15,10,,,,,,,,,
+pilot-estimation-gemini-4-argon-E-15,E,gemini-4-argon,15,6,repair,100.0,0,300.0,106.0,3.345,0.0,0.0,0.0
+pilot-estimation-gemini-4-argon-E-15,E,gemini-4-argon,15,7,repair,100.0,0,361.0,106.0,2.974,0.0,0.0,0.0
+pilot-estimation-gemini-4-argon-E-15,E,gemini-4-argon,15,8,repair,100.0,0,454.0,106.0,2.556,0.0,0.0,0.0
+pilot-estimation-gemini-4-argon-E-15,E,gemini-4-argon,15,9,repair,100.0,0,483.0,106.0,2.632,0.0,0.0,0.0
+pilot-estimation-gemini-4-argon-E-15,E,gemini-4-argon,15,10,repair,100.0,0,604.0,106.0,2.828,0.0,0.0,0.0
 pilot-estimation-gemini-4-argon-E-16,E,gemini-4-argon,16,1,repair,100.0,0,115.0,106.0,3.7,0.0,0.0,0.0
 pilot-estimation-gemini-4-argon-E-16,E,gemini-4-argon,16,2,repair,100.0,0,161.0,106.0,3.923,0.0,0.0,6.211
 pilot-estimation-gemini-4-argon-E-16,E,gemini-4-argon,16,3,repair,100.0,0,223.0,106.0,3.571,0.0,0.0,0.0
@@ -2718,7 +2718,7 @@ pilot-estimation-gpt-6.1-sol-C-20,C,gpt-6.1-sol,20,6,review,100.0,0,287.0,1286.0
 pilot-estimation-gpt-6.1-sol-C-20,C,gpt-6.1-sol,20,7,review,100.0,0,340.0,1425.0,2.711,0.0263,0.0,8.824
 pilot-estimation-gpt-6.1-sol-C-20,C,gpt-6.1-sol,20,8,review,100.0,0,408.0,1572.0,2.373,0.0196,0.0,7.353
 pilot-estimation-gpt-6.1-sol-C-20,C,gpt-6.1-sol,20,9,review,100.0,0,434.0,1771.0,2.491,0.0189,0.0,11.521
-pilot-estimation-gpt-6.1-sol-C-20,C,gpt-6.1-sol,20,10,,,,,,,,,
+pilot-estimation-gpt-6.1-sol-C-20,C,gpt-6.1-sol,20,10,review,100.0,0,529.0,2001.0,2.627,0.0339,0.0,11.342
 pilot-estimation-gpt-6.1-sol-C-21,C,gpt-6.1-sol,21,1,review,100.0,0,111.0,525.0,3.8,0.0,0.0,27.027
 pilot-estimation-gpt-6.1-sol-C-21,C,gpt-6.1-sol,21,2,review,100.0,0,151.0,677.0,3.5,0.0714,0.0,19.868
 pilot-estimation-gpt-6.1-sol-C-21,C,gpt-6.1-sol,21,3,review,100.0,0,214.0,883.0,3.19,0.0476,0.0,14.019

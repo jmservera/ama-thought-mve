@@ -147,17 +147,18 @@ def verify_quarantine_completion(directory: Path, attempt: dict, receipt: dict, 
               and event["data"].get("turnId") == turn and event["data"].get("model") == "gemini-4-argon"]
     finishes = [(index, event["data"]) for index, event in enumerate(events)
                 if event["type"] == "model.call_finished" and event["data"].get("turnId") == turn]
+    expected_duration = 600001 if attempt.get("id") == study.FINAL_E15_TIMEOUT_ATTEMPT else 600002
     if (failure.get("model") != "gemini-4-argon" or failure.get("reasoningEffort") != "medium"
             or failure.get("failureKind") != "transport" or failure.get("transport") != "http"
             or failure.get("apiEndpoint") != "/chat/completions" or failure.get("source") != "top_level"
             or failure.get("errorMessage") != '"Native model HTTP stream timed out"'
-            or failure.get("durationMs") != 600002 or failure.get("retryAttempt") != 0
+            or failure.get("durationMs") != expected_duration or failure.get("retryAttempt") != 0
             or failure.get("rte") is not False or failure.get("isAuto") is not False
             or failure.get("isByok") is not False or failure.get("fusion")
             or any(key in failure for key in ("providerCallId", "apiCallId", "serviceRequestId",
                                               "statusCode", "errorCode", "errorType"))
             or mirror.get("kind") != "model_call_failure" or mirror.get("reasoningEffort") != "medium"
-            or mirror.get("rte") is not False or mirror.get("modelCallDurationMs") != 600002
+            or mirror.get("rte") is not False or mirror.get("modelCallDurationMs") != expected_duration
             or not isinstance(call, dict) or call.get("model") != failure["model"]
             or call.get("request_id") != "" or call.get("api_endpoint") != failure["apiEndpoint"]
             or call.get("transport") != "http" or call.get("failure_kind") != "transport"

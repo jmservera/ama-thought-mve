@@ -11,6 +11,6 @@
   },
   "panel_accepted": true,
   "diagnostic_stub": false,
-  "primary_estimates_available": false,
+  "primary_estimates_available": true,
   "zero_intervention_inferred": false
 }
